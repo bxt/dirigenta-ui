@@ -10,7 +10,7 @@ import AppKit
 
 @main
 struct diregenta_uiApp: App {
-    @AppStorage("dirigeraAccessToken") private var accessToken: String = ""
+    @State private var accessToken: String = ""
 
     var body: some Scene {
         // Menu bar extra adds an icon to the system status bar (macOS)
@@ -18,6 +18,15 @@ struct diregenta_uiApp: App {
             MenuContent(accessToken: $accessToken)
         }
         .menuBarExtraStyle(.window)
+        .task {
+            do {
+                if let token = try KeychainService.get("dirigeraAccessToken") {
+                    accessToken = token
+                }
+            } catch {
+                print("[Keychain] Load error: \(error)")
+            }
+        }
     }
 }
 
@@ -36,7 +45,14 @@ private struct MenuContent: View {
                 HStack {
                     Spacer()
                     Button("Save") {
-                        accessToken = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        do {
+                            try KeychainService.set(trimmed, for: "dirigeraAccessToken")
+                            accessToken = trimmed
+                        } catch {
+                            print("[Keychain] Save error: \(error)")
+                        }
                     }
                     .disabled(tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -49,7 +65,14 @@ private struct MenuContent: View {
                 Label("Turn on light", systemImage: "arrow.triangle.2.circlepath")
             }
             Divider()
-            Button("Clear Token") { accessToken = "" }
+            Button("Clear Token") {
+                do {
+                    try KeychainService.delete("dirigeraAccessToken")
+                } catch {
+                    print("[Keychain] Delete error: \(error)")
+                }
+                accessToken = ""
+            }
             Button("Quit") { NSApplication.shared.terminate(nil) }
         }
     }
