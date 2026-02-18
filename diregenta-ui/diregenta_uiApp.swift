@@ -32,6 +32,22 @@ private struct MenuContent: View {
     var body: some View {
         if accessToken.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
+                Group {
+                    if let ip = mdns.currentIPAddress {
+                        Label("Discovered IP: \(ip)", systemImage: "network")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if mdns.isResolving {
+                        Label("Discovering bridge…", systemImage: "magnifyingglass")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("Bridge not found", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Divider()
                 Text("Enter Dirigera Access Token")
                     .font(.headline)
                 SecureField("Access Token", text: $tempToken)
