@@ -10,30 +10,58 @@ import AppKit
 
 @main
 struct diregenta_uiApp: App {
+    @AppStorage("dirigeraAccessToken") private var accessToken: String = ""
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-        
         // Menu bar extra adds an icon to the system status bar (macOS)
         MenuBarExtra("diregenta-ui", systemImage: "bolt.horizontal.circle") {
-            Button {
-                Task { await performRESTCall() }
-            } label: {
-                Label("Perform REST Call", systemImage: "arrow.triangle.2.circlepath")
-            }
-            Divider()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+            MenuContent(accessToken: $accessToken)
         }
         .menuBarExtraStyle(.window)
     }
 }
+
+private struct MenuContent: View {
+    @Binding var accessToken: String
+    @State private var tempToken: String = ""
+
+    var body: some View {
+        if accessToken.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Enter Dirigera Access Token")
+                    .font(.headline)
+                SecureField("Access Token", text: $tempToken)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 240)
+                HStack {
+                    Spacer()
+                    Button("Save") {
+                        accessToken = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    .disabled(tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(8)
+        } else {
+            Button {
+                Task { await performRESTCall(with: accessToken) }
+            } label: {
+                Label("Turn on light", systemImage: "arrow.triangle.2.circlepath")
+            }
+            Divider()
+            Button("Clear Token") { accessToken = "" }
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+        }
+    }
+}
+
 // MARK: - Networking
-private func performRESTCall() async {
+private func performRESTCall(with token: String) async {
     // Replace with your endpoint
     guard let url = URL(string: "https://httpbin.org/get") else { return }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
     do {
         let (data, response) = try await URLSession.shared.data(for: request)
