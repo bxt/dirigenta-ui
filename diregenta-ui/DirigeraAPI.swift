@@ -48,7 +48,9 @@ final class DirigeraClient {
     private func get(_ path: String) async throws -> Data {
         var req = try makeRequest(path)
         req.httpMethod = "GET"
+        log(req)
         let (data, response) = try await session.data(for: req)
+        log(response, data: data)
         try validate(response)
         return data
     }
@@ -58,7 +60,9 @@ final class DirigeraClient {
         req.httpMethod = "PATCH"
         req.httpBody = body
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await session.data(for: req)
+        log(req)
+        let (data, response) = try await session.data(for: req)
+        log(response, data: data)
         try validate(response)
     }
 
@@ -74,6 +78,22 @@ final class DirigeraClient {
     private func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
+        }
+    }
+
+    private func log(_ req: URLRequest) {
+        print("[API] → \(req.httpMethod ?? "?") \(req.url?.absoluteString ?? "?")")
+        if let body = req.httpBody, let s = String(data: body, encoding: .utf8) {
+            print("[API]   body: \(s)")
+        }
+    }
+
+    private func log(_ response: URLResponse, data: Data) {
+        if let http = response as? HTTPURLResponse {
+            print("[API] ← \(http.statusCode) \(http.url?.absoluteString ?? "?")")
+        }
+        if let s = String(data: data, encoding: .utf8), !s.isEmpty {
+            print("[API]   body: \(s)")
         }
     }
 }
