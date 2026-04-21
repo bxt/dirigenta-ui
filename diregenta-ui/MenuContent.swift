@@ -226,12 +226,15 @@ struct MenuContent: View {
                         Text(sensor.displayName)
                         let readings = envReadings(sensor)
                         if !readings.isEmpty {
-                            readings.dropFirst().reduce(
-                                Text(readings[0].text).foregroundStyle(readings[0].outOfRange ? Color.orange : Color.secondary)
-                            ) { result, r in
-                                result + Text(" · ").foregroundStyle(Color.secondary) + Text(r.text).foregroundStyle(r.outOfRange ? Color.orange : Color.secondary)
-                            }
+                            Text(readings.enumerated().reduce(into: AttributedString()) { str, item in
+                                let (i, r) = item
+                                if i > 0 { str += AttributedString(" · ") }
+                                var part = AttributedString(r.text)
+                                if r.outOfRange { part.foregroundColor = .orange }
+                                str += part
+                            })
                             .font(.caption2)
+                            .foregroundStyle(.secondary)
                         }
                         if let sub = subtitle(room: sensor.room?.name, battery: sensor.attributes.batteryPercentage) {
                             Text(sub).font(.caption2).foregroundStyle(.secondary)

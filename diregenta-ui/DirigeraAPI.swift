@@ -1,4 +1,4 @@
-import Foundation
+@preconcurrency import Foundation
 
 struct Room: Decodable {
     let id: String
@@ -127,10 +127,13 @@ final class DirigeraClient {
                     switch result {
                     case .success(let message):
                         if case .string(let text) = message,
-                           let data = text.data(using: .utf8),
-                           let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
-                            print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
-                            continuation.yield(event)
+                           let data = text.data(using: .utf8) {
+                            Task { @MainActor in
+                                if let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
+                                    print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
+                                    continuation.yield(event)
+                                }
+                            }
                         }
                         receive()
                     case .failure(let error):
