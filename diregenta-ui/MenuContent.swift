@@ -98,9 +98,9 @@ struct MenuContent: View {
                     await fetchDevices(ip: ip)
                     while !Task.isCancelled {
                         let client = DirigeraClient(ip: ip, token: accessToken)
-                        for await _ in client.eventStream() {
+                        for await event in client.eventStream() {
                             guard !isLoadingLights else { continue }
-                            await fetchDevices(ip: ip)
+                            applyEvent(event)
                         }
                         print("[WS] Reconnecting in 5s…")
                         try? await Task.sleep(for: .seconds(5))
@@ -203,6 +203,18 @@ struct MenuContent: View {
                         .foregroundStyle(isComfortable(sensor) ? Color.secondary : Color.yellow)
                 }
             }
+        }
+    }
+
+    private func applyEvent(_ event: DirigeraEvent) {
+        guard event.type == "deviceStateChanged",
+              let data = event.data, let id = data.id else { return }
+        if let i = lights.firstIndex(where: { $0.id == id }) {
+            lights[i] = lights[i].merging(data)
+        } else if let i = sensors.firstIndex(where: { $0.id == id }) {
+            sensors[i] = sensors[i].merging(data)
+        } else if let i = envSensors.firstIndex(where: { $0.id == id }) {
+            envSensors[i] = envSensors[i].merging(data)
         }
     }
 

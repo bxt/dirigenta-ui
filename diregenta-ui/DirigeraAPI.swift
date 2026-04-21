@@ -17,6 +17,20 @@ struct DirigeraDevice: Identifiable, Decodable {
         let currentRH: Double?
         let currentCO2: Double?
         let currentPM25: Double?
+
+        func merging(_ other: Attributes?) -> Attributes {
+            guard let other else { return self }
+            return Attributes(
+                customName:          other.customName          ?? customName,
+                isOn:                other.isOn                ?? isOn,
+                isOpen:              other.isOpen              ?? isOpen,
+                batteryPercentage:   other.batteryPercentage   ?? batteryPercentage,
+                currentTemperature:  other.currentTemperature  ?? currentTemperature,
+                currentRH:           other.currentRH           ?? currentRH,
+                currentCO2:          other.currentCO2          ?? currentCO2,
+                currentPM25:         other.currentPM25         ?? currentPM25
+            )
+        }
     }
 
     var displayName: String { attributes.customName ?? id }
@@ -32,6 +46,31 @@ struct DirigeraDevice: Identifiable, Decodable {
                                               currentRH: attributes.currentRH,
                                               currentCO2: attributes.currentCO2,
                                               currentPM25: attributes.currentPM25))
+    }
+
+    func merging(_ data: DirigeraEvent.DeviceData) -> DirigeraDevice {
+        DirigeraDevice(
+            id: id,
+            type: data.type ?? type,
+            deviceType: data.deviceType ?? deviceType,
+            isReachable: data.isReachable ?? isReachable,
+            lastSeen: data.lastSeen ?? lastSeen,
+            attributes: attributes.merging(data.attributes)
+        )
+    }
+}
+
+struct DirigeraEvent: Decodable {
+    let type: String
+    let data: DeviceData?
+
+    struct DeviceData: Decodable {
+        let id: String?
+        let type: String?
+        let deviceType: String?
+        let isReachable: Bool?
+        let lastSeen: String?
+        let attributes: DirigeraDevice.Attributes?
     }
 }
 
@@ -49,7 +88,7 @@ final class DirigeraClient {
         self.token = token
     }
 
-    func eventStream() -> AsyncStream<Void> {
+    func eventStream() -> AsyncStream<DirigeraEvent> {
         AsyncStream { continuation in
             guard let url = URL(string: "wss://\(ip):8443/v1") else {
                 continuation.finish(); return
@@ -62,10 +101,12 @@ final class DirigeraClient {
                 task.receive { result in
                     switch result {
                     case .success(let message):
-                        if case .string(let text) = message {
-                            print("[WS] Event: \(text.prefix(120))")
+                        if case .string(let text) = message,
+                           let data = text.data(using: .utf8),
+                           let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
+                            print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
+                            continuation.yield(event)
                         }
-                        continuation.yield(())
                         receive()
                     case .failure(let error):
                         print("[WS] Disconnected: \(error)")
