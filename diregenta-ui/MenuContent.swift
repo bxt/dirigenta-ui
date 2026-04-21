@@ -91,18 +91,20 @@ struct MenuContent: View {
 
     @ViewBuilder
     private var lightsSection: some View {
-        if isLoadingLights {
-            Label("Loading lights…", systemImage: "arrow.clockwise")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else if let error = lightsError {
-            Label(error, systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(.orange)
-        } else if lights.isEmpty {
-            Label("No lights found", systemImage: "lightbulb.slash")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        if lights.isEmpty {
+            if isLoadingLights {
+                Label("Loading lights…", systemImage: "arrow.clockwise")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if lightsError != nil {
+                Label("Failed to load lights", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else {
+                Label("No lights found", systemImage: "lightbulb.slash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         } else {
             ForEach(lights) { light in
                 Button {
@@ -115,6 +117,11 @@ struct MenuContent: View {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
+            }
+            if isLoadingLights {
+                Label("Refreshing…", systemImage: "arrow.clockwise")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
