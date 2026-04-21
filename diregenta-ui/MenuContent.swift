@@ -75,6 +75,11 @@ struct MenuContent: View {
                     lightsSection
                     sensorsSection
                     envSensorsSection
+                    if isLoadingLights {
+                        Label("Refreshing…", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Divider()
                     Button("Clear Token") {
                         do {
@@ -126,11 +131,6 @@ struct MenuContent: View {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
-            }
-            if isLoadingLights {
-                Label("Refreshing…", systemImage: "arrow.clockwise")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }
