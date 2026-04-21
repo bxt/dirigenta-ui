@@ -5,6 +5,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     let type: String
     let deviceType: String?
     let isReachable: Bool?
+    let lastSeen: String?
     let attributes: Attributes
 
     struct Attributes: Decodable {
@@ -23,7 +24,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOpen: Bool { attributes.isOpen ?? false }
 
     func withIsOn(_ value: Bool) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, isReachable: isReachable,
+        DirigeraDevice(id: id, type: type, deviceType: deviceType, isReachable: isReachable, lastSeen: lastSeen,
                        attributes: Attributes(customName: attributes.customName, isOn: value,
                                               isOpen: attributes.isOpen,
                                               batteryPercentage: attributes.batteryPercentage,
