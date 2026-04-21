@@ -35,6 +35,7 @@ struct MenuContent: View {
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
+    @State private var pendingLightLevels: [String: Double] = [:]
     @State private var now = Date()
     @EnvironmentObject private var mdns: MDNSResolver
 
@@ -157,6 +158,21 @@ struct MenuContent: View {
                     } icon: {
                         Image(systemName: light.isOn ? "lightbulb.fill" : "lightbulb")
                     }
+                }
+                if light.isOn, let level = light.attributes.lightLevel {
+                    Slider(
+                        value: Binding(
+                            get: { pendingLightLevels[light.id] ?? Double(level) },
+                            set: { pendingLightLevels[light.id] = $0 }
+                        ),
+                        in: 1...254
+                    ) { editing in
+                        if !editing, let pending = pendingLightLevels[light.id] {
+                            Task { await setBrightness(light, to: Int(pending)) }
+                        }
+                    }
+                    .padding(.leading, 22)
+                    .padding(.trailing, 4)
                 }
             }
             if let error = toggleError {
@@ -321,6 +337,18 @@ struct MenuContent: View {
             print("[API] Fetch error: \(error)")
         }
         isLoadingLights = false
+    }
+
+    private func setBrightness(_ light: DirigeraDevice, to level: Int) async {
+        guard let ip = mdns.currentIPAddress else { return }
+        lights = lights.map { $0.id == light.id ? $0.withLightLevel(level) : $0 }
+        pendingLightLevels[light.id] = nil
+        let client = DirigeraClient(ip: ip, token: accessToken)
+        do {
+            try await client.setLightLevel(id: light.id, lightLevel: level)
+        } catch {
+            print("[API] Brightness error: \(error)")
+        }
     }
 
     private func toggleLight(_ light: DirigeraDevice) async {
