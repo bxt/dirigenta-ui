@@ -20,6 +20,7 @@ struct DirigeraDevice: Identifiable, Decodable {
         let model: String?
         let isOn: Bool?
         let isOpen: Bool?
+        let lightLevel: Int?
         let batteryPercentage: Int?
         let currentTemperature: Double?
         let currentRH: Double?
@@ -33,6 +34,7 @@ struct DirigeraDevice: Identifiable, Decodable {
                 model:               other.model               ?? model,
                 isOn:                other.isOn                ?? isOn,
                 isOpen:              other.isOpen              ?? isOpen,
+                lightLevel:          other.lightLevel          ?? lightLevel,
                 batteryPercentage:   other.batteryPercentage   ?? batteryPercentage,
                 currentTemperature:  other.currentTemperature  ?? currentTemperature,
                 currentRH:           other.currentRH           ?? currentRH,
@@ -49,7 +51,18 @@ struct DirigeraDevice: Identifiable, Decodable {
     func withIsOn(_ value: Bool) -> DirigeraDevice {
         DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
                        attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: value,
-                                              isOpen: attributes.isOpen,
+                                              isOpen: attributes.isOpen, lightLevel: attributes.lightLevel,
+                                              batteryPercentage: attributes.batteryPercentage,
+                                              currentTemperature: attributes.currentTemperature,
+                                              currentRH: attributes.currentRH,
+                                              currentCO2: attributes.currentCO2,
+                                              currentPM25: attributes.currentPM25))
+    }
+
+    func withLightLevel(_ value: Int) -> DirigeraDevice {
+        DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
+                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: attributes.isOn,
+                                              isOpen: attributes.isOpen, lightLevel: value,
                                               batteryPercentage: attributes.batteryPercentage,
                                               currentTemperature: attributes.currentTemperature,
                                               currentRH: attributes.currentRH,
@@ -137,6 +150,15 @@ final class DirigeraClient {
     func fetchAllDevices() async throws -> [DirigeraDevice] {
         let data = try await get("/v1/devices")
         return try JSONDecoder().decode([DirigeraDevice].self, from: data)
+    }
+
+    func setLightLevel(id: String, lightLevel: Int) async throws {
+        struct Body: Encodable {
+            struct Attrs: Encodable { let lightLevel: Int }
+            let attributes: Attrs
+        }
+        let body = try JSONEncoder().encode([Body(attributes: .init(lightLevel: lightLevel))])
+        try await patch("/v1/devices/\(id)", body: body)
     }
 
     func setLight(id: String, isOn: Bool) async throws {
