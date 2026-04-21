@@ -143,6 +143,11 @@ struct MenuContent: View {
                 Label {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(sensor.displayName)
+                        if sensor.isOpen, let duration = openDuration(sensor) {
+                            Text("open for \(duration)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                         if let pct = sensor.attributes.batteryPercentage {
                             Text("\(pct)% battery")
                                 .font(.caption2)
@@ -183,6 +188,23 @@ struct MenuContent: View {
                 }
             }
         }
+    }
+
+    private func openDuration(_ sensor: DirigeraDevice) -> String? {
+        guard let raw = sensor.lastSeen else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = iso.date(from: raw) ?? {
+            iso.formatOptions = [.withInternetDateTime]
+            return iso.date(from: raw)
+        }()
+        guard let date else { return nil }
+        let s = Int(Date().timeIntervalSince(date))
+        guard s > 0 else { return nil }
+        let h = s / 3600, m = s % 3600 / 60
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m" }
+        return "just now"
     }
 
     private func isComfortable(_ sensor: DirigeraDevice) -> Bool {
