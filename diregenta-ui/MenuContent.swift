@@ -29,6 +29,7 @@ struct MenuContent: View {
     @State private var tempToken: String = ""
     @State private var gatewayName: String? = nil
     @State private var lights: [DirigeraDevice] = []
+    @State private var sensors: [DirigeraDevice] = []
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
@@ -71,6 +72,7 @@ struct MenuContent: View {
                     DiscoveryStatusView()
                     Divider()
                     lightsSection
+                    sensorsSection
                     Divider()
                     Button("Clear Token") {
                         do {
@@ -131,6 +133,28 @@ struct MenuContent: View {
         }
     }
 
+    @ViewBuilder
+    private var sensorsSection: some View {
+        if !sensors.isEmpty {
+            Divider()
+            ForEach(sensors) { sensor in
+                Label {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(sensor.displayName)
+                        if let pct = sensor.attributes.batteryPercentage {
+                            Text("\(pct)% battery")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: sensor.isOpen ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill")
+                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
+                }
+            }
+        }
+    }
+
     private func fetchDevices(ip: String) async {
         isLoadingLights = true
         lightsError = nil
@@ -139,7 +163,8 @@ struct MenuContent: View {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.type == "gateway" }?.displayName
             lights = all.filter { $0.type == "light" }
-            print("[API] Fetched \(lights.count) light(s), gateway: \(gatewayName ?? "none")")
+            sensors = all.filter { $0.type == "openCloseSensor" }
+            print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), gateway: \(gatewayName ?? "none")")
         } catch {
             lightsError = "Failed to load devices"
             print("[API] Fetch error: \(error)")
