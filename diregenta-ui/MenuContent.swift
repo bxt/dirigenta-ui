@@ -179,10 +179,19 @@ struct MenuContent: View {
                     }
                 } icon: {
                     Image(systemName: "thermometer.medium")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isComfortable(sensor) ? Color.secondary : Color.yellow)
                 }
             }
         }
+    }
+
+    private func isComfortable(_ sensor: DirigeraDevice) -> Bool {
+        let a = sensor.attributes
+        if let t   = a.currentTemperature, !(18.0...26.0 ~= t)   { return false }
+        if let rh  = a.currentRH,          !(30.0...60.0 ~= rh)  { return false }
+        if let co2 = a.currentCO2,         co2 > 1000             { return false }
+        if let pm  = a.currentPM25,        pm  > 12               { return false }
+        return true
     }
 
     private func envReadings(_ sensor: DirigeraDevice) -> String {
