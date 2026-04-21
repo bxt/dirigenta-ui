@@ -15,8 +15,22 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "78"
-            endingLineNumber = "78"
-            landmarkName = "netServiceBrowserWillSearch(_:)"
+            endingLineNumber = "78">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E9CE63CF-8D1D-41FE-8D83-836078E2571A"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "diregenta-ui/MDNSDiscovery.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "29"
+            endingLineNumber = "29"
+            landmarkName = "start()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
