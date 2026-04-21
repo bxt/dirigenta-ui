@@ -143,11 +143,16 @@ struct MenuContent: View {
     private func toggleLight(_ light: DirigeraDevice) async {
         guard let ip = mdns.currentIPAddress else { return }
         toggleError = nil
+        let newState = !light.isOn
+        lights = lights.map { $0.id == light.id ? $0.withIsOn(newState) : $0 }
+        isLoadingLights = true
         let client = DirigeraClient(ip: ip, token: accessToken)
         do {
-            try await client.setLight(id: light.id, isOn: !light.isOn)
+            try await client.setLight(id: light.id, isOn: newState)
             await fetchLights(ip: ip)
         } catch {
+            lights = lights.map { $0.id == light.id ? $0.withIsOn(!newState) : $0 }
+            isLoadingLights = false
             toggleError = "Failed to toggle \(light.displayName)"
             print("[API] Toggle error: \(error)")
         }
