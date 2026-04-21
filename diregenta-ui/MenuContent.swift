@@ -30,6 +30,7 @@ struct MenuContent: View {
     @State private var gatewayName: String? = nil
     @State private var lights: [DirigeraDevice] = []
     @State private var sensors: [DirigeraDevice] = []
+    @State private var envSensors: [DirigeraDevice] = []
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
@@ -73,6 +74,7 @@ struct MenuContent: View {
                     Divider()
                     lightsSection
                     sensorsSection
+                    envSensorsSection
                     Divider()
                     Button("Clear Token") {
                         do {
@@ -155,6 +157,43 @@ struct MenuContent: View {
         }
     }
 
+    @ViewBuilder
+    private var envSensorsSection: some View {
+        if !envSensors.isEmpty {
+            Divider()
+            ForEach(envSensors) { sensor in
+                Label {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(sensor.displayName)
+                        let readings = envReadings(sensor)
+                        if !readings.isEmpty {
+                            Text(readings)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let pct = sensor.attributes.batteryPercentage {
+                            Text("\(pct)% battery")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: "thermometer.medium")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func envReadings(_ sensor: DirigeraDevice) -> String {
+        var parts: [String] = []
+        if let t = sensor.attributes.currentTemperature { parts.append(String(format: "%.1f°C", t)) }
+        if let rh = sensor.attributes.currentRH         { parts.append(String(format: "%.0f%% RH", rh)) }
+        if let co2 = sensor.attributes.currentCO2       { parts.append(String(format: "%.0f ppm CO₂", co2)) }
+        if let pm = sensor.attributes.currentPM25       { parts.append(String(format: "%.0f µg/m³ PM2.5", pm)) }
+        return parts.joined(separator: " · ")
+    }
+
     private func fetchDevices(ip: String) async {
         isLoadingLights = true
         lightsError = nil
@@ -163,8 +202,9 @@ struct MenuContent: View {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.type == "gateway" }?.displayName
             lights = all.filter { $0.type == "light" }
-            sensors = all.filter { $0.type == "openCloseSensor" }
-            print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), gateway: \(gatewayName ?? "none")")
+            sensors = all.filter { $0.deviceType == "openCloseSensor" }
+            envSensors = all.filter { $0.deviceType == "environmentSensor" }
+            print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
         } catch {
             lightsError = "Failed to load devices"
             print("[API] Fetch error: \(error)")

@@ -3,6 +3,7 @@ import Foundation
 struct DirigeraDevice: Identifiable, Decodable {
     let id: String
     let type: String
+    let deviceType: String?
     let isReachable: Bool?
     let attributes: Attributes
 
@@ -11,6 +12,10 @@ struct DirigeraDevice: Identifiable, Decodable {
         let isOn: Bool?
         let isOpen: Bool?
         let batteryPercentage: Int?
+        let currentTemperature: Double?
+        let currentRH: Double?
+        let currentCO2: Double?
+        let currentPM25: Double?
     }
 
     var displayName: String { attributes.customName ?? id }
@@ -18,9 +23,14 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOpen: Bool { attributes.isOpen ?? false }
 
     func withIsOn(_ value: Bool) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, isReachable: isReachable,
+        DirigeraDevice(id: id, type: type, deviceType: deviceType, isReachable: isReachable,
                        attributes: Attributes(customName: attributes.customName, isOn: value,
-                                              isOpen: attributes.isOpen, batteryPercentage: attributes.batteryPercentage))
+                                              isOpen: attributes.isOpen,
+                                              batteryPercentage: attributes.batteryPercentage,
+                                              currentTemperature: attributes.currentTemperature,
+                                              currentRH: attributes.currentRH,
+                                              currentCO2: attributes.currentCO2,
+                                              currentPM25: attributes.currentPM25))
     }
 }
 
