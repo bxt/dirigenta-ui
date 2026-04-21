@@ -232,14 +232,17 @@ struct MenuContent: View {
         }
 
         for (_, group) in byRelation {
-            guard let first = group.first else { continue }
-            let mergedAttrs = group.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
+            // Sort so devices whose customName == model (generic default) come first;
+            // the fold's last value wins, so the real user-set name ends up on top.
+            let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
+            guard let first = sorted.first else { continue }
+            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
             result.append(DirigeraDevice(
                 id: first.id, type: first.type, deviceType: first.deviceType,
                 relationId: first.relationId, isReachable: first.isReachable,
                 lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
             ))
-            for sensor in group { idMap[sensor.id] = first.id }
+            for sensor in sorted { idMap[sensor.id] = first.id }
         }
 
         return (result, idMap)
