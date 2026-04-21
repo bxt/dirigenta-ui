@@ -27,6 +27,7 @@ private struct DiscoveryStatusView: View {
 struct MenuContent: View {
     @Binding var accessToken: String
     @State private var tempToken: String = ""
+    @State private var gatewayName: String? = nil
     @State private var lights: [DirigeraDevice] = []
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
@@ -63,6 +64,10 @@ struct MenuContent: View {
                 .onAppear { mdns.start() }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let name = gatewayName {
+                        Text(name)
+                            .font(.headline)
+                    }
                     DiscoveryStatusView()
                     Divider()
                     lightsSection
@@ -80,7 +85,7 @@ struct MenuContent: View {
                 .onAppear { mdns.start() }
                 .task(id: mdns.currentIPAddress) {
                     guard let ip = mdns.currentIPAddress else { return }
-                    await fetchLights(ip: ip)
+                    await fetchDevices(ip: ip)
                 }
             }
 
@@ -126,15 +131,17 @@ struct MenuContent: View {
         }
     }
 
-    private func fetchLights(ip: String) async {
+    private func fetchDevices(ip: String) async {
         isLoadingLights = true
         lightsError = nil
         let client = DirigeraClient(ip: ip, token: accessToken)
         do {
-            lights = try await client.fetchLights()
-            print("[API] Fetched \(lights.count) light(s)")
+            let all = try await client.fetchAllDevices()
+            gatewayName = all.first { $0.type == "gateway" }?.displayName
+            lights = all.filter { $0.type == "light" }
+            print("[API] Fetched \(lights.count) light(s), gateway: \(gatewayName ?? "none")")
         } catch {
-            lightsError = "Failed to load lights"
+            lightsError = "Failed to load devices"
             print("[API] Fetch error: \(error)")
         }
         isLoadingLights = false
@@ -149,7 +156,7 @@ struct MenuContent: View {
         let client = DirigeraClient(ip: ip, token: accessToken)
         do {
             try await client.setLight(id: light.id, isOn: newState)
-            await fetchLights(ip: ip)
+            await fetchDevices(ip: ip)
         } catch {
             lights = lights.map { $0.id == light.id ? $0.withIsOn(!newState) : $0 }
             isLoadingLights = false
