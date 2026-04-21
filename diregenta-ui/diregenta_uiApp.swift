@@ -9,7 +9,7 @@ import SwiftUI
 
 @main
 struct diregenta_uiApp: App {
-    @State private var accessToken: String = ""
+    @State private var accessToken: String = (try? KeychainService.get("dirigeraAccessToken")) ?? ""
     @StateObject private var mdns = MDNSResolver()
 
     var body: some Scene {
