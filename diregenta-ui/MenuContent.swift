@@ -96,6 +96,15 @@ struct MenuContent: View {
                 .task(id: mdns.currentIPAddress) {
                     guard let ip = mdns.currentIPAddress else { return }
                     await fetchDevices(ip: ip)
+                    while !Task.isCancelled {
+                        let client = DirigeraClient(ip: ip, token: accessToken)
+                        for await _ in client.eventStream() {
+                            guard !isLoadingLights else { continue }
+                            await fetchDevices(ip: ip)
+                        }
+                        print("[WS] Reconnecting in 5s…")
+                        try? await Task.sleep(for: .seconds(5))
+                    }
                 }
                 .task {
                     while !Task.isCancelled {
