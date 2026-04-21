@@ -9,14 +9,18 @@ struct DirigeraDevice: Identifiable, Decodable {
     struct Attributes: Decodable {
         let customName: String?
         let isOn: Bool?
+        let isOpen: Bool?
+        let batteryPercentage: Int?
     }
 
     var displayName: String { attributes.customName ?? id }
     var isOn: Bool { attributes.isOn ?? false }
+    var isOpen: Bool { attributes.isOpen ?? false }
 
     func withIsOn(_ value: Bool) -> DirigeraDevice {
         DirigeraDevice(id: id, type: type, isReachable: isReachable,
-                       attributes: Attributes(customName: attributes.customName, isOn: value))
+                       attributes: Attributes(customName: attributes.customName, isOn: value,
+                                              isOpen: attributes.isOpen, batteryPercentage: attributes.batteryPercentage))
     }
 }
 
