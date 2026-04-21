@@ -49,6 +49,38 @@ final class DirigeraClient {
         self.token = token
     }
 
+    func eventStream() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            guard let url = URL(string: "wss://\(ip):8443/v1") else {
+                continuation.finish(); return
+            }
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let task = session.webSocketTask(with: request)
+
+            func receive() {
+                task.receive { result in
+                    switch result {
+                    case .success(let message):
+                        if case .string(let text) = message {
+                            print("[WS] Event: \(text.prefix(120))")
+                        }
+                        continuation.yield(())
+                        receive()
+                    case .failure(let error):
+                        print("[WS] Disconnected: \(error)")
+                        continuation.finish()
+                    }
+                }
+            }
+
+            print("[WS] Connecting to \(url)")
+            task.resume()
+            receive()
+            continuation.onTermination = { _ in task.cancel(with: .normalClosure, reason: nil) }
+        }
+    }
+
     func fetchAllDevices() async throws -> [DirigeraDevice] {
         let data = try await get("/v1/devices")
         return try JSONDecoder().decode([DirigeraDevice].self, from: data)
