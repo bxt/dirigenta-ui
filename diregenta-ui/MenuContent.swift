@@ -31,6 +31,7 @@ struct MenuContent: View {
     @State private var lights: [DirigeraDevice] = []
     @State private var sensors: [DirigeraDevice] = []
     @State private var envSensors: [DirigeraDevice] = []
+    @State private var envSensorIdMap: [String: String] = [:]
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
@@ -217,6 +218,33 @@ struct MenuContent: View {
         }
     }
 
+    private static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
+        var byRelation: [String: [DirigeraDevice]] = [:]
+        var result: [DirigeraDevice] = []
+        var idMap: [String: String] = [:]
+
+        for sensor in sensors {
+            if let rel = sensor.relationId {
+                byRelation[rel, default: []].append(sensor)
+            } else {
+                result.append(sensor)
+            }
+        }
+
+        for (_, group) in byRelation {
+            guard let first = group.first else { continue }
+            let mergedAttrs = group.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
+            result.append(DirigeraDevice(
+                id: first.id, type: first.type, deviceType: first.deviceType,
+                relationId: first.relationId, isReachable: first.isReachable,
+                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
+            ))
+            for sensor in group { idMap[sensor.id] = first.id }
+        }
+
+        return (result, idMap)
+    }
+
     private func subtitle(room: String?, battery: Int?) -> String? {
         let parts = [room, battery.map { "\($0)% battery" }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -229,8 +257,11 @@ struct MenuContent: View {
             lights[i] = lights[i].merging(data)
         } else if let i = sensors.firstIndex(where: { $0.id == id }) {
             sensors[i] = sensors[i].merging(data)
-        } else if let i = envSensors.firstIndex(where: { $0.id == id }) {
-            envSensors[i] = envSensors[i].merging(data)
+        } else {
+            let primaryId = envSensorIdMap[id] ?? id
+            if let i = envSensors.firstIndex(where: { $0.id == primaryId }) {
+                envSensors[i] = envSensors[i].merging(data)
+            }
         }
     }
 
@@ -275,7 +306,9 @@ struct MenuContent: View {
             gatewayName = all.first { $0.type == "gateway" }?.displayName
             lights = all.filter { $0.type == "light" }
             sensors = all.filter { $0.deviceType == "openCloseSensor" }
-            envSensors = all.filter { $0.deviceType == "environmentSensor" }
+            let (merged, idMap) = Self.mergeEnvSensors(all.filter { $0.deviceType == "environmentSensor" })
+            envSensors = merged
+            envSensorIdMap = idMap
             print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
         } catch {
             lightsError = "Failed to load devices"
