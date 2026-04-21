@@ -140,7 +140,18 @@ struct MenuContent: View {
                 Button {
                     Task { await toggleLight(light) }
                 } label: {
-                    Label(light.displayName, systemImage: light.isOn ? "lightbulb.fill" : "lightbulb")
+                    Label {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(light.displayName)
+                            if let room = light.room?.name {
+                                Text(room)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: light.isOn ? "lightbulb.fill" : "lightbulb")
+                    }
                 }
             }
             if let error = toggleError {
@@ -161,6 +172,11 @@ struct MenuContent: View {
                         Text(sensor.displayName)
                         if sensor.isOpen, let duration = openDuration(sensor) {
                             Text("open for \(duration)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let room = sensor.room?.name {
+                            Text(room)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -189,6 +205,11 @@ struct MenuContent: View {
                         let readings = envReadings(sensor)
                         if !readings.isEmpty {
                             Text(readings)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let room = sensor.room?.name {
+                            Text(room)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
