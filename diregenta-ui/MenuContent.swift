@@ -202,9 +202,12 @@ struct MenuContent: View {
                         Text(sensor.displayName)
                         let readings = envReadings(sensor)
                         if !readings.isEmpty {
-                            Text(readings)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            readings.dropFirst().reduce(
+                                Text(readings[0].text).foregroundStyle(readings[0].outOfRange ? Color.orange : Color.secondary)
+                            ) { result, r in
+                                result + Text(" · ").foregroundStyle(Color.secondary) + Text(r.text).foregroundStyle(r.outOfRange ? Color.orange : Color.secondary)
+                            }
+                            .font(.caption2)
                         }
                         if let sub = subtitle(room: sensor.room?.name, battery: sensor.attributes.batteryPercentage) {
                             Text(sub).font(.caption2).foregroundStyle(.secondary)
@@ -291,13 +294,18 @@ struct MenuContent: View {
         return true
     }
 
-    private func envReadings(_ sensor: DirigeraDevice) -> String {
-        var parts: [String] = []
-        if let t = sensor.attributes.currentTemperature { parts.append(String(format: "%.1f°C", t)) }
-        if let rh = sensor.attributes.currentRH         { parts.append(String(format: "%.0f%% RH", rh)) }
-        if let co2 = sensor.attributes.currentCO2       { parts.append(String(format: "%.0f ppm CO₂", co2)) }
-        if let pm = sensor.attributes.currentPM25       { parts.append(String(format: "%.0f µg/m³ PM2.5", pm)) }
-        return parts.joined(separator: " · ")
+    private struct Reading {
+        let text: String
+        let outOfRange: Bool
+    }
+
+    private func envReadings(_ sensor: DirigeraDevice) -> [Reading] {
+        var parts: [Reading] = []
+        if let t   = sensor.attributes.currentTemperature { parts.append(Reading(text: String(format: "%.1f°C", t),            outOfRange: !(18.0...26.0 ~= t))) }
+        if let rh  = sensor.attributes.currentRH         { parts.append(Reading(text: String(format: "%.0f%% RH", rh),        outOfRange: !(30.0...60.0 ~= rh))) }
+        if let co2 = sensor.attributes.currentCO2        { parts.append(Reading(text: String(format: "%.0f ppm CO₂", co2),    outOfRange: co2 > 1000)) }
+        if let pm  = sensor.attributes.currentPM25       { parts.append(Reading(text: String(format: "%.0f µg/m³ PM2.5", pm), outOfRange: pm > 12)) }
+        return parts
     }
 
     private func fetchDevices(ip: String) async {
