@@ -34,6 +34,7 @@ struct MenuContent: View {
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
+    @State private var now = Date()
     @EnvironmentObject private var mdns: MDNSResolver
 
     var body: some View {
@@ -95,6 +96,12 @@ struct MenuContent: View {
                 .task(id: mdns.currentIPAddress) {
                     guard let ip = mdns.currentIPAddress else { return }
                     await fetchDevices(ip: ip)
+                }
+                .task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        now = Date()
+                    }
                 }
             }
 
@@ -199,7 +206,7 @@ struct MenuContent: View {
             return iso.date(from: raw)
         }()
         guard let date else { return nil }
-        let s = Int(Date().timeIntervalSince(date))
+        let s = Int(now.timeIntervalSince(date))
         guard s > 0 else { return nil }
         return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
     }
