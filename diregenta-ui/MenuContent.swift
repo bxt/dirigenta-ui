@@ -201,10 +201,7 @@ struct MenuContent: View {
         guard let date else { return nil }
         let s = Int(Date().timeIntervalSince(date))
         guard s > 0 else { return nil }
-        let h = s / 3600, m = s % 3600 / 60
-        if h > 0 { return "\(h)h \(m)m" }
-        if m > 0 { return "\(m)m" }
-        return "just now"
+        return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
     }
 
     private func isComfortable(_ sensor: DirigeraDevice) -> Bool {
