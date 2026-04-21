@@ -1,7 +1,6 @@
 
 import SwiftUI
 import AppKit
-import Combine
 
 private struct DiscoveryStatusView: View {
     @EnvironmentObject private var mdns: MDNSResolver
@@ -9,15 +8,15 @@ private struct DiscoveryStatusView: View {
     var body: some View {
         Group {
             if let ip = mdns.currentIPAddress {
-                Label("Discovered IP: \(ip)", systemImage: "network")
+                Label("Hub: \(ip)", systemImage: "network")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if mdns.isResolving {
-                Label("Discovering bridge…", systemImage: "magnifyingglass")
+                Label("Discovering hub…", systemImage: "magnifyingglass")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Label("Bridge not found", systemImage: "exclamationmark.triangle")
+                Label("Hub not found", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -28,6 +27,9 @@ private struct DiscoveryStatusView: View {
 struct MenuContent: View {
     @Binding var accessToken: String
     @State private var tempToken: String = ""
+    @State private var lights: [DirigeraDevice] = []
+    @State private var isLoadingLights = false
+    @State private var lightsError: String? = nil
     @EnvironmentObject private var mdns: MDNSResolver
 
     var body: some View {
@@ -62,15 +64,7 @@ struct MenuContent: View {
                 VStack(alignment: .leading, spacing: 8) {
                     DiscoveryStatusView()
                     Divider()
-                    Button {
-                        Task {
-                            print("Perform rest call here?")
-                            guard let ip = mdns.currentIPAddress else { return }
-                            // await performRESTCall(with: accessToken, ip: ip)
-                        }
-                    } label: {
-                        Label("Turn on light", systemImage: "arrow.triangle.2.circlepath")
-                    }
+                    lightsSection
                     Divider()
                     Button("Clear Token") {
                         do {
@@ -81,15 +75,69 @@ struct MenuContent: View {
                         accessToken = ""
                     }
                 }
+                .padding(8)
                 .onAppear { mdns.start() }
+                .task(id: mdns.currentIPAddress) {
+                    guard let ip = mdns.currentIPAddress else { return }
+                    await fetchLights(ip: ip)
+                }
             }
 
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }
         }
     }
-}
 
+    @ViewBuilder
+    private var lightsSection: some View {
+        if isLoadingLights {
+            Label("Loading lights…", systemImage: "arrow.clockwise")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if let error = lightsError {
+            Label(error, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        } else if lights.isEmpty {
+            Label("No lights found", systemImage: "lightbulb.slash")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            ForEach(lights) { light in
+                Button {
+                    Task { await toggleLight(light) }
+                } label: {
+                    Label(light.displayName, systemImage: light.isOn ? "lightbulb.fill" : "lightbulb")
+                }
+            }
+        }
+    }
+
+    private func fetchLights(ip: String) async {
+        isLoadingLights = true
+        lightsError = nil
+        let client = DirigeraClient(ip: ip, token: accessToken)
+        do {
+            lights = try await client.fetchLights()
+            print("[API] Fetched \(lights.count) light(s)")
+        } catch {
+            lightsError = "Failed to load lights"
+            print("[API] Fetch error: \(error)")
+        }
+        isLoadingLights = false
+    }
+
+    private func toggleLight(_ light: DirigeraDevice) async {
+        guard let ip = mdns.currentIPAddress else { return }
+        let client = DirigeraClient(ip: ip, token: accessToken)
+        do {
+            try await client.setLight(id: light.id, isOn: !light.isOn)
+            await fetchLights(ip: ip)
+        } catch {
+            print("[API] Toggle error: \(error)")
+        }
+    }
+}
 
 #Preview {
     @Previewable @State var accessToken = "foo"

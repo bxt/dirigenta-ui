@@ -14,7 +14,7 @@ final class MDNSDiscoveryTests: XCTestCase {
 
     func testIPv6StringRepresentation() {
         let addr = IPv6Address("fe80::1")!
-        XCTAssertEqual(MDNSResolver.ipString(from: .ipv6(addr)), "fe80::1")
+        XCTAssertEqual(MDNSResolver.ipString(from: .ipv6(addr)), "[fe80::1]")
     }
 
     func testLoopbackIPv4() {

@@ -84,7 +84,11 @@ final class MDNSResolver: ObservableObject {
     nonisolated static func ipString(from host: NWEndpoint.Host) -> String {
         switch host {
         case .ipv4(let addr): return "\(addr)"
-        case .ipv6(let addr): return "\(addr)"
+        case .ipv6(let addr):
+            // Strip zone ID (e.g. "fe80::1%en0" → "fe80::1") and wrap in brackets
+            // so the result is safe to embed in a URL (RFC 3986 §3.2.2).
+            let base = "\(addr)".prefix(while: { $0 != "%" })
+            return "[\(base)]"
         case .name(let name, _): return name
         @unknown default: return ""
         }
