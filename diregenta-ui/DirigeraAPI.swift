@@ -17,6 +17,7 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     struct Attributes: Decodable {
         let customName: String?
+        let model: String?
         let isOn: Bool?
         let isOpen: Bool?
         let batteryPercentage: Int?
@@ -29,6 +30,7 @@ struct DirigeraDevice: Identifiable, Decodable {
             guard let other else { return self }
             return Attributes(
                 customName:          other.customName          ?? customName,
+                model:               other.model               ?? model,
                 isOn:                other.isOn                ?? isOn,
                 isOpen:              other.isOpen              ?? isOpen,
                 batteryPercentage:   other.batteryPercentage   ?? batteryPercentage,
@@ -46,7 +48,7 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     func withIsOn(_ value: Bool) -> DirigeraDevice {
         DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
-                       attributes: Attributes(customName: attributes.customName, isOn: value,
+                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: value,
                                               isOpen: attributes.isOpen,
                                               batteryPercentage: attributes.batteryPercentage,
                                               currentTemperature: attributes.currentTemperature,
