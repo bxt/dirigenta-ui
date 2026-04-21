@@ -165,7 +165,7 @@ struct MenuContent: View {
                             get: { pendingLightLevels[light.id] ?? Double(level) },
                             set: { pendingLightLevels[light.id] = $0 }
                         ),
-                        in: 1...254
+                        in: 1...100
                     ) { editing in
                         if !editing, let pending = pendingLightLevels[light.id] {
                             Task { await setBrightness(light, to: Int(pending)) }
