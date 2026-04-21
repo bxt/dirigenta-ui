@@ -1,11 +1,17 @@
 import Foundation
 
+struct Room: Decodable {
+    let id: String
+    let name: String
+}
+
 struct DirigeraDevice: Identifiable, Decodable {
     let id: String
     let type: String
     let deviceType: String?
     let isReachable: Bool?
     let lastSeen: String?
+    let room: Room?
     let attributes: Attributes
 
     struct Attributes: Decodable {
@@ -38,7 +44,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOpen: Bool { attributes.isOpen ?? false }
 
     func withIsOn(_ value: Bool) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, isReachable: isReachable, lastSeen: lastSeen,
+        DirigeraDevice(id: id, type: type, deviceType: deviceType, isReachable: isReachable, lastSeen: lastSeen, room: room,
                        attributes: Attributes(customName: attributes.customName, isOn: value,
                                               isOpen: attributes.isOpen,
                                               batteryPercentage: attributes.batteryPercentage,
@@ -55,6 +61,7 @@ struct DirigeraDevice: Identifiable, Decodable {
             deviceType: data.deviceType ?? deviceType,
             isReachable: data.isReachable ?? isReachable,
             lastSeen: data.lastSeen ?? lastSeen,
+            room: data.room ?? room,
             attributes: attributes.merging(data.attributes)
         )
     }
@@ -70,6 +77,7 @@ struct DirigeraEvent: Decodable {
         let deviceType: String?
         let isReachable: Bool?
         let lastSeen: String?
+        let room: Room?
         let attributes: DirigeraDevice.Attributes?
     }
 }
