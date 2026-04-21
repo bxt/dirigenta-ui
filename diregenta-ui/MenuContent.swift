@@ -107,7 +107,7 @@ struct MenuContent: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 if !accessToken.isEmpty {
                     Button("Clear Token") {
                         do {
@@ -120,6 +120,8 @@ struct MenuContent: View {
                 }
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
     }
 
