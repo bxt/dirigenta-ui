@@ -143,10 +143,8 @@ struct MenuContent: View {
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(light.displayName)
-                            if let room = light.room?.name {
-                                Text(room)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                            if let sub = subtitle(room: light.room?.name, battery: nil) {
+                                Text(sub).font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                     } icon: {
@@ -175,15 +173,8 @@ struct MenuContent: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        if let room = sensor.room?.name {
-                            Text(room)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let pct = sensor.attributes.batteryPercentage {
-                            Text("\(pct)% battery")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        if let sub = subtitle(room: sensor.room?.name, battery: sensor.attributes.batteryPercentage) {
+                            Text(sub).font(.caption2).foregroundStyle(.secondary)
                         }
                     }
                 } icon: {
@@ -208,15 +199,8 @@ struct MenuContent: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        if let room = sensor.room?.name {
-                            Text(room)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let pct = sensor.attributes.batteryPercentage {
-                            Text("\(pct)% battery")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        if let sub = subtitle(room: sensor.room?.name, battery: sensor.attributes.batteryPercentage) {
+                            Text(sub).font(.caption2).foregroundStyle(.secondary)
                         }
                     }
                 } icon: {
@@ -225,6 +209,11 @@ struct MenuContent: View {
                 }
             }
         }
+    }
+
+    private func subtitle(room: String?, battery: Int?) -> String? {
+        let parts = [room, battery.map { "\($0)% battery" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func applyEvent(_ event: DirigeraEvent) {
