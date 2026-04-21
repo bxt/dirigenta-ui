@@ -1,24 +1,21 @@
-//
-//  diregenta_uiApp.swift
-//  diregenta-ui
-//
-//  Created by Bernhard Häussner on 18.02.26.
-//
-
 import SwiftUI
 
 @main
 struct diregenta_uiApp: App {
-    @State private var accessToken: String = (try? KeychainService.get("dirigeraAccessToken")) ?? ""
-    @StateObject private var mdns = MDNSResolver()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("diregenta-ui", systemImage: "house") {
-            MenuContent(accessToken: $accessToken)
-                .environmentObject(mdns)
-        }
-        .menuBarExtraStyle(.window)
+        Settings { EmptyView() }
     }
 }
 
+class AppDelegate: NSObject, NSApplicationDelegate {
+    private let appState = AppState()
+    private let statusBarController = StatusBarController()
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        appState.mdns.start()
+        statusBarController.setup(appState: appState)
+    }
+}

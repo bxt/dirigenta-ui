@@ -25,7 +25,7 @@ private struct DiscoveryStatusView: View {
 }
 
 struct MenuContent: View {
-    @Binding var accessToken: String
+    @EnvironmentObject private var appState: AppState
     @State private var tempToken: String = ""
     @State private var gatewayName: String? = nil
     @State private var lights: [DirigeraDevice] = []
@@ -41,7 +41,7 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if accessToken.isEmpty {
+            if appState.accessToken.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     DiscoveryStatusView()
                     Divider()
@@ -55,12 +55,7 @@ struct MenuContent: View {
                         Button("Save") {
                             let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !trimmed.isEmpty else { return }
-                            do {
-                                try KeychainService.set(trimmed, for: "dirigeraAccessToken")
-                                accessToken = trimmed
-                            } catch {
-                                print("[Keychain] Save error: \(error)")
-                            }
+                            appState.accessToken = trimmed
                         }
                         .disabled(tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -85,7 +80,7 @@ struct MenuContent: View {
                     guard let ip = mdns.currentIPAddress else { return }
                     await fetchDevices(ip: ip)
                     while !Task.isCancelled {
-                        let client = DirigeraClient(ip: ip, token: accessToken)
+                        let client = DirigeraClient(ip: ip, token: appState.accessToken)
                         for await event in client.eventStream() {
                             guard !isLoadingLights else { continue }
                             applyEvent(event)
@@ -104,20 +99,16 @@ struct MenuContent: View {
 
             Divider()
             HStack(spacing: 8) {
-                if !accessToken.isEmpty && isLoadingLights {
+                if !appState.accessToken.isEmpty && isLoadingLights {
                     Label("Refreshing…", systemImage: "arrow.clockwise")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                if !accessToken.isEmpty {
+                if !appState.accessToken.isEmpty {
                     Button("Clear Token") {
-                        do {
-                            try KeychainService.delete("dirigeraAccessToken")
-                        } catch {
-                            print("[Keychain] Delete error: \(error)")
-                        }
-                        accessToken = ""
+                        appState.pinnedLightId = nil
+                        appState.accessToken = ""
                     }
                 }
                 Button("Quit") { NSApplication.shared.terminate(nil) }
@@ -145,19 +136,36 @@ struct MenuContent: View {
             }
         } else {
             ForEach(lights) { light in
-                Button {
-                    Task { await toggleLight(light) }
-                } label: {
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(light.displayName)
-                            if let sub = subtitle(room: light.room?.name, battery: nil) {
-                                Text(sub).font(.caption2).foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Button {
+                        Task { await toggleLight(light) }
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(light.displayName)
+                                if let sub = subtitle(room: light.room?.name, battery: nil) {
+                                    Text(sub).font(.caption2).foregroundStyle(.secondary)
+                                }
                             }
+                        } icon: {
+                            Image(systemName: light.isOn ? "lightbulb.fill" : "lightbulb")
                         }
-                    } icon: {
-                        Image(systemName: light.isOn ? "lightbulb.fill" : "lightbulb")
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        if appState.pinnedLightId == light.id {
+                            appState.pinnedLightId = nil
+                        } else {
+                            appState.pinnedLightId = light.id
+                            appState.pinnedLightIsOn = light.isOn
+                        }
+                    } label: {
+                        Image(systemName: appState.pinnedLightId == light.id ? "pin.fill" : "pin")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appState.pinnedLightId == light.id ? Color.accentColor : Color.secondary)
+                    .help(appState.pinnedLightId == light.id ? "Unpin light" : "Pin to menu bar")
                 }
                 if light.isOn, let level = light.attributes.lightLevel {
                     Slider(
@@ -237,6 +245,11 @@ struct MenuContent: View {
         }
     }
 
+    private func syncPinnedState() {
+        guard let id = appState.pinnedLightId else { return }
+        appState.pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
+    }
+
     private static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
         var byRelation: [String: [DirigeraDevice]] = [:]
         var result: [DirigeraDevice] = []
@@ -277,6 +290,7 @@ struct MenuContent: View {
               let data = event.data, let id = data.id else { return }
         if let i = lights.firstIndex(where: { $0.id == id }) {
             lights[i] = lights[i].merging(data)
+            syncPinnedState()
         } else if let i = sensors.firstIndex(where: { $0.id == id }) {
             sensors[i] = sensors[i].merging(data)
         } else {
@@ -322,7 +336,7 @@ struct MenuContent: View {
     private func fetchDevices(ip: String) async {
         isLoadingLights = true
         lightsError = nil
-        let client = DirigeraClient(ip: ip, token: accessToken)
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.type == "gateway" }?.displayName
@@ -332,6 +346,7 @@ struct MenuContent: View {
             envSensors = merged
             envSensorIdMap = idMap
             print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
+            syncPinnedState()
         } catch {
             lightsError = "Failed to load devices"
             print("[API] Fetch error: \(error)")
@@ -343,7 +358,7 @@ struct MenuContent: View {
         guard let ip = mdns.currentIPAddress else { return }
         lights = lights.map { $0.id == light.id ? $0.withLightLevel(level) : $0 }
         pendingLightLevels[light.id] = nil
-        let client = DirigeraClient(ip: ip, token: accessToken)
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
@@ -356,8 +371,9 @@ struct MenuContent: View {
         toggleError = nil
         let newState = !light.isOn
         lights = lights.map { $0.id == light.id ? $0.withIsOn(newState) : $0 }
+        syncPinnedState()
         isLoadingLights = true
-        let client = DirigeraClient(ip: ip, token: accessToken)
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             try await client.setLight(id: light.id, isOn: newState)
             await fetchDevices(ip: ip)
@@ -371,6 +387,8 @@ struct MenuContent: View {
 }
 
 #Preview {
-    @Previewable @State var accessToken = "foo"
-    MenuContent(accessToken: $accessToken)
+    let state = AppState()
+    MenuContent()
+        .environmentObject(state)
+        .environmentObject(state.mdns)
 }
