@@ -13,6 +13,11 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     var displayName: String { attributes.customName ?? id }
     var isOn: Bool { attributes.isOn ?? false }
+
+    func withIsOn(_ value: Bool) -> DirigeraDevice {
+        DirigeraDevice(id: id, type: type, isReachable: isReachable,
+                       attributes: Attributes(customName: attributes.customName, isOn: value))
+    }
 }
 
 final class DirigeraClient {
