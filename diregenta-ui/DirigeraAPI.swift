@@ -32,7 +32,8 @@ final class DirigeraClient {
     func fetchLights() async throws -> [DirigeraDevice] {
         let data = try await get("/v1/devices")
         let all = try JSONDecoder().decode([DirigeraDevice].self, from: data)
-        return all.filter { $0.type == "lightbulb" }
+        
+        return all.filter { $0.type == "light" }
     }
 
     func setLight(id: String, isOn: Bool) async throws {
