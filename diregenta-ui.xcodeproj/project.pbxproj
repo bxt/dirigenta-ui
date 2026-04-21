@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		BB000009000000000000AAAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AF49C50C2F461A64001FEE08 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AF49C5132F461A64001FEE08;
+			remoteInfo = "diregenta-ui";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		AF49C5142F461A64001FEE08 /* diregenta-ui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "diregenta-ui.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB000001000000000000AAAA /* diregenta-uiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "diregenta-uiTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = "diregenta-ui";
 			sourceTree = "<group>";
 		};
+		BB000002000000000000AAAA /* diregenta-uiTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "diregenta-uiTests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AF49C5112F461A64001FEE08 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB000003000000000000AAAA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				AF49C5162F461A64001FEE08 /* diregenta-ui */,
+				BB000002000000000000AAAA /* diregenta-uiTests */,
 				AF49C5152F461A64001FEE08 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				AF49C5142F461A64001FEE08 /* diregenta-ui.app */,
+				BB000001000000000000AAAA /* diregenta-uiTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = AF49C5142F461A64001FEE08 /* diregenta-ui.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BB000004000000000000AAAA /* diregenta-uiTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB000005000000000000AAAA /* Build configuration list for PBXNativeTarget "diregenta-uiTests" */;
+			buildPhases = (
+				BB000006000000000000AAAA /* Sources */,
+				BB000003000000000000AAAA /* Frameworks */,
+				BB000007000000000000AAAA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BB000008000000000000AAAA /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BB000002000000000000AAAA /* diregenta-uiTests */,
+			);
+			name = "diregenta-uiTests";
+			packageProductDependencies = (
+			);
+			productName = "diregenta-uiTests";
+			productReference = BB000001000000000000AAAA /* diregenta-uiTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					AF49C5132F461A64001FEE08 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					BB000004000000000000AAAA = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = AF49C5132F461A64001FEE08;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				AF49C5132F461A64001FEE08 /* diregenta-ui */,
+				BB000004000000000000AAAA /* diregenta-uiTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AF49C5122F461A64001FEE08 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB000007000000000000AAAA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB000006000000000000AAAA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BB000008000000000000AAAA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AF49C5132F461A64001FEE08 /* diregenta-ui */;
+			targetProxy = BB000009000000000000AAAA /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AF49C51D2F461A65001FEE08 /* Debug */ = {
@@ -303,6 +378,44 @@
 			};
 			name = Release;
 		};
+		BB00000A000000000000AAAA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "bxt.diregenta-uiTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/diregenta-ui.app/Contents/MacOS/diregenta-ui";
+			};
+			name = Debug;
+		};
+		BB00000B000000000000AAAA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "bxt.diregenta-uiTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/diregenta-ui.app/Contents/MacOS/diregenta-ui";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -320,6 +433,15 @@
 			buildConfigurations = (
 				AF49C5202F461A65001FEE08 /* Debug */,
 				AF49C5212F461A65001FEE08 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BB000005000000000000AAAA /* Build configuration list for PBXNativeTarget "diregenta-uiTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB00000A000000000000AAAA /* Debug */,
+				BB00000B000000000000AAAA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

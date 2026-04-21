@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import AppKit
-import Combine
 
 @main
 struct diregenta_uiApp: App {
@@ -15,7 +13,6 @@ struct diregenta_uiApp: App {
     @StateObject private var mdns = MDNSResolver()
 
     var body: some Scene {
-        // Menu bar extra adds an icon to the system status bar (macOS)
         MenuBarExtra("diregenta-ui", systemImage: "house") {
             MenuContent(accessToken: $accessToken)
                 .environmentObject(mdns)
@@ -43,111 +40,6 @@ private func performRESTCall(with token: String, ip: String) async {
         }
     } catch {
         print("[REST] Error: \(error)")
-    }
-}
-
-// MARK: - mDNS Discovery
-final class MDNSResolver: NSObject, ObservableObject {
-    @Published var currentIPAddress: String? = nil
-    @Published var isResolving: Bool = false
-
-    private let browser = NetServiceBrowser()
-    private var services: [NetService] = []
-    private var hasStarted = false
-
-    func start() {
-        guard !hasStarted else { return }
-        hasStarted = true
-        isResolving = true
-        browser.delegate = self
-        services.removeAll()
-        print("[mDNS] Starting browse for _ihsp._tcp. in local.")
-        browser.searchForServices(ofType: "_ihsp._tcp.", inDomain: "local.")
-    }
-
-    func stop() {
-        print("[mDNS] Stopping browse")
-        browser.stop()
-        isResolving = false
-        hasStarted = false
-    }
-}
-
-extension MDNSResolver: NetServiceBrowserDelegate, NetServiceDelegate {
-    func netServiceBrowserWillSearch(_ browser: NetServiceBrowser) {
-        print("[mDNS] Will search…")
-    }
-
-    func netServiceBrowser(_ browser: NetServiceBrowser, didFind service: NetService, moreComing: Bool) {
-        print("[mDNS] Found service: \(service.name)")
-        services.append(service)
-        service.includesPeerToPeer = true
-        service.delegate = self
-        service.resolve(withTimeout: 8)
-    }
-
-    func netServiceDidResolveAddress(_ sender: NetService) {
-        print("[mDNS] Resolved: \(sender.name)")
-        guard let addresses = sender.addresses, !addresses.isEmpty else {
-            print("[mDNS] No addresses")
-            return
-        }
-
-        // Prefer IPv4, fall back to IPv6 if needed
-        if let ipv4 = addresses.compactMap({ Self.ipString(from: $0, preferIPv4: true) }).first {
-            DispatchQueue.main.async {
-                self.currentIPAddress = ipv4
-                self.isResolving = false
-            }
-            print("[mDNS] Using IPv4: \(ipv4)")
-            return
-        }
-
-        if let ipv6 = addresses.compactMap({ Self.ipString(from: $0, preferIPv4: false) }).first {
-            DispatchQueue.main.async {
-                self.currentIPAddress = ipv6
-                self.isResolving = false
-            }
-            print("[mDNS] Using IPv6: \(ipv6)")
-            return
-        }
-
-        print("[mDNS] Could not parse any IP addresses")
-    }
-
-    func netService(_ sender: NetService, didNotResolve errorDict: [String : NSNumber]) {
-        print("[mDNS] didNotResolve: \(errorDict)")
-    }
-
-    func netServiceBrowserDidStopSearch(_ browser: NetServiceBrowser) {
-        print("[mDNS] Did stop search")
-        DispatchQueue.main.async { self.isResolving = false }
-    }
-
-    func netServiceBrowser(_ browser: NetServiceBrowser, didNotSearch errorDict: [String : NSNumber]) {
-        print("[mDNS] didNotSearch: \(errorDict)")
-        DispatchQueue.main.async { self.isResolving = false }
-    }
-
-    private static func ipString(from addressData: Data, preferIPv4: Bool) -> String? {
-        return addressData.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> String? in
-            guard let base = pointer.baseAddress else { return nil }
-            let family = base.assumingMemoryBound(to: sockaddr.self).pointee.sa_family
-            if preferIPv4, family == sa_family_t(AF_INET) {
-                let addrIn = base.assumingMemoryBound(to: sockaddr_in.self).pointee
-                var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-                var addr = addrIn.sin_addr
-                inet_ntop(AF_INET, &addr, &buffer, socklen_t(INET_ADDRSTRLEN))
-                return String(cString: buffer)
-            } else if !preferIPv4, family == sa_family_t(AF_INET6) {
-                let addrIn6 = base.assumingMemoryBound(to: sockaddr_in6.self).pointee
-                var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
-                var addr = addrIn6.sin6_addr
-                inet_ntop(AF_INET6, &addr, &buffer, socklen_t(INET6_ADDRSTRLEN))
-                return String(cString: buffer)
-            }
-            return nil
-        }
     }
 }
 
