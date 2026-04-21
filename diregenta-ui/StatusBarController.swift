@@ -34,6 +34,17 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
+
+        // Fetch pinned light state as soon as mDNS resolves so the icon
+        // is correct on launch without the menu needing to be opened first.
+        appState.mdns.$currentIPAddress
+            .receive(on: RunLoop.main)
+            .compactMap { $0 }
+            .sink { [weak self] ip in
+                guard let self, self.appState.pinnedLightId != nil else { return }
+                Task { await self.fetchPinnedLightState(ip: ip) }
+            }
+            .store(in: &cancellables)
     }
 
     private func updateIcon() {
@@ -72,6 +83,19 @@ final class StatusBarController: NSObject {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
+        }
+    }
+
+    private func fetchPinnedLightState(ip: String) async {
+        guard let lightId = appState.pinnedLightId else { return }
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        do {
+            let devices = try await client.fetchAllDevices()
+            if let light = devices.first(where: { $0.id == lightId }) {
+                appState.pinnedLightIsOn = light.isOn
+            }
+        } catch {
+            print("[StatusBar] Failed to fetch pinned light state: \(error)")
         }
     }
 
