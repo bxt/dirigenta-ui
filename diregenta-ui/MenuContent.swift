@@ -76,20 +76,6 @@ struct MenuContent: View {
                     lightsSection
                     sensorsSection
                     envSensorsSection
-                    if isLoadingLights {
-                        Label("Refreshing…", systemImage: "arrow.clockwise")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Divider()
-                    Button("Clear Token") {
-                        do {
-                            try KeychainService.delete("dirigeraAccessToken")
-                        } catch {
-                            print("[Keychain] Delete error: \(error)")
-                        }
-                        accessToken = ""
-                    }
                 }
                 .padding(8)
                 .onAppear { mdns.start() }
@@ -115,7 +101,25 @@ struct MenuContent: View {
             }
 
             Divider()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+            HStack(spacing: 8) {
+                if !accessToken.isEmpty && isLoadingLights {
+                    Label("Refreshing…", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if !accessToken.isEmpty {
+                    Button("Clear Token") {
+                        do {
+                            try KeychainService.delete("dirigeraAccessToken")
+                        } catch {
+                            print("[Keychain] Delete error: \(error)")
+                        }
+                        accessToken = ""
+                    }
+                }
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+            }
         }
     }
 
