@@ -16,7 +16,7 @@ struct diregenta_uiApp: App {
 
     var body: some Scene {
         // Menu bar extra adds an icon to the system status bar (macOS)
-        MenuBarExtra("diregenta-ui", systemImage: "bolt.horizontal.circle") {
+        MenuBarExtra("diregenta-ui", systemImage: "house") {
             MenuContent(accessToken: $accessToken)
                 .environmentObject(mdns)
         }
@@ -24,95 +24,10 @@ struct diregenta_uiApp: App {
     }
 }
 
-private struct DiscoveryStatusView: View {
-    @EnvironmentObject private var mdns: MDNSResolver
-
-    var body: some View {
-        Group {
-            if let ip = mdns.currentIPAddress {
-                Label("Discovered IP: \(ip)", systemImage: "network")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if mdns.isResolving {
-                Label("Discovering bridge…", systemImage: "magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Label("Bridge not found", systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-private struct MenuContent: View {
-    @Binding var accessToken: String
-    @State private var tempToken: String = ""
-    @EnvironmentObject private var mdns: MDNSResolver
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if accessToken.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    DiscoveryStatusView()
-                    Divider()
-                    Text("Enter Dirigera Access Token")
-                        .font(.headline)
-                    SecureField("Access Token", text: $tempToken)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(minWidth: 240)
-                    HStack {
-                        Spacer()
-                        Button("Save") {
-                            let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
-                            do {
-                                try KeychainService.set(trimmed, for: "dirigeraAccessToken")
-                                accessToken = trimmed
-                            } catch {
-                                print("[Keychain] Save error: \(error)")
-                            }
-                        }
-                        .disabled(tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-                .padding(8)
-                .onAppear { mdns.start() }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    DiscoveryStatusView()
-                    Divider()
-                    Button {
-                        Task {
-                            guard let ip = mdns.currentIPAddress else { return }
-                            await performRESTCall(with: accessToken, ip: ip)
-                        }
-                    } label: {
-                        Label("Turn on light", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    Divider()
-                    Button("Clear Token") {
-                        do {
-                            try KeychainService.delete("dirigeraAccessToken")
-                        } catch {
-                            print("[Keychain] Delete error: \(error)")
-                        }
-                        accessToken = ""
-                    }
-                }
-                .onAppear { mdns.start() }
-            }
-
-            Divider()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-        }
-    }
-}
-
 // MARK: - Networking
 private func performRESTCall(with token: String, ip: String) async {
-    let host: String = ip.contains(":") ? "[\(ip)]" : ip
+    print("[REST] Calling...")
+    let host: String = "gw2-b63aaebc8948-2" // ip.contains(":") ? "[\(ip)]" : ip
     guard let url = URL(string: "https://\(host):8443/v1/devices") else { return }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"

@@ -14,8 +14,8 @@
             filePath = "diregenta-ui/diregenta_uiApp.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "163"
-            endingLineNumber = "163"
+            startingLineNumber = "78"
+            endingLineNumber = "78"
             landmarkName = "netServiceBrowserWillSearch(_:)"
             landmarkType = "7">
          </BreakpointContent>
