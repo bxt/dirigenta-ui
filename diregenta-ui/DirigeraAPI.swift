@@ -40,7 +40,8 @@ final class DirigeraClient {
             struct Attrs: Encodable { let isOn: Bool }
             let attributes: Attrs
         }
-        let body = try JSONEncoder().encode(Body(attributes: .init(isOn: isOn)))
+        // Dirigera expects an array of patch operations, not a bare object.
+        let body = try JSONEncoder().encode([Body(attributes: .init(isOn: isOn))])
         try await patch("/v1/devices/\(id)", body: body)
     }
 

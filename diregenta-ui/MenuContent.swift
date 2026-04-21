@@ -30,6 +30,7 @@ struct MenuContent: View {
     @State private var lights: [DirigeraDevice] = []
     @State private var isLoadingLights = false
     @State private var lightsError: String? = nil
+    @State private var toggleError: String? = nil
     @EnvironmentObject private var mdns: MDNSResolver
 
     var body: some View {
@@ -110,6 +111,11 @@ struct MenuContent: View {
                     Label(light.displayName, systemImage: light.isOn ? "lightbulb.fill" : "lightbulb")
                 }
             }
+            if let error = toggleError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
     }
 
@@ -129,11 +135,13 @@ struct MenuContent: View {
 
     private func toggleLight(_ light: DirigeraDevice) async {
         guard let ip = mdns.currentIPAddress else { return }
+        toggleError = nil
         let client = DirigeraClient(ip: ip, token: accessToken)
         do {
             try await client.setLight(id: light.id, isOn: !light.isOn)
             await fetchLights(ip: ip)
         } catch {
+            toggleError = "Failed to toggle \(light.displayName)"
             print("[API] Toggle error: \(error)")
         }
     }
