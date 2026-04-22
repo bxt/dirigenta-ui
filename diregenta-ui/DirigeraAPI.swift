@@ -16,16 +16,16 @@ struct DirigeraDevice: Identifiable, Decodable {
     let attributes: Attributes
 
     struct Attributes: Decodable {
-        let customName: String?
-        let model: String?
-        let isOn: Bool?
-        let isOpen: Bool?
-        let lightLevel: Int?
-        let batteryPercentage: Int?
-        let currentTemperature: Double?
-        let currentRH: Double?
-        let currentCO2: Double?
-        let currentPM25: Double?
+        var customName: String?
+        var model: String?
+        var isOn: Bool?
+        var isOpen: Bool?
+        var lightLevel: Int?
+        var batteryPercentage: Int?
+        var currentTemperature: Double?
+        var currentRH: Double?
+        var currentCO2: Double?
+        var currentPM25: Double?
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
@@ -48,27 +48,15 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOn: Bool { attributes.isOn ?? false }
     var isOpen: Bool { attributes.isOpen ?? false }
 
-    func withIsOn(_ value: Bool) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
-                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: value,
-                                              isOpen: attributes.isOpen, lightLevel: attributes.lightLevel,
-                                              batteryPercentage: attributes.batteryPercentage,
-                                              currentTemperature: attributes.currentTemperature,
-                                              currentRH: attributes.currentRH,
-                                              currentCO2: attributes.currentCO2,
-                                              currentPM25: attributes.currentPM25))
+    func modifyingAttributes(_ transform: (inout Attributes) -> Void) -> DirigeraDevice {
+        var updated = attributes
+        transform(&updated)
+        return DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId,
+                              isReachable: isReachable, lastSeen: lastSeen, room: room, attributes: updated)
     }
 
-    func withLightLevel(_ value: Int) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
-                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: attributes.isOn,
-                                              isOpen: attributes.isOpen, lightLevel: value,
-                                              batteryPercentage: attributes.batteryPercentage,
-                                              currentTemperature: attributes.currentTemperature,
-                                              currentRH: attributes.currentRH,
-                                              currentCO2: attributes.currentCO2,
-                                              currentPM25: attributes.currentPM25))
-    }
+    func withIsOn(_ value: Bool) -> DirigeraDevice { modifyingAttributes { $0.isOn = value } }
+    func withLightLevel(_ value: Int) -> DirigeraDevice { modifyingAttributes { $0.lightLevel = value } }
 
     func merging(_ data: DirigeraEvent.DeviceData) -> DirigeraDevice {
         DirigeraDevice(
