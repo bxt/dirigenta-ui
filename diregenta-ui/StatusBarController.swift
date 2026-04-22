@@ -71,14 +71,20 @@ final class StatusBarController: NSObject {
         if popover.isShown {
             closePopover()
         } else {
+            // Activate so that child panels (e.g. NSColorPanel) can become key.
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                // Don't close while the system color panel is open — the user is
+                // picking a colour and clicks there are expected outside the popover.
+                guard !NSColorPanel.shared.isVisible else { return }
                 self?.closePopover()
             }
         }
     }
 
     private func closePopover() {
+        NSColorPanel.shared.orderOut(nil)   // dismiss colour panel together with popover
         popover.performClose(nil)
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
