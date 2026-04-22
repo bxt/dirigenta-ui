@@ -77,6 +77,39 @@ extension DirigeraDevice {
     var isGateway: Bool { type == "gateway" }
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
     var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
+
+    /// Merges env-sensor components that share a `relationId` into a single device.
+    /// Returns the merged list and a map from each component id to the primary device id,
+    /// used to route WebSocket events back to the right merged entry.
+    static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
+        var byRelation: [String: [DirigeraDevice]] = [:]
+        var result: [DirigeraDevice] = []
+        var idMap: [String: String] = [:]
+
+        for sensor in sensors {
+            if let rel = sensor.relationId {
+                byRelation[rel, default: []].append(sensor)
+            } else {
+                result.append(sensor)
+            }
+        }
+
+        for (_, group) in byRelation {
+            // Sort so devices whose customName == model (generic default) come first;
+            // the fold's last value wins, so the real user-set name ends up on top.
+            let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
+            guard let first = sorted.first else { continue }
+            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
+            result.append(DirigeraDevice(
+                id: first.id, type: first.type, deviceType: first.deviceType,
+                relationId: first.relationId, isReachable: first.isReachable,
+                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
+            ))
+            for sensor in sorted { idMap[sensor.id] = first.id }
+        }
+
+        return (result, idMap)
+    }
 }
 
 struct DirigeraEvent: Decodable {

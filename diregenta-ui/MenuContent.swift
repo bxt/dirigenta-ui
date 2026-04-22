@@ -253,36 +253,6 @@ struct MenuContent: View {
         appState.pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
     }
 
-    private static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
-        var byRelation: [String: [DirigeraDevice]] = [:]
-        var result: [DirigeraDevice] = []
-        var idMap: [String: String] = [:]
-
-        for sensor in sensors {
-            if let rel = sensor.relationId {
-                byRelation[rel, default: []].append(sensor)
-            } else {
-                result.append(sensor)
-            }
-        }
-
-        for (_, group) in byRelation {
-            // Sort so devices whose customName == model (generic default) come first;
-            // the fold's last value wins, so the real user-set name ends up on top.
-            let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
-            guard let first = sorted.first else { continue }
-            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
-            result.append(DirigeraDevice(
-                id: first.id, type: first.type, deviceType: first.deviceType,
-                relationId: first.relationId, isReachable: first.isReachable,
-                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
-            ))
-            for sensor in sorted { idMap[sensor.id] = first.id }
-        }
-
-        return (result, idMap)
-    }
-
     private func subtitle(room: String?, battery: Int?) -> String? {
         let parts = [room, battery.map { "\($0)% battery" }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -352,7 +322,7 @@ struct MenuContent: View {
             gatewayName = all.first { $0.isGateway }?.displayName
             lights = all.filter { $0.isLight }
             sensors = all.filter { $0.isOpenCloseSensor }
-            let (merged, idMap) = Self.mergeEnvSensors(all.filter { $0.isEnvironmentSensor })
+            let (merged, idMap) = DirigeraDevice.mergeEnvSensors(all.filter { $0.isEnvironmentSensor })
             envSensors = merged
             envSensorIdMap = idMap
             print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
