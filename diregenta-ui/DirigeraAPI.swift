@@ -95,6 +95,11 @@ struct DirigeraEvent: Decodable {
     }
 }
 
+// Used by patchAttributes — must live outside the generic function due to Swift restrictions.
+private struct PatchBody<A: Encodable>: Encodable {
+    let attributes: A
+}
+
 final class DirigeraClient {
     private let ip: String
     private let token: String
@@ -151,22 +156,19 @@ final class DirigeraClient {
         return try JSONDecoder().decode([DirigeraDevice].self, from: data)
     }
 
-    func setLightLevel(id: String, lightLevel: Int) async throws {
-        struct Body: Encodable {
-            struct Attrs: Encodable { let lightLevel: Int }
-            let attributes: Attrs
-        }
-        let body = try JSONEncoder().encode([Body(attributes: .init(lightLevel: lightLevel))])
-        try await patch("/v1/devices/\(id)", body: body)
+    func setLight(id: String, isOn: Bool) async throws {
+        struct Attrs: Encodable { let isOn: Bool }
+        try await patchAttributes(Attrs(isOn: isOn), deviceId: id)
     }
 
-    func setLight(id: String, isOn: Bool) async throws {
-        struct Body: Encodable {
-            struct Attrs: Encodable { let isOn: Bool }
-            let attributes: Attrs
-        }
-        // Dirigera expects an array of patch operations, not a bare object.
-        let body = try JSONEncoder().encode([Body(attributes: .init(isOn: isOn))])
+    func setLightLevel(id: String, lightLevel: Int) async throws {
+        struct Attrs: Encodable { let lightLevel: Int }
+        try await patchAttributes(Attrs(lightLevel: lightLevel), deviceId: id)
+    }
+
+    // Dirigera expects an array of patch operations, not a bare object.
+    private func patchAttributes<A: Encodable>(_ attrs: A, deviceId id: String) async throws {
+        let body = try JSONEncoder().encode([PatchBody(attributes: attrs)])
         try await patch("/v1/devices/\(id)", body: body)
     }
 
