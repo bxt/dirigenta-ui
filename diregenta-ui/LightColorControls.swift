@@ -83,9 +83,19 @@ struct LightColorControls: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer()
-            ColorPicker("", selection: $selectedColor, supportsOpacity: false)
-                .labelsHidden()
-                .onChange(of: selectedColor) { _, _ in applyColor() }
+            // Use a plain swatch button so we can position NSColorPanel next to
+            // the popover before showing it (ColorPicker opens it at its last position).
+            Button { showColorPanel() } label: {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(selectedColor)
+                    .frame(width: 22, height: 14)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(.secondary.opacity(0.3), lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .onReceive(NotificationCenter.default.publisher(for: NSColorPanel.colorDidChangeNotification)) { _ in
+                selectedColor = Color(NSColorPanel.shared.color)
+                applyColor()
+            }
         }
     }
 
@@ -93,8 +103,17 @@ struct LightColorControls: View {
 
     private var kelvinLabel: String { "\(Int(colorTempValue)) K" }
 
+    private func showColorPanel() {
+        let panel = NSColorPanel.shared
+        panel.color = NSColor(selectedColor)
+        // Place the panel to the right of the popover window.
+        if let window = NSApp.keyWindow {
+            panel.setFrameTopLeftPoint(NSPoint(x: window.frame.maxX + 8, y: window.frame.maxY))
+        }
+        panel.makeKeyAndOrderFront(nil)
+    }
+
     private func applyColor() {
-        // Extract hue and saturation from the SwiftUI Color via NSColor.
         guard let ns = NSColor(selectedColor).usingColorSpace(.deviceRGB) else { return }
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         ns.getHue(&h, saturation: &s, brightness: &b, alpha: &a)

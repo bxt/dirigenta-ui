@@ -153,7 +153,7 @@ struct MenuContent: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if light.supportsColorControls {
+                    if light.isOn && light.supportsColorControls {
                         Button {
                             colorPickerLightId = colorPickerLightId == light.id ? nil : light.id
                         } label: {
@@ -194,7 +194,7 @@ struct MenuContent: View {
                     .padding(.leading, 22)
                     .padding(.trailing, 4)
                 }
-                if colorPickerLightId == light.id {
+                if light.isOn && colorPickerLightId == light.id {
                     LightColorControls(
                         light: light,
                         onSetColorTemperature: { temp in
