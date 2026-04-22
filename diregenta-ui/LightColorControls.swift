@@ -19,9 +19,8 @@ struct LightColorControls: View {
         self.onSetColor = onSetColor
 
         let attrs = light.attributes
-        // Default to the warmer end so the first drag in either direction is meaningful.
-        _colorTempValue = State(initialValue: Double(attrs.colorTemperature
-            ?? attrs.colorTemperatureMax ?? 370))
+        // colorTemperature/Min/Max are in Kelvin. Default to 2700 K (warm white) if unset.
+        _colorTempValue = State(initialValue: Double(attrs.colorTemperature ?? 2700))
         _selectedColor = State(initialValue: Color(
             hue:        (attrs.colorHue ?? 30) / 360.0,
             saturation: attrs.colorSaturation ?? 1.0,
@@ -45,8 +44,13 @@ struct LightColorControls: View {
     // MARK: - Sub-views
 
     private var colorTemperatureRow: some View {
-        let minTemp = Double(light.attributes.colorTemperatureMin ?? 153)
-        let maxTemp = Double(light.attributes.colorTemperatureMax ?? 370)
+        // colorTemperatureMin/Max are in Kelvin. The API names them from a Mired
+        // perspective (min Mired = max Kelvin = coolest), so numerically min > max.
+        // Sort them so the Slider range is always valid.
+        let a = Double(light.attributes.colorTemperatureMin ?? 1801)
+        let b = Double(light.attributes.colorTemperatureMax ?? 6535)
+        let warmK = min(a, b)   // lower Kelvin = warmer
+        let coolK = max(a, b)   // higher Kelvin = cooler
         return VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text("Temperature")
@@ -58,17 +62,17 @@ struct LightColorControls: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
-                // Left = minimum Mireds = highest Kelvin = coolest
-                Image(systemName: "snowflake")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                Slider(value: $colorTempValue, in: minTemp...maxTemp) { editing in
-                    if !editing { onSetColorTemperature(Int(colorTempValue)) }
-                }
-                // Right = maximum Mireds = lowest Kelvin = warmest
+                // Left = lower Kelvin = warmer
                 Image(systemName: "sun.max.fill")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+                Slider(value: $colorTempValue, in: warmK...coolK) { editing in
+                    if !editing { onSetColorTemperature(Int(colorTempValue)) }
+                }
+                // Right = higher Kelvin = cooler
+                Image(systemName: "snowflake")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
             }
         }
     }
@@ -87,10 +91,7 @@ struct LightColorControls: View {
 
     // MARK: - Helpers
 
-    private var kelvinLabel: String {
-        let k = Int(1_000_000 / colorTempValue)
-        return "\(k) K"
-    }
+    private var kelvinLabel: String { "\(Int(colorTempValue)) K" }
 
     private func applyColor() {
         // Extract hue and saturation from the SwiftUI Color via NSColor.
