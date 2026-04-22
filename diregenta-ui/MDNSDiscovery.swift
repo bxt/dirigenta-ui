@@ -31,9 +31,9 @@ final class MDNSResolver: ObservableObject {
                 print("[mDNS] Browser ready")
             case .failed(let error):
                 print("[mDNS] Browser failed: \(error)")
-                DispatchQueue.main.async { self?.isResolving = false }
+                self?.isResolving = false
             case .cancelled:
-                DispatchQueue.main.async { self?.isResolving = false }
+                self?.isResolving = false
             default:
                 break
             }
@@ -59,19 +59,19 @@ final class MDNSResolver: ObservableObject {
         connection = conn
 
         conn.stateUpdateHandler = { [weak self] state in
-            if let path = conn.currentPath,
-               case let .hostPort(host, _) = path.remoteEndpoint {
-                let ip = MDNSResolver.ipString(from: host)
-                if !ip.isEmpty {
-                    print("[mDNS] Resolved IP: \(ip)")
-                    DispatchQueue.main.async {
+            switch state {
+            case .ready:
+                if let path = conn.currentPath,
+                   case let .hostPort(host, _) = path.remoteEndpoint {
+                    let ip = MDNSResolver.ipString(from: host)
+                    if !ip.isEmpty {
+                        print("[mDNS] Resolved IP: \(ip)")
                         self?.currentIPAddress = ip
                         self?.isResolving = false
                     }
                 }
-            }
-            switch state {
-            case .ready, .failed:
+                conn.cancel()
+            case .failed:
                 conn.cancel()
             default:
                 break

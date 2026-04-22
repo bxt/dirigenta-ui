@@ -224,7 +224,7 @@ struct MenuContent: View {
                 Label {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(sensor.displayName)
-                        let readings = envReadings(sensor)
+                        let readings = sensor.envReadings
                         if !readings.isEmpty {
                             Text(readings.enumerated().reduce(into: AttributedString()) { str, item in
                                 let (i, r) = item
@@ -242,7 +242,7 @@ struct MenuContent: View {
                     }
                 } icon: {
                     Image(systemName: "thermometer.medium")
-                        .foregroundStyle(isComfortable(sensor) ? Color.secondary : Color.yellow)
+                        .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.yellow)
                 }
             }
         }
@@ -253,43 +253,13 @@ struct MenuContent: View {
         appState.pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
     }
 
-    private static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
-        var byRelation: [String: [DirigeraDevice]] = [:]
-        var result: [DirigeraDevice] = []
-        var idMap: [String: String] = [:]
-
-        for sensor in sensors {
-            if let rel = sensor.relationId {
-                byRelation[rel, default: []].append(sensor)
-            } else {
-                result.append(sensor)
-            }
-        }
-
-        for (_, group) in byRelation {
-            // Sort so devices whose customName == model (generic default) come first;
-            // the fold's last value wins, so the real user-set name ends up on top.
-            let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
-            guard let first = sorted.first else { continue }
-            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
-            result.append(DirigeraDevice(
-                id: first.id, type: first.type, deviceType: first.deviceType,
-                relationId: first.relationId, isReachable: first.isReachable,
-                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
-            ))
-            for sensor in sorted { idMap[sensor.id] = first.id }
-        }
-
-        return (result, idMap)
-    }
-
     private func subtitle(room: String?, battery: Int?) -> String? {
         let parts = [room, battery.map { "\($0)% battery" }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func applyEvent(_ event: DirigeraEvent) {
-        guard event.type == "deviceStateChanged",
+        guard event.isDeviceStateChanged,
               let data = event.data, let id = data.id else { return }
         if let i = lights.firstIndex(where: { $0.id == id }) {
             lights[i] = lights[i].merging(data)
@@ -304,36 +274,25 @@ struct MenuContent: View {
         }
     }
 
+    private static let isoWithFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let isoWithoutFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     private func openDuration(_ sensor: DirigeraDevice) -> String? {
         guard let raw = sensor.lastSeen else { return nil }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = iso.date(from: raw) ?? {
-            iso.formatOptions = [.withInternetDateTime]
-            return iso.date(from: raw)
-        }()
+        let date = Self.isoWithFractional.date(from: raw) ?? Self.isoWithoutFractional.date(from: raw)
         guard let date else { return nil }
         let s = Int(now.timeIntervalSince(date))
         guard s > 0 else { return nil }
         return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
-    }
-
-    private func isComfortable(_ sensor: DirigeraDevice) -> Bool {
-        envReadings(sensor).allSatisfy { !$0.outOfRange }
-    }
-
-    private struct Reading {
-        let text: String
-        let outOfRange: Bool
-    }
-
-    private func envReadings(_ sensor: DirigeraDevice) -> [Reading] {
-        var parts: [Reading] = []
-        if let t   = sensor.attributes.currentTemperature { parts.append(Reading(text: String(format: "%.1f°C", t),            outOfRange: !(18.0...26.0 ~= t))) }
-        if let rh  = sensor.attributes.currentRH         { parts.append(Reading(text: String(format: "%.0f%% RH", rh),        outOfRange: !(30.0...60.0 ~= rh))) }
-        if let co2 = sensor.attributes.currentCO2        { parts.append(Reading(text: String(format: "%.0f ppm CO₂", co2),    outOfRange: co2 > 1000)) }
-        if let pm  = sensor.attributes.currentPM25       { parts.append(Reading(text: String(format: "%.0f µg/m³ PM2.5", pm), outOfRange: pm > 12)) }
-        return parts
     }
 
     private func fetchDevices(ip: String) async {
@@ -342,10 +301,10 @@ struct MenuContent: View {
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             let all = try await client.fetchAllDevices()
-            gatewayName = all.first { $0.type == "gateway" }?.displayName
-            lights = all.filter { $0.type == "light" }
-            sensors = all.filter { $0.deviceType == "openCloseSensor" }
-            let (merged, idMap) = Self.mergeEnvSensors(all.filter { $0.deviceType == "environmentSensor" })
+            gatewayName = all.first { $0.isGateway }?.displayName
+            lights = all.filter { $0.isLight }
+            sensors = all.filter { $0.isOpenCloseSensor }
+            let (merged, idMap) = DirigeraDevice.mergeEnvSensors(all.filter { $0.isEnvironmentSensor })
             envSensors = merged
             envSensorIdMap = idMap
             print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")

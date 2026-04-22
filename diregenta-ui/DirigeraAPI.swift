@@ -16,16 +16,16 @@ struct DirigeraDevice: Identifiable, Decodable {
     let attributes: Attributes
 
     struct Attributes: Decodable {
-        let customName: String?
-        let model: String?
-        let isOn: Bool?
-        let isOpen: Bool?
-        let lightLevel: Int?
-        let batteryPercentage: Int?
-        let currentTemperature: Double?
-        let currentRH: Double?
-        let currentCO2: Double?
-        let currentPM25: Double?
+        var customName: String?
+        var model: String?
+        var isOn: Bool?
+        var isOpen: Bool?
+        var lightLevel: Int?
+        var batteryPercentage: Int?
+        var currentTemperature: Double?
+        var currentRH: Double?
+        var currentCO2: Double?
+        var currentPM25: Double?
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
@@ -48,27 +48,15 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOn: Bool { attributes.isOn ?? false }
     var isOpen: Bool { attributes.isOpen ?? false }
 
-    func withIsOn(_ value: Bool) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
-                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: value,
-                                              isOpen: attributes.isOpen, lightLevel: attributes.lightLevel,
-                                              batteryPercentage: attributes.batteryPercentage,
-                                              currentTemperature: attributes.currentTemperature,
-                                              currentRH: attributes.currentRH,
-                                              currentCO2: attributes.currentCO2,
-                                              currentPM25: attributes.currentPM25))
+    func modifyingAttributes(_ transform: (inout Attributes) -> Void) -> DirigeraDevice {
+        var updated = attributes
+        transform(&updated)
+        return DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId,
+                              isReachable: isReachable, lastSeen: lastSeen, room: room, attributes: updated)
     }
 
-    func withLightLevel(_ value: Int) -> DirigeraDevice {
-        DirigeraDevice(id: id, type: type, deviceType: deviceType, relationId: relationId, isReachable: isReachable, lastSeen: lastSeen, room: room,
-                       attributes: Attributes(customName: attributes.customName, model: attributes.model, isOn: attributes.isOn,
-                                              isOpen: attributes.isOpen, lightLevel: value,
-                                              batteryPercentage: attributes.batteryPercentage,
-                                              currentTemperature: attributes.currentTemperature,
-                                              currentRH: attributes.currentRH,
-                                              currentCO2: attributes.currentCO2,
-                                              currentPM25: attributes.currentPM25))
-    }
+    func withIsOn(_ value: Bool) -> DirigeraDevice { modifyingAttributes { $0.isOn = value } }
+    func withLightLevel(_ value: Int) -> DirigeraDevice { modifyingAttributes { $0.lightLevel = value } }
 
     func merging(_ data: DirigeraEvent.DeviceData) -> DirigeraDevice {
         DirigeraDevice(
@@ -84,9 +72,66 @@ struct DirigeraDevice: Identifiable, Decodable {
     }
 }
 
+extension DirigeraDevice {
+    var isLight: Bool { type == "light" }
+    var isGateway: Bool { type == "gateway" }
+    var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
+    var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
+
+    /// Merges env-sensor components that share a `relationId` into a single device.
+    /// Returns the merged list and a map from each component id to the primary device id,
+    /// used to route WebSocket events back to the right merged entry.
+    static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> ([DirigeraDevice], [String: String]) {
+        var byRelation: [String: [DirigeraDevice]] = [:]
+        var result: [DirigeraDevice] = []
+        var idMap: [String: String] = [:]
+
+        for sensor in sensors {
+            if let rel = sensor.relationId {
+                byRelation[rel, default: []].append(sensor)
+            } else {
+                result.append(sensor)
+            }
+        }
+
+        for (_, group) in byRelation {
+            // Sort so devices whose customName == model (generic default) come first;
+            // the fold's last value wins, so the real user-set name ends up on top.
+            let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
+            guard let first = sorted.first else { continue }
+            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
+            result.append(DirigeraDevice(
+                id: first.id, type: first.type, deviceType: first.deviceType,
+                relationId: first.relationId, isReachable: first.isReachable,
+                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
+            ))
+            for sensor in sorted { idMap[sensor.id] = first.id }
+        }
+
+        return (result, idMap)
+    }
+
+    struct Reading {
+        let text: String
+        let outOfRange: Bool
+    }
+
+    var envReadings: [Reading] {
+        var parts: [Reading] = []
+        if let t   = attributes.currentTemperature { parts.append(Reading(text: String(format: "%.1f°C", t),            outOfRange: !(18.0...26.0 ~= t))) }
+        if let rh  = attributes.currentRH         { parts.append(Reading(text: String(format: "%.0f%% RH", rh),        outOfRange: !(30.0...60.0 ~= rh))) }
+        if let co2 = attributes.currentCO2        { parts.append(Reading(text: String(format: "%.0f ppm CO₂", co2),    outOfRange: co2 > 1000)) }
+        if let pm  = attributes.currentPM25       { parts.append(Reading(text: String(format: "%.0f µg/m³ PM2.5", pm), outOfRange: pm > 12)) }
+        return parts
+    }
+
+    var isComfortable: Bool { envReadings.allSatisfy { !$0.outOfRange } }
+}
+
 struct DirigeraEvent: Decodable {
     let type: String
     let data: DeviceData?
+    var isDeviceStateChanged: Bool { type == "deviceStateChanged" }
 
     struct DeviceData: Decodable {
         let id: String?
@@ -97,6 +142,11 @@ struct DirigeraEvent: Decodable {
         let room: Room?
         let attributes: DirigeraDevice.Attributes?
     }
+}
+
+// Used by patchAttributes — must live outside the generic function due to Swift restrictions.
+private struct PatchBody<A: Encodable>: Encodable {
+    let attributes: A
 }
 
 final class DirigeraClient {
@@ -155,22 +205,19 @@ final class DirigeraClient {
         return try JSONDecoder().decode([DirigeraDevice].self, from: data)
     }
 
-    func setLightLevel(id: String, lightLevel: Int) async throws {
-        struct Body: Encodable {
-            struct Attrs: Encodable { let lightLevel: Int }
-            let attributes: Attrs
-        }
-        let body = try JSONEncoder().encode([Body(attributes: .init(lightLevel: lightLevel))])
-        try await patch("/v1/devices/\(id)", body: body)
+    func setLight(id: String, isOn: Bool) async throws {
+        struct Attrs: Encodable { let isOn: Bool }
+        try await patchAttributes(Attrs(isOn: isOn), deviceId: id)
     }
 
-    func setLight(id: String, isOn: Bool) async throws {
-        struct Body: Encodable {
-            struct Attrs: Encodable { let isOn: Bool }
-            let attributes: Attrs
-        }
-        // Dirigera expects an array of patch operations, not a bare object.
-        let body = try JSONEncoder().encode([Body(attributes: .init(isOn: isOn))])
+    func setLightLevel(id: String, lightLevel: Int) async throws {
+        struct Attrs: Encodable { let lightLevel: Int }
+        try await patchAttributes(Attrs(lightLevel: lightLevel), deviceId: id)
+    }
+
+    // Dirigera expects an array of patch operations, not a bare object.
+    private func patchAttributes<A: Encodable>(_ attrs: A, deviceId id: String) async throws {
+        let body = try JSONEncoder().encode([PatchBody(attributes: attrs)])
         try await patch("/v1/devices/\(id)", body: body)
     }
 
