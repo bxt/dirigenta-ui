@@ -224,7 +224,7 @@ struct MenuContent: View {
                 Label {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(sensor.displayName)
-                        let readings = envReadings(sensor)
+                        let readings = sensor.envReadings
                         if !readings.isEmpty {
                             Text(readings.enumerated().reduce(into: AttributedString()) { str, item in
                                 let (i, r) = item
@@ -242,7 +242,7 @@ struct MenuContent: View {
                     }
                 } icon: {
                     Image(systemName: "thermometer.medium")
-                        .foregroundStyle(isComfortable(sensor) ? Color.secondary : Color.yellow)
+                        .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.yellow)
                 }
             }
         }
@@ -293,24 +293,6 @@ struct MenuContent: View {
         let s = Int(now.timeIntervalSince(date))
         guard s > 0 else { return nil }
         return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
-    }
-
-    private func isComfortable(_ sensor: DirigeraDevice) -> Bool {
-        envReadings(sensor).allSatisfy { !$0.outOfRange }
-    }
-
-    private struct Reading {
-        let text: String
-        let outOfRange: Bool
-    }
-
-    private func envReadings(_ sensor: DirigeraDevice) -> [Reading] {
-        var parts: [Reading] = []
-        if let t   = sensor.attributes.currentTemperature { parts.append(Reading(text: String(format: "%.1f°C", t),            outOfRange: !(18.0...26.0 ~= t))) }
-        if let rh  = sensor.attributes.currentRH         { parts.append(Reading(text: String(format: "%.0f%% RH", rh),        outOfRange: !(30.0...60.0 ~= rh))) }
-        if let co2 = sensor.attributes.currentCO2        { parts.append(Reading(text: String(format: "%.0f ppm CO₂", co2),    outOfRange: co2 > 1000)) }
-        if let pm  = sensor.attributes.currentPM25       { parts.append(Reading(text: String(format: "%.0f µg/m³ PM2.5", pm), outOfRange: pm > 12)) }
-        return parts
     }
 
     private func fetchDevices(ip: String) async {

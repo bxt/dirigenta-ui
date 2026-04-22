@@ -110,6 +110,22 @@ extension DirigeraDevice {
 
         return (result, idMap)
     }
+
+    struct Reading {
+        let text: String
+        let outOfRange: Bool
+    }
+
+    var envReadings: [Reading] {
+        var parts: [Reading] = []
+        if let t   = attributes.currentTemperature { parts.append(Reading(text: String(format: "%.1f°C", t),            outOfRange: !(18.0...26.0 ~= t))) }
+        if let rh  = attributes.currentRH         { parts.append(Reading(text: String(format: "%.0f%% RH", rh),        outOfRange: !(30.0...60.0 ~= rh))) }
+        if let co2 = attributes.currentCO2        { parts.append(Reading(text: String(format: "%.0f ppm CO₂", co2),    outOfRange: co2 > 1000)) }
+        if let pm  = attributes.currentPM25       { parts.append(Reading(text: String(format: "%.0f µg/m³ PM2.5", pm), outOfRange: pm > 12)) }
+        return parts
+    }
+
+    var isComfortable: Bool { envReadings.allSatisfy { !$0.outOfRange } }
 }
 
 struct DirigeraEvent: Decodable {
