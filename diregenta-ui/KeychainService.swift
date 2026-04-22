@@ -4,79 +4,69 @@ import Security
 enum KeychainService {
     private static let service = Bundle.main.bundleIdentifier ?? "DefaultService"
 
-    static func set(_ value: String, for key: String) throws {
-        guard let data = value.data(using: .utf8) else {
-            throw NSError(domain: "KeychainServiceError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert string to data"])
-        }
+    enum KeychainError: LocalizedError {
+        case encodingFailed
+        case decodingFailed
+        case unexpectedStatus(OSStatus)
 
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-
-        let attributes: [String: Any] = [
-            kSecValueData as String: data
-        ]
-
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
-        switch status {
-        case errSecSuccess:
-            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-            guard updateStatus == errSecSuccess else {
-                throw NSError(domain: "KeychainServiceError", code: Int(updateStatus), userInfo: [NSLocalizedDescriptionKey: "Failed to update item in keychain"])
+        var errorDescription: String? {
+            switch self {
+            case .encodingFailed: return "Failed to encode value for Keychain"
+            case .decodingFailed: return "Failed to decode value from Keychain"
+            case .unexpectedStatus(let s): return "Keychain error (OSStatus \(s))"
             }
-        case errSecItemNotFound:
-            var newItem = query
-            newItem[kSecValueData as String] = data
-            let addStatus = SecItemAdd(newItem as CFDictionary, nil)
-            guard addStatus == errSecSuccess else {
-                throw NSError(domain: "KeychainServiceError", code: Int(addStatus), userInfo: [NSLocalizedDescriptionKey: "Failed to add item to keychain"])
-            }
-        default:
-            throw NSError(domain: "KeychainServiceError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to access keychain"])
         }
     }
 
-    static func get(_ key: String) throws -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        switch status {
-        case errSecSuccess:
-            guard let data = item as? Data,
-                  let string = String(data: data, encoding: .utf8) else {
-                throw NSError(domain: "KeychainServiceError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to convert data to string"])
-            }
-            return string
-        case errSecItemNotFound:
-            return nil
-        default:
-            throw NSError(domain: "KeychainServiceError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to retrieve item from keychain"])
-        }
-    }
-
-    static func delete(_ key: String) throws {
-        let query: [String: Any] = [
+    private static func makeQuery(for key: String) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key
         ]
+    }
 
-        let status = SecItemDelete(query as CFDictionary)
-        switch status {
-        case errSecSuccess, errSecItemNotFound:
-            return
-        default:
-            throw NSError(domain: "KeychainServiceError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to delete item from keychain"])
+    static func set(_ value: String, for key: String) throws {
+        guard let data = value.data(using: .utf8) else { throw KeychainError.encodingFailed }
+        let query = makeQuery(for: key)
+        switch SecItemCopyMatching(query as CFDictionary, nil) {
+        case errSecSuccess:
+            let attrs: [String: Any] = [kSecValueData as String: data]
+            let s = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+            guard s == errSecSuccess else { throw KeychainError.unexpectedStatus(s) }
+        case errSecItemNotFound:
+            var item = query
+            item[kSecValueData as String] = data
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            let s = SecItemAdd(item as CFDictionary, nil)
+            guard s == errSecSuccess else { throw KeychainError.unexpectedStatus(s) }
+        case let s:
+            throw KeychainError.unexpectedStatus(s)
+        }
+    }
+
+    static func get(_ key: String) throws -> String? {
+        var query = makeQuery(for: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        switch SecItemCopyMatching(query as CFDictionary, &item) {
+        case errSecSuccess:
+            guard let data = item as? Data, let string = String(data: data, encoding: .utf8) else {
+                throw KeychainError.decodingFailed
+            }
+            return string
+        case errSecItemNotFound:
+            return nil
+        case let s:
+            throw KeychainError.unexpectedStatus(s)
+        }
+    }
+
+    static func delete(_ key: String) throws {
+        switch SecItemDelete(makeQuery(for: key) as CFDictionary) {
+        case errSecSuccess, errSecItemNotFound: return
+        case let s: throw KeychainError.unexpectedStatus(s)
         }
     }
 }
