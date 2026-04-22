@@ -36,6 +36,7 @@ struct MenuContent: View {
     @State private var lightsError: String? = nil
     @State private var toggleError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]
+    @State private var colorPickerLightId: String? = nil
     @State private var now = Date()
     @EnvironmentObject private var mdns: MDNSResolver
 
@@ -152,6 +153,17 @@ struct MenuContent: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    if light.supportsColorControls {
+                        Button {
+                            colorPickerLightId = colorPickerLightId == light.id ? nil : light.id
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(colorPickerLightId == light.id ? Color.accentColor : Color.secondary)
+                        .help("Color settings")
+                    }
                     Button {
                         if appState.pinnedLightId == light.id {
                             appState.pinnedLightId = nil
@@ -181,6 +193,17 @@ struct MenuContent: View {
                     }
                     .padding(.leading, 22)
                     .padding(.trailing, 4)
+                }
+                if colorPickerLightId == light.id {
+                    LightColorControls(
+                        light: light,
+                        onSetColorTemperature: { temp in
+                            Task { await setColorTemperature(light, to: temp) }
+                        },
+                        onSetColor: { hue, saturation in
+                            Task { await setColor(light, hue: hue, saturation: saturation) }
+                        }
+                    )
                 }
             }
             if let error = toggleError {
@@ -325,6 +348,28 @@ struct MenuContent: View {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
             print("[API] Brightness error: \(error)")
+        }
+    }
+
+    private func setColorTemperature(_ light: DirigeraDevice, to value: Int) async {
+        guard let ip = mdns.currentIPAddress else { return }
+        lights = lights.map { $0.id == light.id ? $0.withColorTemperature(value) : $0 }
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        do {
+            try await client.setColorTemperature(id: light.id, colorTemperature: value)
+        } catch {
+            print("[API] Color temperature error: \(error)")
+        }
+    }
+
+    private func setColor(_ light: DirigeraDevice, hue: Double, saturation: Double) async {
+        guard let ip = mdns.currentIPAddress else { return }
+        lights = lights.map { $0.id == light.id ? $0.withColor(hue: hue, saturation: saturation) : $0 }
+        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        do {
+            try await client.setColor(id: light.id, hue: hue, saturation: saturation)
+        } catch {
+            print("[API] Color error: \(error)")
         }
     }
 
