@@ -72,9 +72,17 @@ struct DirigeraDevice: Identifiable, Decodable {
     }
 }
 
+extension DirigeraDevice {
+    var isLight: Bool { type == "light" }
+    var isGateway: Bool { type == "gateway" }
+    var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
+    var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
+}
+
 struct DirigeraEvent: Decodable {
     let type: String
     let data: DeviceData?
+    var isDeviceStateChanged: Bool { type == "deviceStateChanged" }
 
     struct DeviceData: Decodable {
         let id: String?

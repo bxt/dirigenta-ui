@@ -289,7 +289,7 @@ struct MenuContent: View {
     }
 
     private func applyEvent(_ event: DirigeraEvent) {
-        guard event.type == "deviceStateChanged",
+        guard event.isDeviceStateChanged,
               let data = event.data, let id = data.id else { return }
         if let i = lights.firstIndex(where: { $0.id == id }) {
             lights[i] = lights[i].merging(data)
@@ -342,10 +342,10 @@ struct MenuContent: View {
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             let all = try await client.fetchAllDevices()
-            gatewayName = all.first { $0.type == "gateway" }?.displayName
-            lights = all.filter { $0.type == "light" }
-            sensors = all.filter { $0.deviceType == "openCloseSensor" }
-            let (merged, idMap) = Self.mergeEnvSensors(all.filter { $0.deviceType == "environmentSensor" })
+            gatewayName = all.first { $0.isGateway }?.displayName
+            lights = all.filter { $0.isLight }
+            sensors = all.filter { $0.isOpenCloseSensor }
+            let (merged, idMap) = Self.mergeEnvSensors(all.filter { $0.isEnvironmentSensor })
             envSensors = merged
             envSensorIdMap = idMap
             print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
