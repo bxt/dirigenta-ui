@@ -304,14 +304,21 @@ struct MenuContent: View {
         }
     }
 
+    private static let isoWithFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let isoWithoutFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     private func openDuration(_ sensor: DirigeraDevice) -> String? {
         guard let raw = sensor.lastSeen else { return nil }
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = iso.date(from: raw) ?? {
-            iso.formatOptions = [.withInternetDateTime]
-            return iso.date(from: raw)
-        }()
+        let date = Self.isoWithFractional.date(from: raw) ?? Self.isoWithoutFractional.date(from: raw)
         guard let date else { return nil }
         let s = Int(now.timeIntervalSince(date))
         guard s > 0 else { return nil }
