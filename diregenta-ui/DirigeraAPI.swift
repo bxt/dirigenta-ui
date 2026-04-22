@@ -26,20 +26,30 @@ struct DirigeraDevice: Identifiable, Decodable {
         var currentRH: Double?
         var currentCO2: Double?
         var currentPM25: Double?
+        var colorTemperature: Int?
+        var colorTemperatureMin: Int?
+        var colorTemperatureMax: Int?
+        var colorHue: Double?
+        var colorSaturation: Double?
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
             return Attributes(
-                customName:          other.customName          ?? customName,
-                model:               other.model               ?? model,
-                isOn:                other.isOn                ?? isOn,
-                isOpen:              other.isOpen              ?? isOpen,
-                lightLevel:          other.lightLevel          ?? lightLevel,
-                batteryPercentage:   other.batteryPercentage   ?? batteryPercentage,
-                currentTemperature:  other.currentTemperature  ?? currentTemperature,
-                currentRH:           other.currentRH           ?? currentRH,
-                currentCO2:          other.currentCO2          ?? currentCO2,
-                currentPM25:         other.currentPM25         ?? currentPM25
+                customName:           other.customName           ?? customName,
+                model:                other.model                ?? model,
+                isOn:                 other.isOn                 ?? isOn,
+                isOpen:               other.isOpen               ?? isOpen,
+                lightLevel:           other.lightLevel           ?? lightLevel,
+                batteryPercentage:    other.batteryPercentage    ?? batteryPercentage,
+                currentTemperature:   other.currentTemperature   ?? currentTemperature,
+                currentRH:            other.currentRH            ?? currentRH,
+                currentCO2:           other.currentCO2           ?? currentCO2,
+                currentPM25:          other.currentPM25          ?? currentPM25,
+                colorTemperature:     other.colorTemperature     ?? colorTemperature,
+                colorTemperatureMin:  other.colorTemperatureMin  ?? colorTemperatureMin,
+                colorTemperatureMax:  other.colorTemperatureMax  ?? colorTemperatureMax,
+                colorHue:             other.colorHue             ?? colorHue,
+                colorSaturation:      other.colorSaturation      ?? colorSaturation
             )
         }
     }
@@ -57,6 +67,10 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     func withIsOn(_ value: Bool) -> DirigeraDevice { modifyingAttributes { $0.isOn = value } }
     func withLightLevel(_ value: Int) -> DirigeraDevice { modifyingAttributes { $0.lightLevel = value } }
+    func withColorTemperature(_ value: Int) -> DirigeraDevice { modifyingAttributes { $0.colorTemperature = value } }
+    func withColor(hue: Double, saturation: Double) -> DirigeraDevice {
+        modifyingAttributes { $0.colorHue = hue; $0.colorSaturation = saturation }
+    }
 
     func merging(_ data: DirigeraEvent.DeviceData) -> DirigeraDevice {
         DirigeraDevice(
@@ -77,6 +91,13 @@ extension DirigeraDevice {
     var isGateway: Bool { type == "gateway" }
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
     var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
+
+    /// True if the light supports a white-spectrum (colour-temperature) slider.
+    var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }
+    /// True if the light supports full RGB colour (hue + saturation).
+    var isColorLight: Bool { attributes.colorHue != nil }
+    /// True if either colour control is available for this light.
+    var supportsColorControls: Bool { isColorTemperatureLight || isColorLight }
 
     /// Merges env-sensor components that share a `relationId` into a single device.
     /// Returns the merged list and a map from each component id to the primary device id,
@@ -213,6 +234,16 @@ final class DirigeraClient {
     func setLightLevel(id: String, lightLevel: Int) async throws {
         struct Attrs: Encodable { let lightLevel: Int }
         try await patchAttributes(Attrs(lightLevel: lightLevel), deviceId: id)
+    }
+
+    func setColorTemperature(id: String, colorTemperature: Int) async throws {
+        struct Attrs: Encodable { let colorTemperature: Int }
+        try await patchAttributes(Attrs(colorTemperature: colorTemperature), deviceId: id)
+    }
+
+    func setColor(id: String, hue: Double, saturation: Double) async throws {
+        struct Attrs: Encodable { let colorHue: Double; let colorSaturation: Double }
+        try await patchAttributes(Attrs(colorHue: hue, colorSaturation: saturation), deviceId: id)
     }
 
     // Dirigera expects an array of patch operations, not a bare object.
