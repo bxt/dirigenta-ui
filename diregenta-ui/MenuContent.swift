@@ -1,6 +1,7 @@
 
 import SwiftUI
 import AppKit
+import OSLog
 
 private struct DiscoveryStatusView: View {
     @EnvironmentObject private var mdns: MDNSResolver
@@ -80,7 +81,7 @@ struct MenuContent: View {
                             guard !appState.isLoadingDevices else { continue }
                             appState.applyEvent(event)
                         }
-                        print("[WS] Reconnecting in 5s…")
+                        Logger.webSocket.info("Reconnecting in 5s…")
                         try? await Task.sleep(for: .seconds(5))
                     }
                 }
@@ -303,7 +304,7 @@ struct MenuContent: View {
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
-            print("[API] Brightness error: \(error)")
+            Logger.api.error("Brightness error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -314,7 +315,7 @@ struct MenuContent: View {
         do {
             try await client.setColorTemperature(id: light.id, colorTemperature: value)
         } catch {
-            print("[API] Color temperature error: \(error)")
+            Logger.api.error("Color temperature error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -325,7 +326,7 @@ struct MenuContent: View {
         do {
             try await client.setColor(id: light.id, hue: hue, saturation: saturation)
         } catch {
-            print("[API] Color error: \(error)")
+            Logger.api.error("Color error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -342,7 +343,7 @@ struct MenuContent: View {
         } catch {
             appState.lights = appState.lights.map { $0.id == light.id ? $0.withIsOn(!newState) : $0 }
             toggleError = "Failed to toggle \(light.displayName)"
-            print("[API] Toggle error: \(error)")
+            Logger.api.error("Toggle error: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
