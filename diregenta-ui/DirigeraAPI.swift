@@ -204,14 +204,23 @@ final class DirigeraClient {
                 task.receive { result in
                     switch result {
                     case .success(let message):
-                        if case .string(let text) = message,
-                           let data = text.data(using: .utf8) {
-                            Task { @MainActor in
-                                if let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
-                                    Logger.webSocket.debug("\(event.type, privacy: .public) id=\(event.data?.id ?? "-", privacy: .public)")
-                                    continuation.yield(event)
+                        switch message {
+                        case .string(let text):
+                            if let data = text.data(using: .utf8) {
+                                Task { @MainActor in
+                                    do {
+                                        let event = try JSONDecoder().decode(DirigeraEvent.self, from: data)
+                                        Logger.webSocket.debug("\(event.type, privacy: .public) id=\(event.data?.id ?? "-", privacy: .public)")
+                                        continuation.yield(event)
+                                    } catch {
+                                        Logger.webSocket.warning("Decode error: \(error.localizedDescription, privacy: .public) — frame: \(text.prefix(200), privacy: .public)")
+                                    }
                                 }
                             }
+                        case .data(let data):
+                            Logger.webSocket.warning("Unexpected binary frame (\(data.count) bytes), skipping")
+                        @unknown default:
+                            break
                         }
                         receive()
                     case .failure(let error):
