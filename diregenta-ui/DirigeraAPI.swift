@@ -175,7 +175,7 @@ final class DirigeraClient {
     private let token: String
     private lazy var session = URLSession(
         configuration: .default,
-        delegate: InsecureTLSDelegate(),
+        delegate: PinnedCertificateTLSDelegate(),
         delegateQueue: nil
     )
 
@@ -305,16 +305,44 @@ final class DirigeraClient {
     }
 }
 
-// Dirigera uses a self-signed certificate on the local network.
-private final class InsecureTLSDelegate: NSObject, URLSessionDelegate {
+// Validates the Dirigera hub's TLS certificate against the pinned IKEA Home smart Root CA.
+private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
+    // DER-encoded IKEA Home smart Root CA (valid until 2071-05-14).
+    private static let rootCADER = Data(base64Encoded: """
+        MIICGDCCAZ+gAwIBAgIUdfH0KDnENv/dEcxH8iVqGGGDqrowCgYIKoZIzj0EAwMw
+        SzELMAkGA1UEBhMCU0UxGjAYBgNVBAoMEUlLRUEgb2YgU3dlZGVuIEFCMSAwHgYD
+        VQQDDBdJS0VBIEhvbWUgc21hcnQgUm9vdCBDQTAgFw0yMTA1MjYxOTAxMDlaGA8y
+        MDcxMDUxNDE5MDEwOFowSzELMAkGA1UEBhMCU0UxGjAYBgNVBAoMEUlLRUEgb2Yg
+        U3dlZGVuIEFCMSAwHgYDVQQDDBdJS0VBIEhvbWUgc21hcnQgUm9vdCBDQTB2MBAG
+        ByqGSM49AgEGBSuBBAAiA2IABIDRUvKGFMUu2zIhTdgfrfNcPULwMlc0TGSrDLBA
+        oTr0SMMV4044CRZQbl81N4qiuHGhFzCnXapZogkiVuFu7ZqSslsFuELFjc6ZxBjk
+        Kmud+pQM6QQdsKTE/cS06dA+P6NCMEAwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E
+        FgQUcdlEnfX0MyZA4zAdY6CLOye9wfwwDgYDVR0PAQH/BAQDAgGGMAoGCCqGSM49
+        BAMDA2cAMGQCMG6mFIeB2GCFch3r0Gre4xRH+f5pn/bwLr9yGKywpeWvnUPsQ1KW
+        ckMLyxbeNPXdQQIwQc2YZDq/Mz0mOkoheTUWiZxK2a5bk0Uz1XuGshXmQvEg5TGy
+        2kVHW/Mz9/xwpy4u
+        """, options: .ignoreUnknownCharacters)!
+
     func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let trust = challenge.protectionSpace.serverTrust else {
-            completionHandler(.performDefaultHandling, nil)
+              let trust = challenge.protectionSpace.serverTrust,
+              let pinnedCert = SecCertificateCreateWithData(nil, PinnedCertificateTLSDelegate.rootCADER as CFData)
+        else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        SecTrustSetAnchorCertificates(trust, [pinnedCert] as CFArray)
+        // Only trust our pinned anchor — ignore the system keychain.
+        SecTrustSetAnchorCertificatesOnly(trust, true)
+
+        var error: CFError?
+        guard SecTrustEvaluateWithError(trust, &error) else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
         completionHandler(.useCredential, URLCredential(trust: trust))
