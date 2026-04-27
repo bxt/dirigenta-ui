@@ -31,6 +31,9 @@ final class AppState: ObservableObject {
 
     // MARK: - Device state
 
+    enum WSConnectionState { case connecting, connected, disconnected }
+    @Published var wsConnectionState: WSConnectionState = .connecting
+
     @Published var gatewayName: String? = nil
     @Published var lights: [DirigeraDevice] = []
     @Published var sensors: [DirigeraDevice] = []

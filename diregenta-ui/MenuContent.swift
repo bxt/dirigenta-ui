@@ -33,6 +33,7 @@ struct MenuContent: View {
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
     @State private var now = Date()
+    @State private var wsRetry = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -71,18 +72,31 @@ struct MenuContent: View {
                 }
                 .padding(8)
                 .onAppear { mdns.start() }
-                .task(id: mdns.currentIPAddress) {
+                .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
                     // AppState auto-fetches devices when the IP resolves.
                     // This task only maintains the WebSocket for live updates.
                     guard let ip = mdns.currentIPAddress else { return }
-                    while !Task.isCancelled {
+                    appState.wsConnectionState = .connecting
+                    let maxRetries = 8
+                    for attempt in 0...maxRetries {
+                        if Task.isCancelled { break }
                         let client = DirigeraClient(ip: ip, token: appState.accessToken)
                         for await event in client.eventStream() {
+                            appState.wsConnectionState = .connected
                             guard !appState.isLoadingDevices else { continue }
                             appState.applyEvent(event)
                         }
-                        Logger.webSocket.info("Reconnecting in 5s…")
-                        try? await Task.sleep(for: .seconds(5))
+                        guard !Task.isCancelled else { break }
+                        if attempt == maxRetries {
+                            appState.wsConnectionState = .disconnected
+                            break
+                        }
+                        appState.wsConnectionState = .connecting
+                        let base = min(pow(2.0, Double(attempt)), 60.0)
+                        let jitter = Double.random(in: -0.25 * base...0.25 * base)
+                        let delay = max(1.0, base + jitter)
+                        Logger.webSocket.info("Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…")
+                        try? await Task.sleep(for: .seconds(delay))
                     }
                 }
                 .task {
@@ -99,6 +113,21 @@ struct MenuContent: View {
                     Label("Refreshing…", systemImage: "arrow.clockwise")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else if !appState.accessToken.isEmpty {
+                    switch appState.wsConnectionState {
+                    case .connecting:
+                        Label("Connecting…", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    case .disconnected:
+                        Label("Disconnected", systemImage: "wifi.slash")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Button("Retry") { wsRetry += 1 }
+                            .font(.caption)
+                    case .connected:
+                        EmptyView()
+                    }
                 }
                 Spacer(minLength: 0)
                 if !appState.accessToken.isEmpty {
