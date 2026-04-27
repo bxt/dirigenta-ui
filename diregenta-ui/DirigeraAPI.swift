@@ -8,29 +8,29 @@ struct Room: Decodable {
 struct DirigeraDevice: Identifiable, Decodable {
     let id: String
     let type: String
-    let deviceType: String?
-    let relationId: String?
-    let isReachable: Bool?
-    let lastSeen: String?
-    let room: Room?
+    var deviceType: String?    = nil
+    var relationId: String?    = nil
+    var isReachable: Bool?     = nil
+    var lastSeen: String?      = nil
+    var room: Room?            = nil
     let attributes: Attributes
 
     struct Attributes: Decodable {
-        var customName: String?
-        var model: String?
-        var isOn: Bool?
-        var isOpen: Bool?
-        var lightLevel: Int?
-        var batteryPercentage: Int?
-        var currentTemperature: Double?
-        var currentRH: Double?
-        var currentCO2: Double?
-        var currentPM25: Double?
-        var colorTemperature: Int?
-        var colorTemperatureMin: Int?
-        var colorTemperatureMax: Int?
-        var colorHue: Double?
-        var colorSaturation: Double?
+        var customName: String?           = nil
+        var model: String?                = nil
+        var isOn: Bool?                   = nil
+        var isOpen: Bool?                 = nil
+        var lightLevel: Int?              = nil
+        var batteryPercentage: Int?       = nil
+        var currentTemperature: Double?   = nil
+        var currentRH: Double?            = nil
+        var currentCO2: Double?           = nil
+        var currentPM25: Double?          = nil
+        var colorTemperature: Int?        = nil
+        var colorTemperatureMin: Int?     = nil
+        var colorTemperatureMax: Int?     = nil
+        var colorHue: Double?             = nil
+        var colorSaturation: Double?      = nil
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
