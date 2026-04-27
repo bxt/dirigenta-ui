@@ -185,6 +185,12 @@ final class DirigeraClient {
         self.token = token
     }
 
+    init(ip: String, token: String, session: URLSession) {
+        self.ip = ip
+        self.token = token
+        self.session = session
+    }
+
     func eventStream() -> AsyncStream<DirigeraEvent> {
         AsyncStream { continuation in
             guard let url = URL(string: "wss://\(ip):8443/v1") else {
