@@ -29,7 +29,7 @@ struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
     @State private var tempToken: String = ""
-    @State private var toggleError: String? = nil
+    @State private var actionError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
     @State private var now = Date()
@@ -109,24 +109,30 @@ struct MenuContent: View {
 
             Divider()
             HStack(spacing: 8) {
-                if !appState.accessToken.isEmpty && appState.isLoadingDevices {
-                    Label("Refreshing…", systemImage: "arrow.clockwise")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if !appState.accessToken.isEmpty {
-                    switch appState.wsConnectionState {
-                    case .connecting:
-                        Label("Connecting…", systemImage: "arrow.clockwise")
+                if !appState.accessToken.isEmpty {
+                    if appState.isLoadingDevices {
+                        Label("Refreshing…", systemImage: "arrow.clockwise")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    case .disconnected:
-                        Label("Disconnected", systemImage: "wifi.slash")
+                    } else if let error = appState.devicesError {
+                        Label(error, systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.orange)
-                        Button("Retry") { wsRetry += 1 }
-                            .font(.caption)
-                    case .connected:
-                        EmptyView()
+                    } else {
+                        switch appState.wsConnectionState {
+                        case .connecting:
+                            Label("Connecting…", systemImage: "arrow.clockwise")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        case .disconnected:
+                            Label("Disconnected", systemImage: "wifi.slash")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            Button("Retry") { wsRetry += 1 }
+                                .font(.caption)
+                        case .connected:
+                            EmptyView()
+                        }
                     }
                 }
                 Spacer(minLength: 0)
@@ -150,8 +156,8 @@ struct MenuContent: View {
                 Label("Loading lights…", systemImage: "arrow.clockwise")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else if appState.devicesError != nil {
-                Label("Failed to load lights", systemImage: "exclamationmark.triangle")
+            } else if let error = appState.devicesError {
+                Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
@@ -230,7 +236,7 @@ struct MenuContent: View {
                     )
                 }
             }
-            if let error = toggleError {
+            if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -327,41 +333,47 @@ struct MenuContent: View {
 
     private func setBrightness(_ light: DirigeraDevice, to level: Int) async {
         guard let ip = mdns.currentIPAddress else { return }
+        actionError = nil
         appState.lights = appState.lights.map { $0.id == light.id ? $0.withLightLevel(level) : $0 }
         pendingLightLevels[light.id] = nil
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
+            actionError = "Failed to set brightness for \(light.displayName)"
             Logger.api.error("Brightness error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func setColorTemperature(_ light: DirigeraDevice, to value: Int) async {
         guard let ip = mdns.currentIPAddress else { return }
+        actionError = nil
         appState.lights = appState.lights.map { $0.id == light.id ? $0.withColorTemperature(value) : $0 }
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             try await client.setColorTemperature(id: light.id, colorTemperature: value)
         } catch {
+            actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error("Color temperature error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func setColor(_ light: DirigeraDevice, hue: Double, saturation: Double) async {
         guard let ip = mdns.currentIPAddress else { return }
+        actionError = nil
         appState.lights = appState.lights.map { $0.id == light.id ? $0.withColor(hue: hue, saturation: saturation) : $0 }
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
         do {
             try await client.setColor(id: light.id, hue: hue, saturation: saturation)
         } catch {
+            actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error("Color error: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func toggleLight(_ light: DirigeraDevice) async {
         guard let ip = mdns.currentIPAddress else { return }
-        toggleError = nil
+        actionError = nil
         let newState = !light.isOn
         appState.lights = appState.lights.map { $0.id == light.id ? $0.withIsOn(newState) : $0 }
         appState.syncPinnedState()
@@ -371,7 +383,7 @@ struct MenuContent: View {
             await appState.fetchDevices(ip: ip)
         } catch {
             appState.lights = appState.lights.map { $0.id == light.id ? $0.withIsOn(!newState) : $0 }
-            toggleError = "Failed to toggle \(light.displayName)"
+            actionError = "Failed to toggle \(light.displayName)"
             Logger.api.error("Toggle error: \(error.localizedDescription, privacy: .public)")
         }
     }

@@ -86,7 +86,7 @@ final class AppState: ObservableObject {
             Logger.api.info("Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)")
             syncPinnedState()
         } catch {
-            devicesError = "Failed to load devices"
+            devicesError = "Hub unreachable"
             Logger.api.error("Fetch error: \(error.localizedDescription, privacy: .public)")
         }
         isLoadingDevices = false
