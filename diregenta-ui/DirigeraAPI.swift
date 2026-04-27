@@ -1,4 +1,5 @@
 @preconcurrency import Foundation
+import OSLog
 
 struct Room: Decodable {
     let id: String
@@ -201,20 +202,20 @@ final class DirigeraClient {
                            let data = text.data(using: .utf8) {
                             Task { @MainActor in
                                 if let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
-                                    print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
+                                    Logger.webSocket.debug("\(event.type, privacy: .public) id=\(event.data?.id ?? "-", privacy: .public)")
                                     continuation.yield(event)
                                 }
                             }
                         }
                         receive()
                     case .failure(let error):
-                        print("[WS] Disconnected: \(error)")
+                        Logger.webSocket.error("Disconnected: \(error.localizedDescription, privacy: .public)")
                         continuation.finish()
                     }
                 }
             }
 
-            print("[WS] Connecting to \(url)")
+            Logger.webSocket.info("Connecting to \(url.absoluteString, privacy: .public)")
             task.resume()
             receive()
             continuation.onTermination = { _ in task.cancel(with: .normalClosure, reason: nil) }
@@ -289,18 +290,22 @@ final class DirigeraClient {
     }
 
     private func log(_ req: URLRequest) {
-        print("[API] → \(req.httpMethod ?? "?") \(req.url?.absoluteString ?? "?")")
+        let method = req.httpMethod ?? "?"
+        let url    = req.url?.absoluteString ?? "?"
+        Logger.api.debug("→ \(method, privacy: .public) \(url, privacy: .public)")
         if let body = req.httpBody, let s = String(data: body, encoding: .utf8) {
-            print("[API]   body: \(s)")
+            Logger.api.debug("  body: \(s, privacy: .public)")
         }
     }
 
     private func log(_ response: URLResponse, data: Data) {
         if let http = response as? HTTPURLResponse {
-            print("[API] ← \(http.statusCode) \(http.url?.absoluteString ?? "?")")
+            let status = http.statusCode
+            let url    = http.url?.absoluteString ?? "?"
+            Logger.api.debug("← \(status, privacy: .public) \(url, privacy: .public)")
         }
         if let s = String(data: data, encoding: .utf8), !s.isEmpty {
-            print("[API]   body: \(s)")
+            Logger.api.debug("  body: \(s, privacy: .public)")
         }
     }
 }

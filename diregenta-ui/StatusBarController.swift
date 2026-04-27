@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import OSLog
 
 final class StatusBarController: NSObject {
     private var statusItem: NSStatusItem!
@@ -93,7 +94,7 @@ final class StatusBarController: NSObject {
             try await client.setLight(id: lightId, isOn: newState)
         } catch {
             appState.pinnedLightIsOn = !newState
-            print("[StatusBar] Toggle error: \(error)")
+            Logger.statusBar.error("Toggle error: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

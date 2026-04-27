@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Network
+import OSLog
 
 final class MDNSResolver: ObservableObject {
     @Published var currentIPAddress: String? = nil
@@ -21,16 +22,16 @@ final class MDNSResolver: ObservableObject {
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self, let result = results.first else { return }
-            print("[mDNS] Found service: \(result.endpoint)")
+            Logger.mdns.info("Found service: \(String(describing: result.endpoint), privacy: .public)")
             self.resolveEndpoint(result.endpoint)
         }
 
         browser.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("[mDNS] Browser ready")
+                Logger.mdns.info("Browser ready")
             case .failed(let error):
-                print("[mDNS] Browser failed: \(error)")
+                Logger.mdns.error("Browser failed: \(error.localizedDescription, privacy: .public)")
                 self?.isResolving = false
             case .cancelled:
                 self?.isResolving = false
@@ -39,12 +40,12 @@ final class MDNSResolver: ObservableObject {
             }
         }
 
-        print("[mDNS] Starting browse for _ihsp._tcp. in local.")
+        Logger.mdns.info("Starting browse for _ihsp._tcp. in local.")
         browser.start(queue: .main)
     }
 
     func stop() {
-        print("[mDNS] Stopping browse")
+        Logger.mdns.info("Stopping browse")
         browser?.cancel()
         connection?.cancel()
         browser = nil
@@ -65,7 +66,7 @@ final class MDNSResolver: ObservableObject {
                    case let .hostPort(host, _) = path.remoteEndpoint {
                     let ip = MDNSResolver.ipString(from: host)
                     if !ip.isEmpty {
-                        print("[mDNS] Resolved IP: \(ip)")
+                        Logger.mdns.info("Resolved IP: \(ip, privacy: .public)")
                         self?.currentIPAddress = ip
                         self?.isResolving = false
                     }

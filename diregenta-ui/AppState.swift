@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import OSLog
 
 final class AppState: ObservableObject {
 
@@ -16,7 +17,7 @@ final class AppState: ObservableObject {
                     try KeychainService.set(accessToken, for: "dirigeraAccessToken")
                 }
             } catch {
-                print("[Keychain] Error: \(error)")
+                Logger.keychain.error("\(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -78,11 +79,12 @@ final class AppState: ObservableObject {
             let (merged, idMap) = DirigeraDevice.mergeEnvSensors(all.filter { $0.isEnvironmentSensor })
             envSensors = merged
             envSensorIdMap = idMap
-            print("[API] Fetched \(lights.count) light(s), \(sensors.count) sensor(s), \(envSensors.count) env sensor(s), gateway: \(gatewayName ?? "none")")
+            let lc = lights.count, sc = sensors.count, ec = envSensors.count, gw = gatewayName ?? "none"
+            Logger.api.info("Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)")
             syncPinnedState()
         } catch {
             devicesError = "Failed to load devices"
-            print("[API] Fetch error: \(error)")
+            Logger.api.error("Fetch error: \(error.localizedDescription, privacy: .public)")
         }
         isLoadingDevices = false
     }
