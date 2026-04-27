@@ -203,14 +203,23 @@ final class DirigeraClient {
                 task.receive { result in
                     switch result {
                     case .success(let message):
-                        if case .string(let text) = message,
-                           let data = text.data(using: .utf8) {
-                            Task { @MainActor in
-                                if let event = try? JSONDecoder().decode(DirigeraEvent.self, from: data) {
-                                    print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
-                                    continuation.yield(event)
+                        switch message {
+                        case .string(let text):
+                            if let data = text.data(using: .utf8) {
+                                Task { @MainActor in
+                                    do {
+                                        let event = try JSONDecoder().decode(DirigeraEvent.self, from: data)
+                                        print("[WS] \(event.type) id=\(event.data?.id ?? "-")")
+                                        continuation.yield(event)
+                                    } catch {
+                                        print("[WS] Decode error: \(error) — frame: \(text.prefix(200))")
+                                    }
                                 }
                             }
+                        case .data(let data):
+                            print("[WS] Unexpected binary frame (\(data.count) bytes), skipping")
+                        @unknown default:
+                            break
                         }
                         receive()
                     case .failure(let error):
