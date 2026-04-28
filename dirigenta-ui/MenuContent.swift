@@ -33,6 +33,16 @@ private struct DiscoveryStatusView: View {
     }
 }
 
+private struct ScreenReader: NSViewRepresentable {
+    let onScreen: (NSScreen) -> Void
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let screen = view.window?.screen { onScreen(screen) }
+        }
+    }
+}
+
 private struct DeviceGroup: Identifiable {
     let id: String
     let roomName: String?
@@ -49,6 +59,7 @@ struct MenuContent: View {
     @State private var colorPickerLightId: String? = nil
     @State private var now = Date()
     @State private var wsRetry = 0
+    @State private var currentScreen: NSScreen? = NSScreen.main
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -113,7 +124,7 @@ struct MenuContent: View {
                     }
                 }
             }
-            .frame(maxHeight: (NSScreen.main?.visibleFrame.height ?? 800) - 60)
+            .layoutPriority(1)
 
             Divider()
             HStack(spacing: 8) {
@@ -157,7 +168,9 @@ struct MenuContent: View {
             }
         }
         .padding(12)
+        .frame(maxHeight: currentScreen?.visibleFrame.height ?? .infinity)
         .frame(width: 300)
+        .background(ScreenReader { currentScreen = $0 })
     }
 
     // MARK: - Pairing
