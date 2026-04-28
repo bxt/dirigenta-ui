@@ -343,12 +343,28 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let trust = challenge.protectionSpace.serverTrust,
-              let pinnedCert = SecCertificateCreateWithData(nil, PinnedCertificateTLSDelegate.rootCADER as CFData)
-        else {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust else {
+            print("[TLS] Unexpected auth method: \(challenge.protectionSpace.authenticationMethod)")
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
+        }
+        guard let trust = challenge.protectionSpace.serverTrust else {
+            print("[TLS] No serverTrust in challenge")
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        guard let pinnedCert = SecCertificateCreateWithData(nil, PinnedCertificateTLSDelegate.rootCADER as CFData) else {
+            print("[TLS] Failed to decode pinned root CA DER data")
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        // Log the certificate chain the hub presented so we can inspect it.
+        let chainCount = SecTrustGetCertificateCount(trust)
+        for i in 0..<chainCount {
+            if let cert = SecTrustGetCertificateAtIndex(trust, i) {
+                print("[TLS] Chain[\(i)]: \(SecCertificateCopySubjectSummary(cert) ?? "?" as CFString)")
+            }
         }
 
         SecTrustSetAnchorCertificates(trust, [pinnedCert] as CFArray)
@@ -357,6 +373,7 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         guard SecTrustEvaluateWithError(trust, &error) else {
+            print("[TLS] Trust evaluation failed for \(challenge.protectionSpace.host): \(error as Any)")
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
