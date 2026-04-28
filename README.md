@@ -8,7 +8,6 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 
 - macOS 26.2 or later
 - An IKEA Dirigera hub on your local network
-- A Dirigera access token (see below)
 
 ## Installation
 
@@ -16,21 +15,6 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 2. Unzip and move `dirigenta-ui.app` to `/Applications`
 3. **First launch:** right-click the app → **Open** → click Open in the dialog  
    *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
-
-## Getting an access token
-
-The Dirigera API uses a long-lived bearer token. To get one, press the action button on top of your hub for ~5 seconds until the light pulses, then run:
-
-```sh
-curl -X POST "https://<hub-ip>:8443/v1/oauth/authorize" \
-  --insecure \
-  -d '{"audience":"homesmart.local","grant_type":"authorization_code"}' \
-  -H "Content-Type: application/json"
-```
-
-The response contains an `access_token`. Paste it into the app on first launch.
-
-> The hub's IP address is shown in the menu while it's being discovered, or you can find it in your router's device list.
 
 ## Features
 
