@@ -575,17 +575,17 @@ struct MenuContent: View {
     }
 
     private func grouped(_ devices: [DirigeraDevice]) -> [DeviceGroup] {
-        var byRoom: [String: [DirigeraDevice]] = [:]
+        var byRoom: [String: (name: String, devices: [DirigeraDevice])] = [:]
         var noRoom: [DirigeraDevice] = []
         for device in devices {
-            if let name = device.room?.name {
-                byRoom[name, default: []].append(device)
+            if let room = device.room {
+                byRoom[room.id, default: (room.name, [])].devices.append(device)
             } else {
                 noRoom.append(device)
             }
         }
-        var result = byRoom.keys.sorted().map {
-            DeviceGroup(id: $0, roomName: $0, devices: byRoom[$0]!)
+        var result = byRoom.sorted { $0.value.name < $1.value.name }.map {
+            DeviceGroup(id: $0.key, roomName: $0.value.name, devices: $0.value.devices)
         }
         if !noRoom.isEmpty {
             result.append(DeviceGroup(id: "", roomName: nil, devices: noRoom))
