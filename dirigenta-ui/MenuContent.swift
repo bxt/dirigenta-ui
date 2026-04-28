@@ -484,9 +484,10 @@ struct MenuContent: View {
                             if sensor.isOpen,
                                 let duration = openDuration(sensor)
                             {
+                                let overdue = (openSeconds(sensor) ?? 0) >= 15 * 60
                                 Text("open for \(duration)")
                                     .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(overdue ? Color.orange : .secondary)
                             }
                             if let sub = subtitle(
                                 battery: sensor.attributes.batteryPercentage
@@ -604,14 +605,18 @@ struct MenuContent: View {
         return f
     }()
 
-    private func openDuration(_ sensor: DirigeraDevice) -> String? {
+    private func openSeconds(_ sensor: DirigeraDevice) -> Int? {
         guard let raw = sensor.lastSeen else { return nil }
         let date =
             Self.isoWithFractional.date(from: raw)
             ?? Self.isoWithoutFractional.date(from: raw)
         guard let date else { return nil }
         let s = Int(now.timeIntervalSince(date))
-        guard s > 0 else { return nil }
+        return s > 0 ? s : nil
+    }
+
+    private func openDuration(_ sensor: DirigeraDevice) -> String? {
+        guard let s = openSeconds(sensor) else { return nil }
         return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
     }
 
