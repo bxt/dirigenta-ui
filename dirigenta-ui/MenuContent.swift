@@ -560,7 +560,7 @@ struct MenuContent: View {
                         Image(systemName: "thermometer.medium")
                             .foregroundStyle(
                                 sensor.isComfortable
-                                    ? Color.secondary : Color.yellow
+                                    ? Color.secondary : Color.orange
                             )
                     }
                 }
