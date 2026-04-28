@@ -56,11 +56,7 @@ final class MDNSResolver: ObservableObject {
 
     private func resolveEndpoint(_ endpoint: NWEndpoint) {
         connection?.cancel()
-        let params = NWParameters.tcp
-        let ipOptions = NWProtocolIP.Options()
-        ipOptions.version = .v4
-        params.defaultProtocolStack.internetProtocol = ipOptions
-        let conn = NWConnection(to: endpoint, using: params)
+        let conn = NWConnection(to: endpoint, using: .tcp)
         connection = conn
 
         conn.stateUpdateHandler = { [weak self] state in
