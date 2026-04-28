@@ -56,51 +56,11 @@ final class MDNSResolver: ObservableObject {
 
     private func resolveEndpoint(_ endpoint: NWEndpoint) {
         connection?.cancel()
-
-        // For Bonjour service endpoints, bypass NWConnection (which lets the OS pick
-        // IPv6 when the hub advertises both) and use getaddrinfo with AF_INET instead.
-        // On macOS, getaddrinfo routes .local lookups through mDNSResponder, so this
-        // resolves via Bonjour just like NWConnection would, but IPv4-only.
-        // The hostname is the service instance name + ".local" — standard Bonjour convention.
-        if case .service(let name, _, _, _) = endpoint {
-            resolveIPv4(hostname: "\(name).local", fallback: endpoint)
-            return
-        }
-
-        openConnection(to: endpoint)
-    }
-
-    private func resolveIPv4(hostname: String, fallback: NWEndpoint) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            var hints = addrinfo()
-            hints.ai_family = AF_INET
-            hints.ai_socktype = SOCK_STREAM
-
-            var res: UnsafeMutablePointer<addrinfo>?
-            guard getaddrinfo(hostname, nil, &hints, &res) == 0, let res else {
-                // No IPv4 address found; fall back to NWConnection (may return IPv6).
-                DispatchQueue.main.async { self?.openConnection(to: fallback) }
-                return
-            }
-            defer { freeaddrinfo(res) }
-
-            var inAddr = res.pointee.ai_addr!
-                .withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
-            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-            inet_ntop(AF_INET, &inAddr, &buf, socklen_t(INET_ADDRSTRLEN))
-            let ip = String(cString: buf)
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self, !ip.isEmpty else { return }
-                print("[mDNS] Resolved IPv4: \(ip)")
-                self.currentIPAddress = ip
-                self.isResolving = false
-            }
-        }
-    }
-
-    private func openConnection(to endpoint: NWEndpoint) {
-        let conn = NWConnection(to: endpoint, using: .tcp)
+        let params = NWParameters.tcp
+        let ipOptions = NWProtocolIP.Options()
+        ipOptions.version = .v4
+        params.defaultProtocolStack.internetProtocol = ipOptions
+        let conn = NWConnection(to: endpoint, using: params)
         connection = conn
 
         conn.stateUpdateHandler = { [weak self] state in
