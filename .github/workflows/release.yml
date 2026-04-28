@@ -45,7 +45,7 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "dirigenta-ui-${GITHUB_REF_NAME}.zip"
+          subject-path: "dirigenta-ui-${{ github.ref_name }}.zip"
 
       - name: Create GitHub release
         run: |
