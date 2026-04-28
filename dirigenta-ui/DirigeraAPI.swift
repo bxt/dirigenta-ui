@@ -123,10 +123,11 @@ extension DirigeraDevice {
             let sorted = group.sorted { a, _ in a.attributes.customName == a.attributes.model }
             guard let first = sorted.first else { continue }
             let mergedAttrs = sorted.dropFirst().reduce(first.attributes) { $0.merging($1.attributes) }
+            let room = sorted.first(where: { $0.room != nil })?.room
             result.append(DirigeraDevice(
                 id: first.id, type: first.type, deviceType: first.deviceType,
                 relationId: first.relationId, isReachable: first.isReachable,
-                lastSeen: first.lastSeen, room: first.room, attributes: mergedAttrs
+                lastSeen: first.lastSeen, room: room, attributes: mergedAttrs
             ))
             for sensor in sorted { idMap[sensor.id] = first.id }
         }

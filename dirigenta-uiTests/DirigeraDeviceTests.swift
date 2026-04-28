@@ -326,6 +326,22 @@ final class DirigeraDeviceMergingTests: XCTestCase {
         let (merged, _) = DirigeraDevice.mergeEnvSensors([generic, named])
         XCTAssertEqual(merged[0].attributes.customName, "Living Room Air")
     }
+
+    func testMergeEnvSensors_picksRoomFromSensorThatHasOne() throws {
+        let noRoom = try decode(DirigeraDevice.self, from: """
+            {"id":"s1","type":"sensor","deviceType":"environmentSensor",
+             "relationId":"rel-1","isReachable":true,"attributes":{"customName":"STARKVIND","currentCO2":700.0}}
+            """)
+        let withRoom = try decode(DirigeraDevice.self, from: """
+            {"id":"s2","type":"sensor","deviceType":"environmentSensor",
+             "relationId":"rel-1","isReachable":true,
+             "room":{"id":"r1","name":"Living Room"},
+             "attributes":{"customName":"STARKVIND","currentPM25":5.0}}
+            """)
+
+        let (merged, _) = DirigeraDevice.mergeEnvSensors([noRoom, withRoom])
+        XCTAssertEqual(merged[0].room?.name, "Living Room")
+    }
 }
 
 // MARK: - DirigeraEvent decoding
