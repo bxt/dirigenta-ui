@@ -13,9 +13,8 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 
 1. Download the latest `dirigenta-ui-vX.X.X.zip` from [Releases](../../releases)
 2. Unzip and move `dirigenta-ui.app` to `/Applications`
-3. **First launch:** right-click the app → **Open** → click Open in the dialog  
-   *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
-   You can verify the integrity of the download by running `gh attestation verify dirigenta-ui-v1.2.0.zip --repo bxt/dirigenta-ui`
+3. Run `xattr -r -d com.apple.quarantine /Applications/dirigenta-ui.app` *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
+4. You can optionally verify the integrity of the download by running `gh attestation verify dirigenta-ui-vX.X.X.zip --repo bxt/dirigenta-ui`
 
 ## Features
 
