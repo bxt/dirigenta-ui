@@ -39,6 +39,10 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
+        appState.$lights
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateIcon() }
+            .store(in: &cancellables)
         // AppState auto-fetches devices (including pinned light state) when mDNS
         // resolves, so no separate fetch is needed here.
     }
@@ -46,7 +50,11 @@ final class StatusBarController: NSObject {
     private func updateIcon() {
         guard let button = statusItem?.button else { return }
         let name: String
-        if appState.pinnedLightId != nil {
+        if let id = appState.pinnedLightId,
+            let light = appState.lights.first(where: { $0.id == id })
+        {
+            name = light.lightIcon(isOn: appState.pinnedLightIsOn)
+        } else if appState.pinnedLightId != nil {
             name = appState.pinnedLightIsOn ? "lightbulb.fill" : "lightbulb"
         } else {
             name = "house"
