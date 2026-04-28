@@ -15,7 +15,12 @@ final class AppState: ObservableObject {
                     clearDevices()
                 } else {
                     try KeychainService.set(accessToken, for: "dirigeraAccessToken")
-                }
+                    // The Combine pipeline only fires when the IP changes, so if mDNS
+                    // already has a result (hub was found before the token was entered),
+                    // kick off a fetch manually.
+                    if let ip = mdns.currentIPAddress {
+                        Task { await self.fetchDevices(ip: ip) }
+                    }
             } catch {
                 Logger.keychain.error("\(error.localizedDescription, privacy: .public)")
             }
