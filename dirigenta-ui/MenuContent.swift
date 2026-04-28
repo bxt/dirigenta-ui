@@ -66,7 +66,7 @@ struct MenuContent: View {
     @State private var now = Date()
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
-    @State private var footerHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
@@ -75,28 +75,24 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView {
-                if appState.accessToken.isEmpty {
+            if let name = appState.gatewayName {
+                Text(name)
+                    .font(.headline)
+            }
+            DiscoveryStatusView()
+            Divider()
+            if appState.accessToken.isEmpty {
+                pairingView
+            } else {
+                let screenHeight =
+                    currentScreen?.visibleFrame.height ?? 8000
+                let maxHeight = screenHeight - 200
+                ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        DiscoveryStatusView()
-                        Divider()
-                        pairingView
-                    }
-                    .padding(8)
-                    .onAppear { mdns.start() }
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let name = appState.gatewayName {
-                            Text(name)
-                                .font(.headline)
-                        }
-                        DiscoveryStatusView()
-                        Divider()
                         lightsSection
                         sensorsSection
                         envSensorsSection
                     }
-                    .onAppear { mdns.start() }
                     .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
                         // AppState auto-fetches devices when the IP resolves.
                         // This task only maintains the WebSocket for live updates.
@@ -139,20 +135,20 @@ struct MenuContent: View {
                             now = Date()
                         }
                     }
-                    .frame(
-                        maxHeight: {
-                            let outerPadding: CGFloat = 12  // matches .padding(12) below
-                            let footerSpacing: CGFloat = 8  // matches VStack spacing above
-                            let screenHeight =
-                                currentScreen?.visibleFrame.height ?? 800
-                            return max(
-                                100,
-                                screenHeight - footerHeight - outerPadding * 2
-                                    - footerSpacing
-                            )
-                        }()
+                    .frame(width: 276)
+                    .background(
+                        GeometryReader { contentGeometry in
+                            Color.clear.onAppear {
+                                contentHeight = contentGeometry.size.height
+                                Logger.statusBar.error(
+                                    "contentHeight: \(contentHeight)"
+                                )
+                            }
+                        }
                     )
-                }
+
+                }.frame(height: min(contentHeight, maxHeight))
+                    .scrollDisabled(contentHeight < maxHeight)
             }
 
             VStack(spacing: 8) {
@@ -206,6 +202,7 @@ struct MenuContent: View {
         }
         .padding(12)
         .frame(width: 300)
+        .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
     }
 
