@@ -66,6 +66,7 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     var lightSymbol: String {
         switch customIcon {
+        case "products_chandelier_bulb":    return "lightbulb.led.wide"
         case "lighting_pendant_light",
              "lighting_cone_pendant":       return "lamp.ceiling"
         case "lighting_chandelier":         return "chandelier"
