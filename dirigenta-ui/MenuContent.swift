@@ -150,6 +150,7 @@ struct MenuContent: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
         }
+        .frame(width: 280)
     }
 
     // MARK: - Pairing
