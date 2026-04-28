@@ -1,6 +1,6 @@
 # dirigenta-ui
 
-A macOS menu bar app for controlling your [IKEA Dirigera](https://www.ikea.com/us/en/p/dirigera-hub-for-smart-products-white-smart-50503409/) smart home hub.
+A macOS menu bar app for controlling your [IKEA Dirigera](https://www.ikea.com/de/de/p/dirigera-hub-fuer-smarte-produkte-weiss-smart-10503406/) smart home hub.
 
 Toggle lights, adjust brightness and colour, and glance at environment sensor readings — all without opening the Home app.
 
@@ -15,6 +15,7 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 2. Unzip and move `dirigenta-ui.app` to `/Applications`
 3. **First launch:** right-click the app → **Open** → click Open in the dialog  
    *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
+   You can verify the integrity of the download by running `gh attestation verify dirigenta-ui-v1.2.0.zip --repo bxt/dirigenta-ui`
 
 ## Features
 
@@ -58,3 +59,9 @@ git tag v1.2.0 && git push --tags
 ## Privacy
 
 Everything stays on your local network. The app communicates only with your Dirigera hub over HTTPS/WebSocket. No data leaves your home. The access token is stored in the macOS Keychain.
+
+## Disclaimer
+
+This application is an independent, unofficial project and is in no way affiliated with, endorsed by, sponsored by, or associated with IKEA Systems B.V., Inter IKEA Systems B.V., or any of their subsidiaries or affiliates. All IKEA trademarks, product names, and brand identifiers are the property of their respective owners.
+
+This app was built entirely through vibe coding — an AI-assisted, intuition-driven development process — and makes no guarantees regarding functionality, accuracy, or fitness for any particular purpose. Use at your own risk.
