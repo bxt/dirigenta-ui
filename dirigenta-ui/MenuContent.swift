@@ -68,6 +68,12 @@ struct MenuContent: View {
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
 
+    init() {}
+
+    fileprivate init(initialPairingStep: PairingStep) {
+        _pairingStep = State(initialValue: initialPairingStep)
+    }
+
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
             as? String ?? "?"
@@ -709,9 +715,71 @@ struct MenuContent: View {
     }
 }
 
-#Preview {
+#Preview("Normal — with devices") {
     let state = AppState.preview()
-    MenuContent()
+    return MenuContent()
         .environmentObject(state)
         .environmentObject(state.mdns)
+}
+
+#Preview("Discovering hub") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.isResolving = true
+    return MenuContent()
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Hub found — idle") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.currentIPAddress = "192.168.1.100"
+    return MenuContent()
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Pairing — requesting") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.currentIPAddress = "192.168.1.100"
+    return MenuContent(initialPairingStep: .requesting)
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Pairing — awaiting button press") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.currentIPAddress = "192.168.1.100"
+    return MenuContent(
+        initialPairingStep: .awaitingButtonPress(
+            ip: "192.168.1.100", code: "abc123", verifier: "xyz456"
+        )
+    )
+    .environmentObject(state)
+    .environmentObject(state.mdns)
+}
+
+#Preview("Pairing — exchanging") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.currentIPAddress = "192.168.1.100"
+    return MenuContent(initialPairingStep: .exchanging)
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Pairing — failed") {
+    let state = AppState.preview()
+    state.accessToken = ""
+    state.mdns.currentIPAddress = "192.168.1.100"
+    return MenuContent(
+        initialPairingStep: .failed(
+            "Pairing failed. Did you press the button? Try again."
+        )
+    )
+    .environmentObject(state)
+    .environmentObject(state.mdns)
 }
