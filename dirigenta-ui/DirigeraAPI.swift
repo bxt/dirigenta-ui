@@ -15,6 +15,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isReachable: Bool? = nil
     var lastSeen: String? = nil
     var room: Room? = nil
+    var customIcon: String? = nil
     let attributes: Attributes
 
     struct Attributes: Decodable {
@@ -33,7 +34,6 @@ struct DirigeraDevice: Identifiable, Decodable {
         var colorTemperatureMax: Int? = nil
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
-        var customIcon: String? = nil
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
@@ -55,8 +55,7 @@ struct DirigeraDevice: Identifiable, Decodable {
                 colorTemperatureMax: other.colorTemperatureMax
                     ?? colorTemperatureMax,
                 colorHue: other.colorHue ?? colorHue,
-                colorSaturation: other.colorSaturation ?? colorSaturation,
-                customIcon: other.customIcon ?? customIcon
+                colorSaturation: other.colorSaturation ?? colorSaturation
             )
         }
     }
@@ -66,7 +65,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     var isOpen: Bool { attributes.isOpen ?? false }
 
     var lightSymbol: String {
-        switch attributes.customIcon {
+        switch customIcon {
         case "lighting_pendant_light",
              "lighting_cone_pendant":       return "lamp.ceiling"
         case "lighting_chandelier":         return "chandelier"
@@ -96,6 +95,7 @@ struct DirigeraDevice: Identifiable, Decodable {
             isReachable: isReachable,
             lastSeen: lastSeen,
             room: room,
+            customIcon: customIcon,
             attributes: updated
         )
     }
@@ -125,6 +125,7 @@ struct DirigeraDevice: Identifiable, Decodable {
             isReachable: data.isReachable ?? isReachable,
             lastSeen: data.lastSeen ?? lastSeen,
             room: data.room ?? room,
+            customIcon: data.customIcon ?? customIcon,
             attributes: attributes.merging(data.attributes)
         )
     }
@@ -181,6 +182,7 @@ extension DirigeraDevice {
                     isReachable: first.isReachable,
                     lastSeen: first.lastSeen,
                     room: room,
+                    customIcon: first.customIcon,
                     attributes: mergedAttrs
                 )
             )
@@ -247,6 +249,7 @@ struct DirigeraEvent: Decodable {
         let isReachable: Bool?
         let lastSeen: String?
         let room: Room?
+        let customIcon: String?
         let attributes: DirigeraDevice.Attributes?
     }
 }
