@@ -135,6 +135,7 @@ final class AppState: ObservableObject {
 
     static func preview() -> AppState {
         let state = AppState()
+        state.gatewayName = "My Smart Home"
         state.accessToken = "preview-token"
         state.lights = [
             DirigeraDevice(id: "l1", type: "light",
