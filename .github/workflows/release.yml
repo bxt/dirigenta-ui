@@ -16,103 +16,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Signing ────────────────────────────────────────────────────────────
-      # Required secrets:
-      #   DEVELOPER_ID_CERT_P12      Developer ID Application certificate (base64-encoded .p12)
-      #   DEVELOPER_ID_CERT_PASSWORD Password for the .p12
-      - name: Import Developer ID certificate
-        env:
-          CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
-          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
-        run: |
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security set-keychain-settings -lut 3600 build.keychain
-          echo "$CERT_P12" | base64 --decode > cert.p12
-          security import cert.p12 -k build.keychain -P "$CERT_PASSWORD" \
-            -T /usr/bin/codesign -T /usr/bin/xcodebuild
-          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
-          rm cert.p12
-
-      # ── Version ────────────────────────────────────────────────────────────
       # Strip the leading 'v' from the tag so MARKETING_VERSION is "1.2.0".
       - name: Derive version from tag
         run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
-      # ── Build ──────────────────────────────────────────────────────────────
-      # Required secrets:
-      #   APPLE_TEAM_ID   Your 10-character Apple Developer Team ID
-      - name: Archive
+      - name: Build
         run: |
-          xcodebuild archive \
+          xcodebuild build \
             -project diregenta-ui.xcodeproj \
             -scheme diregenta-ui \
             -destination 'platform=macOS' \
-            -archivePath "$RUNNER_TEMP/diregenta-ui.xcarchive" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
-            MARKETING_VERSION="$MARKETING_VERSION"
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Export archive
-        run: |
-          cat > /tmp/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>developer-id</string>
-            <key>teamID</key>
-            <string>${{ secrets.APPLE_TEAM_ID }}</string>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/diregenta-ui.xcarchive" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist /tmp/ExportOptions.plist
-
-      # ── Notarization ───────────────────────────────────────────────────────
-      # Required secrets:
-      #   NOTARIZE_KEY_ID       App Store Connect API key ID (e.g. ABCD123456)
-      #   NOTARIZE_KEY_ISSUER   App Store Connect API issuer UUID
-      #   NOTARIZE_KEY_P8       Contents of the .p8 private key file
-      - name: Notarize
-        env:
-          KEY_ID: ${{ secrets.NOTARIZE_KEY_ID }}
-          KEY_ISSUER: ${{ secrets.NOTARIZE_KEY_ISSUER }}
-          KEY_P8: ${{ secrets.NOTARIZE_KEY_P8 }}
-        run: |
-          mkdir -p ~/private_keys
-          echo "$KEY_P8" > ~/private_keys/AuthKey_${KEY_ID}.p8
-
-          ditto -c -k --keepParent \
-            "$RUNNER_TEMP/export/diregenta-ui.app" \
-            "$RUNNER_TEMP/diregenta-ui-notarize.zip"
-
-          xcrun notarytool submit "$RUNNER_TEMP/diregenta-ui-notarize.zip" \
-            --key ~/private_keys/AuthKey_${KEY_ID}.p8 \
-            --key-id "$KEY_ID" \
-            --issuer "$KEY_ISSUER" \
-            --wait
-
-          xcrun stapler staple "$RUNNER_TEMP/export/diregenta-ui.app"
-
-      # ── Package ────────────────────────────────────────────────────────────
       - name: Create release ZIP
         run: |
-          ditto -c -k --keepParent \
-            "$RUNNER_TEMP/export/diregenta-ui.app" \
-            "diregenta-ui-${GITHUB_REF_NAME}.zip"
+          APP=$(find "$RUNNER_TEMP/DerivedData" -name "diregenta-ui.app" -maxdepth 6 | head -1)
+          ditto -c -k --keepParent "$APP" "diregenta-ui-${GITHUB_REF_NAME}.zip"
 
-      # ── Publish ────────────────────────────────────────────────────────────
       - name: Create GitHub release
         run: |
           gh release create "$GITHUB_REF_NAME" \
             "diregenta-ui-${GITHUB_REF_NAME}.zip" \
             --title "diregenta-ui ${GITHUB_REF_NAME}" \
-            --generate-notes
+            --generate-notes \
+            --notes-start-tag "$(git tag --sort=-version:refname | sed -n '2p')"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
