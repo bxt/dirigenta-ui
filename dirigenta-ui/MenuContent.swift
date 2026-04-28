@@ -33,6 +33,11 @@ private struct DiscoveryStatusView: View {
     }
 }
 
+private struct FooterHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 private struct ScreenReader: NSViewRepresentable {
     let onScreen: (NSScreen) -> Void
     func makeNSView(context: Context) -> NSView { NSView() }
@@ -60,6 +65,7 @@ struct MenuContent: View {
     @State private var now = Date()
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
+    @State private var footerHeight: CGFloat = 0
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -124,10 +130,16 @@ struct MenuContent: View {
                     }
                 }
             }
-            .layoutPriority(1)
+            .frame(maxHeight: {
+                let outerPadding: CGFloat = 12   // matches .padding(12) below
+                let footerSpacing: CGFloat = 8   // matches VStack spacing above
+                let screenHeight = currentScreen?.visibleFrame.height ?? 800
+                return max(100, screenHeight - footerHeight - outerPadding * 2 - footerSpacing)
+            }())
 
-            Divider()
-            HStack(spacing: 8) {
+            VStack(spacing: 8) {
+                Divider()
+                HStack(spacing: 8) {
                 Text("v\(appVersion)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -165,10 +177,14 @@ struct MenuContent: View {
                     }
                 }
                 Button("Quit") { NSApplication.shared.terminate(nil) }
+                }
             }
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: FooterHeightKey.self, value: geo.size.height)
+            })
+            .onPreferenceChange(FooterHeightKey.self) { footerHeight = $0 }
         }
         .padding(12)
-        .frame(maxHeight: currentScreen?.visibleFrame.height ?? .infinity)
         .frame(width: 300)
         .background(ScreenReader { currentScreen = $0 })
     }
