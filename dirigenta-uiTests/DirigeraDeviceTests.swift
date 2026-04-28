@@ -1,9 +1,11 @@
 import XCTest
+
 @testable import dirigenta_ui
 
 // MARK: - Fixtures
 
-private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
+private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T
+{
     try JSONDecoder().decode(type, from: json.data(using: .utf8)!)
 }
 
@@ -15,15 +17,15 @@ private func makeDevice(
     attributes: String = "{}"
 ) -> DirigeraDevice {
     let json = """
-    {
-      "id": "\(id)",
-      "type": "\(type)",
-      \(deviceType.map { "\"deviceType\": \"\($0)\"," } ?? "")
-      \(relationId.map { "\"relationId\": \"\($0)\"," } ?? "")
-      "isReachable": true,
-      "attributes": \(attributes)
-    }
-    """
+        {
+          "id": "\(id)",
+          "type": "\(type)",
+          \(deviceType.map { "\"deviceType\": \"\($0)\"," } ?? "")
+          \(relationId.map { "\"relationId\": \"\($0)\"," } ?? "")
+          "isReachable": true,
+          "attributes": \(attributes)
+        }
+        """
     return try! decode(DirigeraDevice.self, from: json)
 }
 
@@ -39,19 +41,21 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
     }
 
     func testDecodesFullAttributes() throws {
-        let device = makeDevice(attributes: """
-        {
-          "customName": "Floor Lamp",
-          "isOn": true,
-          "lightLevel": 80,
-          "colorTemperature": 2700,
-          "colorTemperatureMin": 2202,
-          "colorTemperatureMax": 4000,
-          "colorHue": 120.5,
-          "colorSaturation": 0.8,
-          "batteryPercentage": 95
-        }
-        """)
+        let device = makeDevice(
+            attributes: """
+                {
+                  "customName": "Floor Lamp",
+                  "isOn": true,
+                  "lightLevel": 80,
+                  "colorTemperature": 2700,
+                  "colorTemperatureMin": 2202,
+                  "colorTemperatureMax": 4000,
+                  "colorHue": 120.5,
+                  "colorSaturation": 0.8,
+                  "batteryPercentage": 95
+                }
+                """
+        )
         XCTAssertEqual(device.attributes.customName, "Floor Lamp")
         XCTAssertEqual(device.attributes.isOn, true)
         XCTAssertEqual(device.attributes.lightLevel, 80)
@@ -64,15 +68,22 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
     }
 
     func testDecodesEnvSensorAttributes() throws {
-        let device = makeDevice(deviceType: "environmentSensor", attributes: """
-        {
-          "currentTemperature": 22.5,
-          "currentRH": 45.0,
-          "currentCO2": 850.0,
-          "currentPM25": 8.0
-        }
-        """)
-        XCTAssertEqual(device.attributes.currentTemperature!, 22.5, accuracy: 0.01)
+        let device = makeDevice(
+            deviceType: "environmentSensor",
+            attributes: """
+                {
+                  "currentTemperature": 22.5,
+                  "currentRH": 45.0,
+                  "currentCO2": 850.0,
+                  "currentPM25": 8.0
+                }
+                """
+        )
+        XCTAssertEqual(
+            device.attributes.currentTemperature!,
+            22.5,
+            accuracy: 0.01
+        )
         XCTAssertEqual(device.attributes.currentRH!, 45.0, accuracy: 0.01)
         XCTAssertEqual(device.attributes.currentCO2!, 850.0, accuracy: 0.01)
         XCTAssertEqual(device.attributes.currentPM25!, 8.0, accuracy: 0.01)
@@ -80,11 +91,11 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
 
     func testDecodesDeviceArray() throws {
         let json = """
-        [
-          {"id": "a", "type": "light", "isReachable": true, "attributes": {}},
-          {"id": "b", "type": "gateway", "isReachable": true, "attributes": {}}
-        ]
-        """
+            [
+              {"id": "a", "type": "light", "isReachable": true, "attributes": {}},
+              {"id": "b", "type": "gateway", "isReachable": true, "attributes": {}}
+            ]
+            """
         let devices = try decode([DirigeraDevice].self, from: json)
         XCTAssertEqual(devices.count, 2)
         XCTAssertEqual(devices[0].id, "a")
@@ -133,13 +144,25 @@ final class DirigeraDevicePropertiesTests: XCTestCase {
     }
 
     func testIsOpenCloseSensor() {
-        XCTAssertTrue(makeDevice(type: "sensor", deviceType: "openCloseSensor").isOpenCloseSensor)
-        XCTAssertFalse(makeDevice(type: "sensor", deviceType: "environmentSensor").isOpenCloseSensor)
+        XCTAssertTrue(
+            makeDevice(type: "sensor", deviceType: "openCloseSensor")
+                .isOpenCloseSensor
+        )
+        XCTAssertFalse(
+            makeDevice(type: "sensor", deviceType: "environmentSensor")
+                .isOpenCloseSensor
+        )
     }
 
     func testIsEnvironmentSensor() {
-        XCTAssertTrue(makeDevice(type: "sensor", deviceType: "environmentSensor").isEnvironmentSensor)
-        XCTAssertFalse(makeDevice(type: "sensor", deviceType: "openCloseSensor").isEnvironmentSensor)
+        XCTAssertTrue(
+            makeDevice(type: "sensor", deviceType: "environmentSensor")
+                .isEnvironmentSensor
+        )
+        XCTAssertFalse(
+            makeDevice(type: "sensor", deviceType: "openCloseSensor")
+                .isEnvironmentSensor
+        )
     }
 
     func testIsColorTemperatureLight_trueWhenMinSet() {
@@ -180,13 +203,21 @@ final class DirigeraDevicePropertiesTests: XCTestCase {
 @MainActor
 final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 
-    private func sensor(temp: Double? = nil, rh: Double? = nil, co2: Double? = nil, pm25: Double? = nil) -> DirigeraDevice {
+    private func sensor(
+        temp: Double? = nil,
+        rh: Double? = nil,
+        co2: Double? = nil,
+        pm25: Double? = nil
+    ) -> DirigeraDevice {
         var parts: [String] = []
-        if let t = temp  { parts.append(#""currentTemperature": \#(t)"#) }
-        if let r = rh    { parts.append(#""currentRH": \#(r)"#) }
-        if let c = co2   { parts.append(#""currentCO2": \#(c)"#) }
-        if let p = pm25  { parts.append(#""currentPM25": \#(p)"#) }
-        return makeDevice(deviceType: "environmentSensor", attributes: "{\(parts.joined(separator: ","))}")
+        if let t = temp { parts.append(#""currentTemperature": \#(t)"#) }
+        if let r = rh { parts.append(#""currentRH": \#(r)"#) }
+        if let c = co2 { parts.append(#""currentCO2": \#(c)"#) }
+        if let p = pm25 { parts.append(#""currentPM25": \#(p)"#) }
+        return makeDevice(
+            deviceType: "environmentSensor",
+            attributes: "{\(parts.joined(separator: ","))}"
+        )
     }
 
     func testEnvReadings_empty_whenNoAttributes() {
@@ -242,11 +273,15 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
     }
 
     func testIsComfortable_trueWhenAllInRange() {
-        XCTAssertTrue(sensor(temp: 22.0, rh: 50.0, co2: 600.0, pm25: 5.0).isComfortable)
+        XCTAssertTrue(
+            sensor(temp: 22.0, rh: 50.0, co2: 600.0, pm25: 5.0).isComfortable
+        )
     }
 
     func testIsComfortable_falseWhenAnyOutOfRange() {
-        XCTAssertFalse(sensor(temp: 22.0, rh: 50.0, co2: 1200.0, pm25: 5.0).isComfortable)
+        XCTAssertFalse(
+            sensor(temp: 22.0, rh: 50.0, co2: 1200.0, pm25: 5.0).isComfortable
+        )
     }
 }
 
@@ -256,32 +291,45 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 final class DirigeraDeviceMergingTests: XCTestCase {
 
     func testAttributesMerging_coalesces_nonNilFields() throws {
-        let base   = try decode(DirigeraDevice.Attributes.self, from: #"{"customName":"Old Name","lightLevel":50}"#)
-        let update = try decode(DirigeraDevice.Attributes.self, from: #"{"lightLevel":80,"isOn":true}"#)
+        let base = try decode(
+            DirigeraDevice.Attributes.self,
+            from: #"{"customName":"Old Name","lightLevel":50}"#
+        )
+        let update = try decode(
+            DirigeraDevice.Attributes.self,
+            from: #"{"lightLevel":80,"isOn":true}"#
+        )
         let merged = base.merging(update)
         XCTAssertEqual(merged.customName, "Old Name")  // kept from base
-        XCTAssertEqual(merged.lightLevel, 80)           // overwritten
-        XCTAssertEqual(merged.isOn, true)               // added
+        XCTAssertEqual(merged.lightLevel, 80)  // overwritten
+        XCTAssertEqual(merged.isOn, true)  // added
     }
 
     func testAttributesMerging_withNil_returnsBase() throws {
-        let base   = try decode(DirigeraDevice.Attributes.self, from: #"{"customName":"Kept"}"#)
+        let base = try decode(
+            DirigeraDevice.Attributes.self,
+            from: #"{"customName":"Kept"}"#
+        )
         let merged = base.merging(nil)
         XCTAssertEqual(merged.customName, "Kept")
     }
 
     func testDeviceMerging_withEventData_updatesState() throws {
-        let device = makeDevice(id: "d1", type: "light", attributes: #"{"isOn": false, "lightLevel": 50}"#)
+        let device = makeDevice(
+            id: "d1",
+            type: "light",
+            attributes: #"{"isOn": false, "lightLevel": 50}"#
+        )
 
         let eventJSON = """
-        {
-          "type": "deviceStateChanged",
-          "data": {
-            "id": "d1",
-            "attributes": {"isOn": true, "lightLevel": 90}
-          }
-        }
-        """
+            {
+              "type": "deviceStateChanged",
+              "data": {
+                "id": "d1",
+                "attributes": {"isOn": true, "lightLevel": 90}
+              }
+            }
+            """
         let event = try decode(DirigeraEvent.self, from: eventJSON)
         let updated = device.merging(event.data!)
 
@@ -291,12 +339,22 @@ final class DirigeraDeviceMergingTests: XCTestCase {
     }
 
     func testMergeEnvSensors_combinesComponentsByRelationId() {
-        let s1 = makeDevice(id: "s1", type: "sensor", deviceType: "environmentSensor",
-                            relationId: "rel-1",
-                            attributes: #"{"customName": "STARKVIND Table", "currentCO2": 700.0}"#)
-        let s2 = makeDevice(id: "s2", type: "sensor", deviceType: "environmentSensor",
-                            relationId: "rel-1",
-                            attributes: #"{"customName": "STARKVIND Table", "currentPM25": 5.0}"#)
+        let s1 = makeDevice(
+            id: "s1",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes:
+                #"{"customName": "STARKVIND Table", "currentCO2": 700.0}"#
+        )
+        let s2 = makeDevice(
+            id: "s2",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes:
+                #"{"customName": "STARKVIND Table", "currentPM25": 5.0}"#
+        )
 
         let (merged, idMap) = DirigeraDevice.mergeEnvSensors([s1, s2])
 
@@ -307,7 +365,11 @@ final class DirigeraDeviceMergingTests: XCTestCase {
     }
 
     func testMergeEnvSensors_preservesUnrelatedSensors() {
-        let standalone = makeDevice(id: "s1", type: "sensor", deviceType: "environmentSensor")
+        let standalone = makeDevice(
+            id: "s1",
+            type: "sensor",
+            deviceType: "environmentSensor"
+        )
         let (merged, idMap) = DirigeraDevice.mergeEnvSensors([standalone])
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged[0].id, "s1")
@@ -316,28 +378,43 @@ final class DirigeraDeviceMergingTests: XCTestCase {
 
     func testMergeEnvSensors_prefersNamedComponentOverDefault() {
         // One component has customName == model (IKEA default), the other has a user-set name.
-        let generic = makeDevice(id: "s1", type: "sensor", deviceType: "environmentSensor",
-                                 relationId: "rel-1",
-                                 attributes: #"{"customName": "STARKVIND", "model": "STARKVIND"}"#)
-        let named = makeDevice(id: "s2", type: "sensor", deviceType: "environmentSensor",
-                               relationId: "rel-1",
-                               attributes: #"{"customName": "Living Room Air", "model": "STARKVIND"}"#)
+        let generic = makeDevice(
+            id: "s1",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes: #"{"customName": "STARKVIND", "model": "STARKVIND"}"#
+        )
+        let named = makeDevice(
+            id: "s2",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes:
+                #"{"customName": "Living Room Air", "model": "STARKVIND"}"#
+        )
 
         let (merged, _) = DirigeraDevice.mergeEnvSensors([generic, named])
         XCTAssertEqual(merged[0].attributes.customName, "Living Room Air")
     }
 
     func testMergeEnvSensors_picksRoomFromSensorThatHasOne() throws {
-        let noRoom = try decode(DirigeraDevice.self, from: """
-            {"id":"s1","type":"sensor","deviceType":"environmentSensor",
-             "relationId":"rel-1","isReachable":true,"attributes":{"customName":"STARKVIND","currentCO2":700.0}}
-            """)
-        let withRoom = try decode(DirigeraDevice.self, from: """
-            {"id":"s2","type":"sensor","deviceType":"environmentSensor",
-             "relationId":"rel-1","isReachable":true,
-             "room":{"id":"r1","name":"Living Room"},
-             "attributes":{"customName":"STARKVIND","currentPM25":5.0}}
-            """)
+        let noRoom = try decode(
+            DirigeraDevice.self,
+            from: """
+                {"id":"s1","type":"sensor","deviceType":"environmentSensor",
+                 "relationId":"rel-1","isReachable":true,"attributes":{"customName":"STARKVIND","currentCO2":700.0}}
+                """
+        )
+        let withRoom = try decode(
+            DirigeraDevice.self,
+            from: """
+                {"id":"s2","type":"sensor","deviceType":"environmentSensor",
+                 "relationId":"rel-1","isReachable":true,
+                 "room":{"id":"r1","name":"Living Room"},
+                 "attributes":{"customName":"STARKVIND","currentPM25":5.0}}
+                """
+        )
 
         let (merged, _) = DirigeraDevice.mergeEnvSensors([noRoom, withRoom])
         XCTAssertEqual(merged[0].room?.name, "Living Room")
@@ -350,25 +427,31 @@ final class DirigeraDeviceMergingTests: XCTestCase {
 final class DirigeraEventTests: XCTestCase {
 
     func testIsDeviceStateChanged_true() throws {
-        let event = try decode(DirigeraEvent.self, from: #"{"type": "deviceStateChanged"}"#)
+        let event = try decode(
+            DirigeraEvent.self,
+            from: #"{"type": "deviceStateChanged"}"#
+        )
         XCTAssertTrue(event.isDeviceStateChanged)
     }
 
     func testIsDeviceStateChanged_false() throws {
-        let event = try decode(DirigeraEvent.self, from: #"{"type": "sceneUpdated"}"#)
+        let event = try decode(
+            DirigeraEvent.self,
+            from: #"{"type": "sceneUpdated"}"#
+        )
         XCTAssertFalse(event.isDeviceStateChanged)
     }
 
     func testDecodesPartialAttributes() throws {
         let json = """
-        {
-          "type": "deviceStateChanged",
-          "data": {
-            "id": "light-1",
-            "attributes": {"isOn": false}
-          }
-        }
-        """
+            {
+              "type": "deviceStateChanged",
+              "data": {
+                "id": "light-1",
+                "attributes": {"isOn": false}
+              }
+            }
+            """
         let event = try decode(DirigeraEvent.self, from: json)
         XCTAssertEqual(event.data?.id, "light-1")
         XCTAssertEqual(event.data?.attributes?.isOn, false)

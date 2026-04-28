@@ -2,7 +2,8 @@ import Foundation
 import Security
 
 enum KeychainService {
-    private static let service = Bundle.main.bundleIdentifier ?? "DefaultService"
+    private static let service =
+        Bundle.main.bundleIdentifier ?? "DefaultService"
 
     enum KeychainError: LocalizedError {
         case encodingFailed
@@ -13,7 +14,8 @@ enum KeychainService {
             switch self {
             case .encodingFailed: return "Failed to encode value for Keychain"
             case .decodingFailed: return "Failed to decode value from Keychain"
-            case .unexpectedStatus(let s): return "Keychain error (OSStatus \(s))"
+            case .unexpectedStatus(let s):
+                return "Keychain error (OSStatus \(s))"
             }
         }
     }
@@ -22,24 +24,31 @@ enum KeychainService {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: key
+            kSecAttrAccount as String: key,
         ]
     }
 
     static func set(_ value: String, for key: String) throws {
-        guard let data = value.data(using: .utf8) else { throw KeychainError.encodingFailed }
+        guard let data = value.data(using: .utf8) else {
+            throw KeychainError.encodingFailed
+        }
         let query = makeQuery(for: key)
         switch SecItemCopyMatching(query as CFDictionary, nil) {
         case errSecSuccess:
             let attrs: [String: Any] = [kSecValueData as String: data]
             let s = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
-            guard s == errSecSuccess else { throw KeychainError.unexpectedStatus(s) }
+            guard s == errSecSuccess else {
+                throw KeychainError.unexpectedStatus(s)
+            }
         case errSecItemNotFound:
             var item = query
             item[kSecValueData as String] = data
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            item[kSecAttrAccessible as String] =
+                kSecAttrAccessibleAfterFirstUnlock
             let s = SecItemAdd(item as CFDictionary, nil)
-            guard s == errSecSuccess else { throw KeychainError.unexpectedStatus(s) }
+            guard s == errSecSuccess else {
+                throw KeychainError.unexpectedStatus(s)
+            }
         case let s:
             throw KeychainError.unexpectedStatus(s)
         }
@@ -52,7 +61,9 @@ enum KeychainService {
         var item: CFTypeRef?
         switch SecItemCopyMatching(query as CFDictionary, &item) {
         case errSecSuccess:
-            guard let data = item as? Data, let string = String(data: data, encoding: .utf8) else {
+            guard let data = item as? Data,
+                let string = String(data: data, encoding: .utf8)
+            else {
                 throw KeychainError.decodingFailed
             }
             return string

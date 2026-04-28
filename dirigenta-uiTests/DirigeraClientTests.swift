@@ -1,15 +1,18 @@
 import XCTest
+
 @testable import dirigenta_ui
 
 // MARK: - URLProtocol stub
 
 final class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
+    nonisolated(unsafe) static var handler:
+        ((URLRequest) throws -> (HTTPURLResponse, Data?))?
     nonisolated(unsafe) static var capturedRequest: URLRequest?
     nonisolated(unsafe) static var capturedBody: Data?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest
+    { request }
 
     override func startLoading() {
         MockURLProtocol.capturedRequest = request
@@ -34,7 +37,11 @@ final class MockURLProtocol: URLProtocol {
         }
         do {
             let (response, data) = try handler(request)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(
+                self,
+                didReceive: response,
+                cacheStoragePolicy: .notAllowed
+            )
             if let data { client?.urlProtocol(self, didLoad: data) }
             client?.urlProtocolDidFinishLoading(self)
         } catch {
@@ -54,7 +61,12 @@ private func mockSession() -> URLSession {
 }
 
 private func httpResponse(status: Int, for url: URL) -> HTTPURLResponse {
-    HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!
+    HTTPURLResponse(
+        url: url,
+        statusCode: status,
+        httpVersion: nil,
+        headerFields: nil
+    )!
 }
 
 private let testIP = "192.168.1.1"
@@ -62,14 +74,14 @@ private let testToken = "test-token"
 private let devicesURL = URL(string: "https://\(testIP):8443/v1/devices")!
 
 private let singleDeviceJSON = """
-[{
-  "id": "light-1",
-  "type": "light",
-  "deviceType": "colorTemperatureLight",
-  "isReachable": true,
-  "attributes": {"customName": "Desk Lamp", "isOn": true, "lightLevel": 80}
-}]
-"""
+    [{
+      "id": "light-1",
+      "type": "light",
+      "deviceType": "colorTemperatureLight",
+      "isReachable": true,
+      "attributes": {"customName": "Desk Lamp", "isOn": true, "lightLevel": 80}
+    }]
+    """
 
 // MARK: - Tests
 
@@ -83,14 +95,21 @@ final class DirigeraClientTests: XCTestCase {
         MockURLProtocol.handler = nil
         MockURLProtocol.capturedRequest = nil
         MockURLProtocol.capturedBody = nil
-        client = DirigeraClient(ip: testIP, token: testToken, session: mockSession())
+        client = DirigeraClient(
+            ip: testIP,
+            token: testToken,
+            session: mockSession()
+        )
     }
 
     // MARK: fetchAllDevices
 
     func testFetchAllDevices_returnsDecodedDevices() async throws {
         MockURLProtocol.handler = { _ in
-            (httpResponse(status: 200, for: devicesURL), singleDeviceJSON.data(using: .utf8)!)
+            (
+                httpResponse(status: 200, for: devicesURL),
+                singleDeviceJSON.data(using: .utf8)!
+            )
         }
         let devices = try await client.fetchAllDevices()
         XCTAssertEqual(devices.count, 1)
@@ -102,7 +121,10 @@ final class DirigeraClientTests: XCTestCase {
 
     func testFetchAllDevices_emptyArray() async throws {
         MockURLProtocol.handler = { _ in
-            (httpResponse(status: 200, for: devicesURL), "[]".data(using: .utf8)!)
+            (
+                httpResponse(status: 200, for: devicesURL),
+                "[]".data(using: .utf8)!
+            )
         }
         let devices = try await client.fetchAllDevices()
         XCTAssertTrue(devices.isEmpty)
@@ -122,7 +144,10 @@ final class DirigeraClientTests: XCTestCase {
 
     func testFetchAllDevices_malformedJSON_throwsDecodingError() async throws {
         MockURLProtocol.handler = { _ in
-            (httpResponse(status: 200, for: devicesURL), "not json".data(using: .utf8)!)
+            (
+                httpResponse(status: 200, for: devicesURL),
+                "not json".data(using: .utf8)!
+            )
         }
         do {
             _ = try await client.fetchAllDevices()
@@ -134,10 +159,15 @@ final class DirigeraClientTests: XCTestCase {
 
     func testFetchAllDevices_sendsAuthorizationHeader() async throws {
         MockURLProtocol.handler = { _ in
-            (httpResponse(status: 200, for: devicesURL), "[]".data(using: .utf8)!)
+            (
+                httpResponse(status: 200, for: devicesURL),
+                "[]".data(using: .utf8)!
+            )
         }
         _ = try await client.fetchAllDevices()
-        let auth = MockURLProtocol.capturedRequest?.value(forHTTPHeaderField: "Authorization")
+        let auth = MockURLProtocol.capturedRequest?.value(
+            forHTTPHeaderField: "Authorization"
+        )
         XCTAssertEqual(auth, "Bearer \(testToken)")
     }
 
@@ -145,7 +175,9 @@ final class DirigeraClientTests: XCTestCase {
 
     func testSetLight_sendsCorrectBody() async throws {
         let url = URL(string: "https://\(testIP):8443/v1/devices/lamp-1")!
-        MockURLProtocol.handler = { _ in (httpResponse(status: 200, for: url), nil) }
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 200, for: url), nil)
+        }
 
         try await client.setLight(id: "lamp-1", isOn: false)
 
@@ -153,14 +185,18 @@ final class DirigeraClientTests: XCTestCase {
         XCTAssertEqual(req.httpMethod, "PATCH")
         XCTAssertEqual(req.url?.path, "/v1/devices/lamp-1")
         let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
         let attrs = try XCTUnwrap(json.first?["attributes"] as? [String: Any])
         XCTAssertEqual(attrs["isOn"] as? Bool, false)
     }
 
     func testSetLight_httpError_throws() async throws {
         let url = URL(string: "https://\(testIP):8443/v1/devices/lamp-1")!
-        MockURLProtocol.handler = { _ in (httpResponse(status: 500, for: url), nil) }
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 500, for: url), nil)
+        }
         do {
             try await client.setLight(id: "lamp-1", isOn: true)
             XCTFail("Expected URLError(.badServerResponse)")
@@ -173,12 +209,16 @@ final class DirigeraClientTests: XCTestCase {
 
     func testSetLightLevel_sendsCorrectBody() async throws {
         let url = URL(string: "https://\(testIP):8443/v1/devices/lamp-1")!
-        MockURLProtocol.handler = { _ in (httpResponse(status: 200, for: url), nil) }
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 200, for: url), nil)
+        }
 
         try await client.setLightLevel(id: "lamp-1", lightLevel: 75)
 
         let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
         let attrs = try XCTUnwrap(json.first?["attributes"] as? [String: Any])
         XCTAssertEqual(attrs["lightLevel"] as? Int, 75)
     }
@@ -187,12 +227,19 @@ final class DirigeraClientTests: XCTestCase {
 
     func testSetColorTemperature_sendsCorrectBody() async throws {
         let url = URL(string: "https://\(testIP):8443/v1/devices/lamp-1")!
-        MockURLProtocol.handler = { _ in (httpResponse(status: 200, for: url), nil) }
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 200, for: url), nil)
+        }
 
-        try await client.setColorTemperature(id: "lamp-1", colorTemperature: 3000)
+        try await client.setColorTemperature(
+            id: "lamp-1",
+            colorTemperature: 3000
+        )
 
         let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
         let attrs = try XCTUnwrap(json.first?["attributes"] as? [String: Any])
         XCTAssertEqual(attrs["colorTemperature"] as? Int, 3000)
     }
@@ -201,14 +248,26 @@ final class DirigeraClientTests: XCTestCase {
 
     func testSetColor_sendsCorrectBody() async throws {
         let url = URL(string: "https://\(testIP):8443/v1/devices/lamp-1")!
-        MockURLProtocol.handler = { _ in (httpResponse(status: 200, for: url), nil) }
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 200, for: url), nil)
+        }
 
         try await client.setColor(id: "lamp-1", hue: 200.0, saturation: 0.6)
 
         let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [[String: Any]])
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
         let attrs = try XCTUnwrap(json.first?["attributes"] as? [String: Any])
-        XCTAssertEqual(attrs["colorHue"] as? Double ?? 0, 200.0, accuracy: 0.001)
-        XCTAssertEqual(attrs["colorSaturation"] as? Double ?? 0, 0.6, accuracy: 0.001)
+        XCTAssertEqual(
+            attrs["colorHue"] as? Double ?? 0,
+            200.0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            attrs["colorSaturation"] as? Double ?? 0,
+            0.6,
+            accuracy: 0.001
+        )
     }
 }

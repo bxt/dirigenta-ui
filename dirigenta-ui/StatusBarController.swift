@@ -1,7 +1,7 @@
 import AppKit
-import SwiftUI
 import Combine
 import OSLog
+import SwiftUI
 
 final class StatusBarController: NSObject {
     private var statusItem: NSStatusItem!
@@ -13,7 +13,9 @@ final class StatusBarController: NSObject {
     func setup(appState: AppState) {
         self.appState = appState
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(
+            withLength: NSStatusItem.squareLength
+        )
         guard let button = statusItem.button else { return }
         button.action = #selector(handleClick(_:))
         button.sendAction(on: [.leftMouseDown, .rightMouseDown])
@@ -25,7 +27,9 @@ final class StatusBarController: NSObject {
             .environmentObject(appState.mdns)
         popover = NSPopover()
         popover.behavior = .applicationDefined
-        popover.contentViewController = NSHostingController(rootView: contentView)
+        popover.contentViewController = NSHostingController(
+            rootView: contentView
+        )
 
         appState.$pinnedLightId
             .receive(on: RunLoop.main)
@@ -47,12 +51,17 @@ final class StatusBarController: NSObject {
         } else {
             name = "house"
         }
-        button.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        button.image = NSImage(
+            systemSymbolName: name,
+            accessibilityDescription: nil
+        )
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
-        if event.type == .leftMouseDown, appState.pinnedLightId != nil, !popover.isShown {
+        if event.type == .leftMouseDown, appState.pinnedLightId != nil,
+            !popover.isShown
+        {
             Task { await togglePinnedLight() }
         } else {
             togglePopover(sender)
@@ -65,8 +74,14 @@ final class StatusBarController: NSObject {
         } else {
             // Activate so that child panels (e.g. NSColorPanel) can become key.
             NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            popover.show(
+                relativeTo: sender.bounds,
+                of: sender,
+                preferredEdge: .minY
+            )
+            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
+                .leftMouseDown, .rightMouseDown,
+            ]) { [weak self] _ in
                 // Don't close while the system color panel is open — the user is
                 // picking a colour and clicks there are expected outside the popover.
                 guard !NSColorPanel.shared.isVisible else { return }
@@ -76,7 +91,7 @@ final class StatusBarController: NSObject {
     }
 
     private func closePopover() {
-        NSColorPanel.shared.orderOut(nil)   // dismiss colour panel together with popover
+        NSColorPanel.shared.orderOut(nil)  // dismiss colour panel together with popover
         popover.performClose(nil)
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -86,7 +101,8 @@ final class StatusBarController: NSObject {
 
     private func togglePinnedLight() async {
         guard let lightId = appState.pinnedLightId,
-              let ip = appState.mdns.currentIPAddress else { return }
+            let ip = appState.mdns.currentIPAddress
+        else { return }
         let newState = !appState.pinnedLightIsOn
         appState.pinnedLightIsOn = newState
         let client = DirigeraClient(ip: ip, token: appState.accessToken)
@@ -94,7 +110,9 @@ final class StatusBarController: NSObject {
             try await client.setLight(id: lightId, isOn: newState)
         } catch {
             appState.pinnedLightIsOn = !newState
-            Logger.statusBar.error("Toggle error: \(error.localizedDescription, privacy: .public)")
+            Logger.statusBar.error(
+                "Toggle error: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 }

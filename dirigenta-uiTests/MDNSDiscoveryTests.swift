@@ -1,5 +1,6 @@
-import XCTest
 import Network
+import XCTest
+
 @testable import dirigenta_ui
 
 @MainActor
@@ -9,7 +10,10 @@ final class MDNSDiscoveryTests: XCTestCase {
 
     func testIPv4StringRepresentation() {
         let addr = IPv4Address("192.168.1.100")!
-        XCTAssertEqual(MDNSResolver.ipString(from: .ipv4(addr)), "192.168.1.100")
+        XCTAssertEqual(
+            MDNSResolver.ipString(from: .ipv4(addr)),
+            "192.168.1.100"
+        )
     }
 
     func testIPv6StringRepresentation() {
@@ -23,7 +27,10 @@ final class MDNSDiscoveryTests: XCTestCase {
     }
 
     func testHostnamePassthrough() {
-        XCTAssertEqual(MDNSResolver.ipString(from: .name("dirigera.local", nil)), "dirigera.local")
+        XCTAssertEqual(
+            MDNSResolver.ipString(from: .name("dirigera.local", nil)),
+            "dirigera.local"
+        )
     }
 
     func testStartSetsIsResolving() {
@@ -37,7 +44,7 @@ final class MDNSDiscoveryTests: XCTestCase {
     func testStartIsIdempotent() {
         let resolver = MDNSResolver()
         resolver.start()
-        resolver.start() // second call should be a no-op
+        resolver.start()  // second call should be a no-op
         XCTAssertTrue(resolver.isResolving)
         resolver.stop()
     }

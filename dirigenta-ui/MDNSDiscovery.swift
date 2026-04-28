@@ -16,13 +16,18 @@ final class MDNSResolver: ObservableObject {
         hasStarted = true
         isResolving = true
 
-        let descriptor = NWBrowser.Descriptor.bonjour(type: "_ihsp._tcp.", domain: "local.")
+        let descriptor = NWBrowser.Descriptor.bonjour(
+            type: "_ihsp._tcp.",
+            domain: "local."
+        )
         let browser = NWBrowser(for: descriptor, using: .tcp)
         self.browser = browser
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self, let result = results.first else { return }
-            Logger.mdns.info("Found service: \(String(describing: result.endpoint), privacy: .public)")
+            Logger.mdns.info(
+                "Found service: \(String(describing: result.endpoint), privacy: .public)"
+            )
             self.resolveEndpoint(result.endpoint)
         }
 
@@ -31,7 +36,9 @@ final class MDNSResolver: ObservableObject {
             case .ready:
                 Logger.mdns.info("Browser ready")
             case .failed(let error):
-                Logger.mdns.error("Browser failed: \(error.localizedDescription, privacy: .public)")
+                Logger.mdns.error(
+                    "Browser failed: \(error.localizedDescription, privacy: .public)"
+                )
                 self?.isResolving = false
             case .cancelled:
                 self?.isResolving = false
@@ -63,7 +70,8 @@ final class MDNSResolver: ObservableObject {
             switch state {
             case .ready:
                 if let path = conn.currentPath,
-                   case let .hostPort(host, _) = path.remoteEndpoint {
+                    case .hostPort(let host, _) = path.remoteEndpoint
+                {
                     let ip = MDNSResolver.ipString(from: host)
                     if !ip.isEmpty {
                         Logger.mdns.info("Resolved IP: \(ip, privacy: .public)")
