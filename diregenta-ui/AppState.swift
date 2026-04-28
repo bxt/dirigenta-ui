@@ -21,6 +21,7 @@ final class AppState: ObservableObject {
                     if let ip = mdns.currentIPAddress {
                         Task { await self.fetchDevices(ip: ip) }
                     }
+                }
             } catch {
                 Logger.keychain.error("\(error.localizedDescription, privacy: .public)")
             }
