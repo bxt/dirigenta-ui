@@ -1,4 +1,4 @@
-# diregenta-ui
+# dirigenta-ui
 
 A macOS menu bar app for controlling your [IKEA Dirigera](https://www.ikea.com/us/en/p/dirigera-hub-for-smart-products-white-smart-50503409/) smart home hub.
 
@@ -12,8 +12,8 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 
 ## Installation
 
-1. Download the latest `diregenta-ui-vX.X.X.zip` from [Releases](../../releases)
-2. Unzip and move `diregenta-ui.app` to `/Applications`
+1. Download the latest `dirigenta-ui-vX.X.X.zip` from [Releases](../../releases)
+2. Unzip and move `dirigenta-ui.app` to `/Applications`
 3. **First launch:** right-click the app → **Open** → click Open in the dialog  
    *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
 
@@ -47,19 +47,19 @@ The response contains an `access_token`. Paste it into the app on first launch.
 
 ```sh
 git clone <repo-url>
-open diregenta-ui.xcodeproj
+open dirigenta-ui.xcodeproj
 ```
 
-Select the `diregenta-ui` scheme and press **Run** (⌘R). Xcode will build and launch the app. No dependencies beyond the standard SDK.
+Select the `dirigenta-ui` scheme and press **Run** (⌘R). Xcode will build and launch the app. No dependencies beyond the standard SDK.
 
 To run tests:
 
 ```sh
 xcodebuild test \
-  -project diregenta-ui.xcodeproj \
-  -scheme diregenta-ui \
+  -project dirigenta-ui.xcodeproj \
+  -scheme dirigenta-ui \
   -destination 'platform=macOS' \
-  -skip-testing:diregenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
+  -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 ```
 

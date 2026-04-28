@@ -16,8 +16,8 @@ jobs:
       - name: Build
         run: |
           xcodebuild build \
-            -project diregenta-ui.xcodeproj \
-            -scheme diregenta-ui \
+            -project dirigenta-ui.xcodeproj \
+            -scheme dirigenta-ui \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -27,10 +27,10 @@ jobs:
       - name: Test
         run: |
           xcodebuild test \
-            -project diregenta-ui.xcodeproj \
-            -scheme diregenta-ui \
+            -project dirigenta-ui.xcodeproj \
+            -scheme dirigenta-ui \
             -destination 'platform=macOS' \
-            -skip-testing:diregenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \

@@ -1,5 +1,5 @@
 import XCTest
-@testable import diregenta_ui
+@testable import dirigenta_ui
 
 // MARK: - URLProtocol stub
 

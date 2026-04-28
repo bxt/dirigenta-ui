@@ -421,7 +421,7 @@ struct DirigeraAuthClient {
     func exchangeToken(code: String, verifier: String) async throws -> String {
         struct Body: Encodable {
             let code: String
-            let name = "diregenta-ui"
+            let name = "dirigenta-ui"
             let grant_type = "authorization_code"
             let code_verifier: String
         }

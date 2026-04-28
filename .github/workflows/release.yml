@@ -23,8 +23,8 @@ jobs:
       - name: Build
         run: |
           xcodebuild build \
-            -project diregenta-ui.xcodeproj \
-            -scheme diregenta-ui \
+            -project dirigenta-ui.xcodeproj \
+            -scheme dirigenta-ui \
             -destination 'platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             MARKETING_VERSION="$MARKETING_VERSION" \
@@ -34,14 +34,14 @@ jobs:
 
       - name: Create release ZIP
         run: |
-          APP=$(find "$RUNNER_TEMP/DerivedData" -name "diregenta-ui.app" -maxdepth 6 | head -1)
-          ditto -c -k --keepParent "$APP" "diregenta-ui-${GITHUB_REF_NAME}.zip"
+          APP=$(find "$RUNNER_TEMP/DerivedData" -name "dirigenta-ui.app" -maxdepth 6 | head -1)
+          ditto -c -k --keepParent "$APP" "dirigenta-ui-${GITHUB_REF_NAME}.zip"
 
       - name: Create GitHub release
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            "diregenta-ui-${GITHUB_REF_NAME}.zip" \
-            --title "diregenta-ui ${GITHUB_REF_NAME}" \
+            "dirigenta-ui-${GITHUB_REF_NAME}.zip" \
+            --title "dirigenta-ui ${GITHUB_REF_NAME}" \
             --generate-notes \
             --notes-start-tag "$(git tag --sort=-version:refname | sed -n '2p')"
         env:

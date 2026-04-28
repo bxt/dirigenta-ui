@@ -1,6 +1,6 @@
 import XCTest
 import Network
-@testable import diregenta_ui
+@testable import dirigenta_ui
 
 @MainActor
 final class MDNSDiscoveryTests: XCTestCase {

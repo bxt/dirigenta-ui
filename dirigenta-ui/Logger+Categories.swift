@@ -1,7 +1,7 @@
 import OSLog
 
 extension Logger {
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "diregenta-ui"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "dirigenta-ui"
 
     static let api       = Logger(subsystem: subsystem, category: "api")
     static let webSocket = Logger(subsystem: subsystem, category: "websocket")
