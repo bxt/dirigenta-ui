@@ -1,4 +1,5 @@
 @preconcurrency import Foundation
+import CryptoKit
 import OSLog
 
 struct Room: Decodable {
@@ -383,5 +384,83 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             return
         }
         completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+}
+
+// MARK: - Pairing
+
+// Implements the Dirigera PKCE OAuth flow:
+//   1. requestPairing()    → get an authorization code from the hub
+//   2. (user presses the button on top of the hub)
+//   3. exchangeToken(...)  → exchange code + verifier for a bearer token
+struct DirigeraAuthClient {
+    let ip: String
+
+    private var session: URLSession {
+        URLSession(configuration: .default, delegate: PinnedCertificateTLSDelegate(), delegateQueue: nil)
+    }
+
+    func requestPairing() async throws -> (code: String, verifier: String) {
+        let verifier = makeVerifier()
+        let challenge = makeChallenge(for: verifier)
+
+        struct Body: Encodable {
+            let audience = "homesmart.local"
+            let grant_type = "authorization_code"
+            let code_challenge: String
+            let code_challenge_method = "S256"
+        }
+        struct Response: Decodable { let authorization_code: String }
+
+        let data = try await post("/v1/oauth/authorize",
+                                  body: try JSONEncoder().encode(Body(code_challenge: challenge)))
+        let code = try JSONDecoder().decode(Response.self, from: data).authorization_code
+        return (code: code, verifier: verifier)
+    }
+
+    func exchangeToken(code: String, verifier: String) async throws -> String {
+        struct Body: Encodable {
+            let code: String
+            let name = "diregenta-ui"
+            let grant_type = "authorization_code"
+            let code_verifier: String
+        }
+        struct Response: Decodable { let access_token: String }
+
+        let data = try await post("/v1/oauth/token",
+                                  body: try JSONEncoder().encode(Body(code: code, code_verifier: verifier)))
+        return try JSONDecoder().decode(Response.self, from: data).access_token
+    }
+
+    private func post(_ path: String, body: Data) async throws -> Data {
+        guard let url = URL(string: "https://\(ip):8443\(path)") else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = body
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
+    }
+
+    private func makeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64URLEncoded()
+    }
+
+    private func makeChallenge(for verifier: String) -> String {
+        Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncoded()
+    }
+}
+
+private extension Data {
+    func base64URLEncoded() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
