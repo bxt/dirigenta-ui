@@ -364,13 +364,13 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             return
         }
 
-        // Log the certificate chain the hub presented so we can inspect it.
-        let chainCount = SecTrustGetCertificateCount(trust)
-        for i in 0..<chainCount {
-            if let cert = SecTrustGetCertificateAtIndex(trust, i) {
-                print("[TLS] Chain[\(i)]: \(SecCertificateCopySubjectSummary(cert) ?? "?" as CFString)")
-            }
-        }
+        // Use basic X.509 chain validation instead of the default SSL policy.
+        // The hub's leaf cert fails Apple's SSL policy on three counts: hostname mismatch
+        // (cert uses the hub's name, not its IP), temporal validity (IKEA issues certs
+        // with a longer lifetime than Apple's 398-day limit), and EKU mismatch. None of
+        // these affect the security property we care about — that the cert chains to the
+        // pinned IKEA root CA — so we validate only the chain.
+        SecTrustSetPolicies(trust, [SecPolicyCreateBasicX509()] as CFArray)
 
         SecTrustSetAnchorCertificates(trust, [pinnedCert] as CFArray)
         // Only trust our pinned anchor — ignore the system keychain.
