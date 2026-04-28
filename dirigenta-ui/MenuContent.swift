@@ -70,7 +70,6 @@ struct MenuContent: View {
                     sensorsSection
                     envSensorsSection
                 }
-                .padding(8)
                 .onAppear { mdns.start() }
                 .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
                     // AppState auto-fetches devices when the IP resolves.
@@ -147,10 +146,10 @@ struct MenuContent: View {
                 }
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
         }
-        .frame(width: 280)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
+        .frame(width: 300)
     }
 
     // MARK: - Pairing
