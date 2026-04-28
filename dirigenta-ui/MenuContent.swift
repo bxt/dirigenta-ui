@@ -147,8 +147,7 @@ struct MenuContent: View {
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 12)
+        .padding(12)
         .frame(width: 300)
     }
 
