@@ -40,6 +40,10 @@ struct MenuContent: View {
     @State private var now = Date()
     @EnvironmentObject private var mdns: MDNSResolver
 
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if appState.accessToken.isEmpty {
@@ -100,6 +104,9 @@ struct MenuContent: View {
 
             Divider()
             HStack(spacing: 8) {
+                Text("v\(appVersion)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 if !appState.accessToken.isEmpty && isLoadingLights {
                     Label("Refreshing…", systemImage: "arrow.clockwise")
                         .font(.caption)
