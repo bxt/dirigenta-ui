@@ -33,6 +33,7 @@ struct DirigeraDevice: Identifiable, Decodable {
         var colorTemperatureMax: Int? = nil
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
+        var customIcon: String? = nil
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
@@ -54,7 +55,8 @@ struct DirigeraDevice: Identifiable, Decodable {
                 colorTemperatureMax: other.colorTemperatureMax
                     ?? colorTemperatureMax,
                 colorHue: other.colorHue ?? colorHue,
-                colorSaturation: other.colorSaturation ?? colorSaturation
+                colorSaturation: other.colorSaturation ?? colorSaturation,
+                customIcon: other.customIcon ?? customIcon
             )
         }
     }
@@ -62,6 +64,24 @@ struct DirigeraDevice: Identifiable, Decodable {
     var displayName: String { attributes.customName ?? id }
     var isOn: Bool { attributes.isOn ?? false }
     var isOpen: Bool { attributes.isOpen ?? false }
+
+    var lightSymbol: String {
+        switch attributes.customIcon {
+        case "lighting_pendant_light",
+             "lighting_cone_pendant":       return "lamp.ceiling"
+        case "lighting_chandelier":         return "chandelier"
+        case "lighting_ached_lamp":         return "lamp.desk"
+        case "lighting_nightstand_light",
+             "lighting_wall_lamp":          return "lamp.table"
+        case "lighting_floor_lamp":         return "lamp.floor"
+        case "lighting_spot_chandelier":    return "light.recessed.3"
+        default:                            return "lightbulb.led"
+        }
+    }
+
+    func lightIcon(isOn: Bool) -> String {
+        isOn ? lightSymbol + ".fill" : lightSymbol
+    }
 
     func modifyingAttributes(_ transform: (inout Attributes) -> Void)
         -> DirigeraDevice

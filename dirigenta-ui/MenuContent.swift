@@ -370,8 +370,7 @@ struct MenuContent: View {
                         } label: {
                             Label(
                                 light.displayName,
-                                systemImage: light.isOn
-                                    ? "lightbulb.fill" : "lightbulb"
+                                systemImage: light.lightIcon(isOn: light.isOn)
                             )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
