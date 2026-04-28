@@ -6,12 +6,18 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence-backed state
 
+    // SHA-256 fingerprint of the hub's TLS leaf certificate, stored in Keychain.
+    // Set on first successful connection after pairing; required on all subsequent ones.
+    private(set) var hubCertFingerprint: Data?
+
     @Published var accessToken: String {
         didSet {
             guard !Self.isPreview else { return }
             do {
                 if accessToken.isEmpty {
                     try KeychainService.delete("dirigeraAccessToken")
+                    try? KeychainService.delete("dirigeraHubFingerprint")
+                    hubCertFingerprint = nil
                     clearDevices()
                 } else {
                     try KeychainService.set(
@@ -67,6 +73,9 @@ final class AppState: ObservableObject {
         } else {
             accessToken =
                 (try? KeychainService.get("dirigeraAccessToken")) ?? ""
+            hubCertFingerprint =
+                (try? KeychainService.get("dirigeraHubFingerprint"))
+                .flatMap { Data(base64Encoded: $0) }
             pinnedLightId = UserDefaults.standard.string(
                 forKey: "pinnedLightId"
             )
@@ -82,12 +91,34 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Client factory
+
+    func makeClient(ip: String) -> DirigeraClient {
+        DirigeraClient(
+            ip: ip,
+            token: accessToken,
+            pinnedLeafFingerprint: hubCertFingerprint,
+            onLeafFingerprint: hubCertFingerprint == nil
+                ? { [weak self] fp in
+                    DispatchQueue.main.async {
+                        guard let self, self.hubCertFingerprint == nil else { return }
+                        self.hubCertFingerprint = fp
+                        try? KeychainService.set(
+                            fp.base64EncodedString(),
+                            for: "dirigeraHubFingerprint"
+                        )
+                    }
+                }
+                : nil
+        )
+    }
+
     // MARK: - Device fetch & events
 
     func fetchDevices(ip: String) async {
         isLoadingDevices = true
         devicesError = nil
-        let client = DirigeraClient(ip: ip, token: accessToken)
+        let client = makeClient(ip: ip)
         do {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.isGateway }?.displayName

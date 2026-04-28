@@ -105,7 +105,7 @@ final class StatusBarController: NSObject {
         else { return }
         let newState = !appState.pinnedLightIsOn
         appState.pinnedLightIsOn = newState
-        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLight(id: lightId, isOn: newState)
         } catch {

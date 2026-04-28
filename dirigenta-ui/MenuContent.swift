@@ -101,10 +101,7 @@ struct MenuContent: View {
                         let maxRetries = 8
                         for attempt in 0...maxRetries {
                             if Task.isCancelled { break }
-                            let client = DirigeraClient(
-                                ip: ip,
-                                token: appState.accessToken
-                            )
+                            let client = appState.makeClient(ip: ip)
                             for await event in client.eventStream() {
                                 appState.wsConnectionState = .connected
                                 guard !appState.isLoadingDevices else {
@@ -629,7 +626,7 @@ struct MenuContent: View {
             $0.id == light.id ? $0.withLightLevel(level) : $0
         }
         pendingLightLevels[light.id] = nil
-        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
@@ -648,7 +645,7 @@ struct MenuContent: View {
         appState.lights = appState.lights.map {
             $0.id == light.id ? $0.withColorTemperature(value) : $0
         }
-        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        let client = appState.makeClient(ip: ip)
         do {
             try await client.setColorTemperature(
                 id: light.id,
@@ -673,7 +670,7 @@ struct MenuContent: View {
             $0.id == light.id
                 ? $0.withColor(hue: hue, saturation: saturation) : $0
         }
-        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        let client = appState.makeClient(ip: ip)
         do {
             try await client.setColor(
                 id: light.id,
@@ -696,7 +693,7 @@ struct MenuContent: View {
             $0.id == light.id ? $0.withIsOn(newState) : $0
         }
         appState.syncPinnedState()
-        let client = DirigeraClient(ip: ip, token: appState.accessToken)
+        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLight(id: light.id, isOn: newState)
             await appState.fetchDevices(ip: ip)

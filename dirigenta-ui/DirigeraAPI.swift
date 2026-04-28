@@ -263,15 +263,24 @@ private struct PatchBody<A: Encodable>: Encodable {
 final class DirigeraClient {
     private let ip: String
     private let token: String
-    private lazy var session = URLSession(
-        configuration: .default,
-        delegate: PinnedCertificateTLSDelegate(),
-        delegateQueue: nil
-    )
+    private let session: URLSession
 
-    init(ip: String, token: String) {
+    init(
+        ip: String,
+        token: String,
+        pinnedLeafFingerprint: Data? = nil,
+        onLeafFingerprint: ((Data) -> Void)? = nil
+    ) {
         self.ip = ip
         self.token = token
+        self.session = URLSession(
+            configuration: .default,
+            delegate: PinnedCertificateTLSDelegate(
+                requiredLeafFingerprint: pinnedLeafFingerprint,
+                onLeafFingerprint: onLeafFingerprint
+            ),
+            delegateQueue: nil
+        )
     }
 
     init(ip: String, token: String, session: URLSession) {
@@ -452,7 +461,21 @@ final class DirigeraClient {
 }
 
 // Validates the Dirigera hub's TLS certificate against the pinned IKEA Home smart Root CA.
+// Optionally enforces leaf-level pinning: if `requiredLeafFingerprint` is set, the connection
+// is rejected unless the hub's leaf cert SHA-256 matches exactly — preventing token leakage
+// to any hub other than the one the app was originally paired with.
 private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
+    let requiredLeafFingerprint: Data?
+    let onLeafFingerprint: ((Data) -> Void)?
+
+    init(
+        requiredLeafFingerprint: Data? = nil,
+        onLeafFingerprint: ((Data) -> Void)? = nil
+    ) {
+        self.requiredLeafFingerprint = requiredLeafFingerprint
+        self.onLeafFingerprint = onLeafFingerprint
+    }
+
     // DER-encoded IKEA Home smart Root CA (valid until 2071-05-14).
     private static let rootCADER = Data(
         base64Encoded: """
@@ -525,6 +548,25 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
+
+        // Extract the leaf certificate's SHA-256 fingerprint for hub-specific pinning.
+        let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] ?? []
+        guard let leaf = chain.first else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        let leafFingerprint = Data(
+            SHA256.hash(data: SecCertificateCopyData(leaf) as Data)
+        )
+        if let required = requiredLeafFingerprint, leafFingerprint != required {
+            Logger.api.warning(
+                "[TLS] Leaf cert fingerprint mismatch — rejecting \(challenge.protectionSpace.host, privacy: .public)"
+            )
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        onLeafFingerprint?(leafFingerprint)
         completionHandler(.useCredential, URLCredential(trust: trust))
     }
 }
