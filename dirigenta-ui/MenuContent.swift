@@ -56,61 +56,64 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if appState.accessToken.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    DiscoveryStatusView()
-                    Divider()
-                    pairingView
-                }
-                .padding(8)
-                .onAppear { mdns.start() }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let name = appState.gatewayName {
-                        Text(name)
-                            .font(.headline)
+            ScrollView {
+                if appState.accessToken.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        DiscoveryStatusView()
+                        Divider()
+                        pairingView
                     }
-                    DiscoveryStatusView()
-                    Divider()
-                    lightsSection
-                    sensorsSection
-                    envSensorsSection
-                }
-                .onAppear { mdns.start() }
-                .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
-                    // AppState auto-fetches devices when the IP resolves.
-                    // This task only maintains the WebSocket for live updates.
-                    guard let ip = mdns.currentIPAddress else { return }
-                    appState.wsConnectionState = .connecting
-                    let maxRetries = 8
-                    for attempt in 0...maxRetries {
-                        if Task.isCancelled { break }
-                        let client = DirigeraClient(ip: ip, token: appState.accessToken)
-                        for await event in client.eventStream() {
-                            appState.wsConnectionState = .connected
-                            guard !appState.isLoadingDevices else { continue }
-                            appState.applyEvent(event)
+                    .padding(8)
+                    .onAppear { mdns.start() }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let name = appState.gatewayName {
+                            Text(name)
+                                .font(.headline)
                         }
-                        guard !Task.isCancelled else { break }
-                        if attempt == maxRetries {
-                            appState.wsConnectionState = .disconnected
-                            break
-                        }
+                        DiscoveryStatusView()
+                        Divider()
+                        lightsSection
+                        sensorsSection
+                        envSensorsSection
+                    }
+                    .onAppear { mdns.start() }
+                    .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
+                        // AppState auto-fetches devices when the IP resolves.
+                        // This task only maintains the WebSocket for live updates.
+                        guard let ip = mdns.currentIPAddress else { return }
                         appState.wsConnectionState = .connecting
-                        let base = min(pow(2.0, Double(attempt)), 60.0)
-                        let jitter = Double.random(in: -0.25 * base...0.25 * base)
-                        let delay = max(1.0, base + jitter)
-                        Logger.webSocket.info("Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…")
-                        try? await Task.sleep(for: .seconds(delay))
+                        let maxRetries = 8
+                        for attempt in 0...maxRetries {
+                            if Task.isCancelled { break }
+                            let client = DirigeraClient(ip: ip, token: appState.accessToken)
+                            for await event in client.eventStream() {
+                                appState.wsConnectionState = .connected
+                                guard !appState.isLoadingDevices else { continue }
+                                appState.applyEvent(event)
+                            }
+                            guard !Task.isCancelled else { break }
+                            if attempt == maxRetries {
+                                appState.wsConnectionState = .disconnected
+                                break
+                            }
+                            appState.wsConnectionState = .connecting
+                            let base = min(pow(2.0, Double(attempt)), 60.0)
+                            let jitter = Double.random(in: -0.25 * base...0.25 * base)
+                            let delay = max(1.0, base + jitter)
+                            Logger.webSocket.info("Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…")
+                            try? await Task.sleep(for: .seconds(delay))
+                        }
                     }
-                }
-                .task {
-                    while !Task.isCancelled {
-                        try? await Task.sleep(for: .seconds(1))
-                        now = Date()
+                    .task {
+                        while !Task.isCancelled {
+                            try? await Task.sleep(for: .seconds(1))
+                            now = Date()
+                        }
                     }
                 }
             }
+            .frame(maxHeight: (NSScreen.main?.visibleFrame.height ?? 800) - 60)
 
             Divider()
             HStack(spacing: 8) {
