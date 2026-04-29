@@ -110,9 +110,31 @@ struct MenuContent: View {
                         Group {
                             if selectedTab == 0 {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    lightsSection
-                                    sensorsSection
-                                    envSensorsSection
+                                    LightsSectionView(
+                                        lights: appState.lights,
+                                        isExpanded: $devicesLightsExpanded,
+                                        pendingLightLevels: $pendingLightLevels,
+                                        colorPickerLightId: $colorPickerLightId,
+                                        actionError: $actionError,
+                                        onToggleAll: { await toggleAllLights() }
+                                    )
+                                    if !appState.envSensors.isEmpty {
+                                        Divider()
+                                        EnvSensorsSectionView(
+                                            sensors: appState.envSensors,
+                                            isExpanded: $devicesEnvExpanded,
+                                            showRoom: true
+                                        )
+                                    }
+                                    if !appState.sensors.isEmpty {
+                                        Divider()
+                                        OpenCloseSensorsSectionView(
+                                            sensors: appState.sensors,
+                                            now: now,
+                                            isExpanded: $devicesSensorsExpanded,
+                                            showRoom: true
+                                        )
+                                    }
                                 }
                             } else {
                                 RoomsView(now: now)
@@ -357,122 +379,6 @@ struct MenuContent: View {
             pairingStep = .failed(
                 "Pairing failed. Did you press the button? Try again."
             )
-        }
-    }
-
-    // MARK: - Devices tab sections
-
-    @ViewBuilder
-    private var lightsSection: some View {
-        if appState.lights.isEmpty {
-            Label("No lights found", systemImage: "lightbulb.slash")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        } else {
-            let anyOn = appState.lights.contains { $0.isOn }
-            let onCount = appState.lights.filter { $0.isOn }.count
-            DisclosureGroup(isExpanded: $devicesLightsExpanded) {
-                VStack(spacing: 8) {
-                    ForEach(appState.lights) { light in
-                        LightRowView(
-                            light: light,
-                            pendingLightLevels: $pendingLightLevels,
-                            colorPickerLightId: $colorPickerLightId,
-                            actionError: $actionError
-                        )
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 10)
-            } label: {
-                Button {
-                    Task { await toggleAllLights() }
-                } label: {
-                    Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
-                }
-                .buttonStyle(.bordered)
-                .help(anyOn ? "Turn all off" : "Turn all on")
-                Text(
-                    onCount > 0
-                        ? "\(onCount) of \(appState.lights.count) on"
-                        : "All off"
-                )
-                .foregroundStyle(.primary)
-            }
-            if let error = actionError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var envSensorsSection: some View {
-        if !appState.envSensors.isEmpty {
-            Divider()
-            let avgReadings = DirigeraDevice.averagedEnvReadings(
-                from: appState.envSensors
-            )
-            DisclosureGroup(isExpanded: $devicesEnvExpanded) {
-                VStack(spacing: 8) {
-                    ForEach(appState.envSensors) { sensor in
-                        EnvSensorRow(sensor: sensor, showRoom: true)
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 15)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "thermometer.medium")
-                        .foregroundStyle(
-                            avgReadings.allSatisfy { !$0.outOfRange }
-                                ? Color.primary : Color.orange
-                        )
-                    EnvReadingsLine(readings: avgReadings, isHeadline: true)
-                }
-                .padding(.leading, 4)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var sensorsSection: some View {
-        if !appState.sensors.isEmpty {
-            Divider()
-            let anyOpen = appState.sensors.contains { $0.isOpen }
-            let openCount = appState.sensors.filter { $0.isOpen }.count
-            DisclosureGroup(isExpanded: $devicesSensorsExpanded) {
-                VStack(spacing: 8) {
-                    ForEach(appState.sensors) { sensor in
-                        OpenCloseSensorRow(
-                            sensor: sensor,
-                            now: now,
-                            showRoom: true
-                        )
-                        .padding(.leading, 4)
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 8)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(
-                        systemName: anyOpen
-                            ? "sensor.tag.radiowaves.forward.fill"
-                            : "sensor.fill"
-                    )
-                    .foregroundStyle(anyOpen ? Color.orange : Color.primary)
-                    Text(
-                        openCount > 0
-                            ? "\(openCount) of \(appState.sensors.count) open"
-                            : "All closed"
-                    )
-                    .foregroundStyle(
-                        openCount > 0 ? Color.orange : Color.primary
-                    )
-                }
-            }
         }
     }
 

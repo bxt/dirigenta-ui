@@ -1,10 +1,11 @@
 import OSLog
 import SwiftUI
 
+// MARK: - Shared row components
+
 // Reusable attributed-string display for a list of env sensor readings.
-// Used in both the rooms tab (averaged) and the devices tab (per-sensor).
-// isHeadline: true → body-sized white text, used for the DisclosureGroup
-// summary row; false (default) → caption2 secondary, used inside rows.
+// isHeadline: true → body-sized primary text for DisclosureGroup summary
+// rows; false (default) → caption2 secondary, used inside detail rows.
 struct EnvReadingsLine: View {
     let readings: [DirigeraDevice.Reading]
     var isHeadline: Bool = false
@@ -28,8 +29,8 @@ struct EnvReadingsLine: View {
     }
 }
 
-// Shared individual env-sensor row. Pass showRoom: true in the devices tab
-// to append the room name next to the battery level.
+// Individual env-sensor row. showRoom: true appends the room name next to
+// the battery level; used in the devices tab where rows aren't grouped.
 struct EnvSensorRow: View {
     let sensor: DirigeraDevice
     var showRoom: Bool = false
@@ -40,9 +41,7 @@ struct EnvSensorRow: View {
                 Text(sensor.displayName)
                 EnvReadingsLine(readings: sensor.envReadings)
                 let footer = [
-                    sensor.attributes.batteryPercentage.map {
-                        "\($0)% battery"
-                    },
+                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -52,16 +51,14 @@ struct EnvSensorRow: View {
             }
         } icon: {
             Image(systemName: "thermometer.medium")
-                .foregroundStyle(
-                    sensor.isComfortable ? Color.secondary : Color.orange
-                )
+                .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.orange)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-// Shared individual open/close sensor row. Pass showRoom: true in the devices
-// tab to append the room name next to the battery level.
+// Individual open/close sensor row. showRoom: true appends the room name
+// next to the battery level; used in the devices tab.
 struct OpenCloseSensorRow: View {
     let sensor: DirigeraDevice
     let now: Date
@@ -78,9 +75,7 @@ struct OpenCloseSensorRow: View {
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
                 let footer = [
-                    sensor.attributes.batteryPercentage.map {
-                        "\($0)% battery"
-                    },
+                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -99,6 +94,136 @@ struct OpenCloseSensorRow: View {
     }
 }
 
+// MARK: - Shared section components
+
+// Collapsible lights section with a toggle-all button in the header.
+// Shows "No lights found" when the list is empty (devices tab).
+// The onToggleAll closure is called when the header button is tapped,
+// letting callers toggle all lights in a room or across all rooms.
+struct LightsSectionView: View {
+    let lights: [DirigeraDevice]
+    @Binding var isExpanded: Bool
+    @Binding var pendingLightLevels: [String: Double]
+    @Binding var colorPickerLightId: String?
+    @Binding var actionError: String?
+    let onToggleAll: () async -> Void
+
+    var body: some View {
+        if lights.isEmpty {
+            Label("No lights found", systemImage: "lightbulb.slash")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            let anyOn = lights.contains { $0.isOn }
+            let onCount = lights.filter { $0.isOn }.count
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 8) {
+                    ForEach(lights) { light in
+                        LightRowView(
+                            light: light,
+                            pendingLightLevels: $pendingLightLevels,
+                            colorPickerLightId: $colorPickerLightId,
+                            actionError: $actionError
+                        )
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 10)
+            } label: {
+                Button { Task { await onToggleAll() } } label: {
+                    Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
+                }
+                .buttonStyle(.bordered)
+                .help(anyOn ? "Turn all off" : "Turn all on")
+                Text(onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off")
+                    .foregroundStyle(.primary)
+            }
+            if let error = actionError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
+// Collapsible env-sensor section. Header shows averaged readings;
+// expanded content shows individual sensor rows.
+// Renders nothing when sensors is empty.
+struct EnvSensorsSectionView: View {
+    let sensors: [DirigeraDevice]
+    @Binding var isExpanded: Bool
+    var showRoom: Bool = false
+
+    var body: some View {
+        let avgReadings = DirigeraDevice.averagedEnvReadings(from: sensors)
+        if !avgReadings.isEmpty {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 8) {
+                    ForEach(sensors) { sensor in
+                        EnvSensorRow(sensor: sensor, showRoom: showRoom)
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 15)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "thermometer.medium")
+                        .foregroundStyle(
+                            avgReadings.allSatisfy { !$0.outOfRange }
+                                ? Color.primary : Color.orange
+                        )
+                    EnvReadingsLine(readings: avgReadings, isHeadline: true)
+                }
+                .padding(.leading, 4)
+            }
+        }
+    }
+}
+
+// Collapsible open/close sensor section. Header shows open count;
+// expanded content shows individual sensor rows.
+// Renders nothing when sensors is empty.
+struct OpenCloseSensorsSectionView: View {
+    let sensors: [DirigeraDevice]
+    let now: Date
+    @Binding var isExpanded: Bool
+    var showRoom: Bool = false
+
+    var body: some View {
+        if !sensors.isEmpty {
+            let anyOpen = sensors.contains { $0.isOpen }
+            let openCount = sensors.filter { $0.isOpen }.count
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 8) {
+                    ForEach(sensors) { sensor in
+                        OpenCloseSensorRow(sensor: sensor, now: now, showRoom: showRoom)
+                            .padding(.leading, 4)
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 8)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(
+                        systemName: anyOpen
+                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                    )
+                    .foregroundStyle(anyOpen ? Color.orange : Color.primary)
+                    Text(
+                        openCount > 0
+                            ? "\(openCount) of \(sensors.count) open"
+                            : "All closed"
+                    )
+                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Rooms tab
+
 private struct RoomSummary: Identifiable {
     let id: String
     let name: String
@@ -107,7 +232,6 @@ private struct RoomSummary: Identifiable {
     let envSensors: [DirigeraDevice]
 
     var anyLightOn: Bool { lights.contains { $0.isOn } }
-    var anySensorOpen: Bool { sensors.contains { $0.isOpen } }
 }
 
 struct RoomsView: View {
@@ -124,18 +248,10 @@ struct RoomsView: View {
     @State private var expandedSensorsRoomIds: Set<String> = []
 
     // Creates a Bool Binding from a Set<String>, toggling membership of `id`.
-    private func membership(_ id: String, in set: Binding<Set<String>>)
-        -> Binding<Bool>
-    {
+    private func membership(_ id: String, in set: Binding<Set<String>>) -> Binding<Bool> {
         Binding(
             get: { set.wrappedValue.contains(id) },
-            set: {
-                if $0 {
-                    set.wrappedValue.insert(id)
-                } else {
-                    set.wrappedValue.remove(id)
-                }
-            }
+            set: { if $0 { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) } }
         )
     }
 
@@ -153,10 +269,6 @@ struct RoomsView: View {
                     }
                 }
             }
-            if let error = actionError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange)
-            }
         }
     }
 
@@ -167,117 +279,34 @@ struct RoomsView: View {
         Text(room.name)
             .fontWeight(.semibold)
 
-        // Lights: toggle button in the label, chevron expands individual controls.
-        // The Button inside the label captures its own tap so clicking the
-        // lightbulb only toggles all lights; the chevron handles expansion.
         if !room.lights.isEmpty {
-            DisclosureGroup(
-                isExpanded: membership(room.id, in: $expandedLightsRoomIds)
-            ) {
-                VStack(spacing: 8) {
-                    ForEach(room.lights) { light in
-                        LightRowView(
-                            light: light,
-                            pendingLightLevels: $pendingLightLevels,
-                            colorPickerLightId: $colorPickerLightId,
-                            actionError: $actionError
-                        )
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 8)
-            } label: {
-                let onCount = room.lights.filter { $0.isOn }.count
-                Button {
-                    Task { await toggleRoomLights(room) }
-                } label: {
-                    Image(
-                        systemName: room.anyLightOn
-                            ? "lightbulb.fill" : "lightbulb"
-                    )
-                }
-                .buttonStyle(.bordered)
-                .help(room.anyLightOn ? "Turn all off" : "Turn all on")
-                Text(
-                    onCount > 0
-                        ? "\(onCount) of \(room.lights.count) on" : "All off"
-                )
-                .foregroundStyle(.primary)
-            }
+            LightsSectionView(
+                lights: room.lights,
+                isExpanded: membership(room.id, in: $expandedLightsRoomIds),
+                pendingLightLevels: $pendingLightLevels,
+                colorPickerLightId: $colorPickerLightId,
+                actionError: $actionError,
+                onToggleAll: { await toggleRoomLights(room) }
+            )
         }
 
-        // Averaged env-sensor readings; chevron expands per-sensor detail.
-        let envReadings = DirigeraDevice.averagedEnvReadings(
-            from: room.envSensors
+        EnvSensorsSectionView(
+            sensors: room.envSensors,
+            isExpanded: membership(room.id, in: $expandedEnvRoomIds)
         )
-        if !envReadings.isEmpty {
-            DisclosureGroup(
-                isExpanded: membership(room.id, in: $expandedEnvRoomIds)
-            ) {
-                VStack(spacing: 8) {
-                    ForEach(room.envSensors) { sensor in
-                        EnvSensorRow(sensor: sensor)
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 8)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "thermometer.medium")
-                        .foregroundStyle(
-                            envReadings.allSatisfy { !$0.outOfRange }
-                                ? Color.primary : Color.orange
-                        )
-                    EnvReadingsLine(readings: envReadings, isHeadline: true)
-                }
-            }
-        }
 
-        // Open/close sensor status; chevron expands per-sensor detail.
-        if !room.sensors.isEmpty {
-            DisclosureGroup(
-                isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
-            ) {
-                VStack(spacing: 8) {
-                    ForEach(room.sensors) { sensor in
-                        OpenCloseSensorRow(sensor: sensor, now: now)
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.leading, 8)
-            } label: {
-                let openCount = room.sensors.filter { $0.isOpen }.count
-                HStack(spacing: 4) {
-                    Image(
-                        systemName: room.anySensorOpen
-                            ? "sensor.tag.radiowaves.forward.fill"
-                            : "sensor.fill"
-                    )
-                    .foregroundStyle(
-                        room.anySensorOpen ? Color.orange : Color.primary
-                    )
-                    Text(
-                        openCount > 0
-                            ? "\(openCount) of \(room.sensors.count) open"
-                            : "All closed"
-                    )
-                    .foregroundStyle(
-                        openCount > 0 ? Color.orange : Color.primary
-                    )
-                }
-            }
-        }
+        OpenCloseSensorsSectionView(
+            sensors: room.sensors,
+            now: now,
+            isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
+        )
     }
 
     // MARK: - Data
 
     private var roomSummaries: [RoomSummary] {
-        var byRoom:
-            [String: (
-                name: String, lights: [DirigeraDevice],
-                sensors: [DirigeraDevice],
-                envSensors: [DirigeraDevice]
-            )] = [:]
+        var byRoom: [String: (name: String, lights: [DirigeraDevice], sensors: [DirigeraDevice],
+            envSensors: [DirigeraDevice])] = [:]
         for device in appState.lights {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])
@@ -298,10 +327,8 @@ struct RoomsView: View {
         }
         return byRoom.sorted { $0.value.name < $1.value.name }.map {
             RoomSummary(
-                id: $0.key,
-                name: $0.value.name,
-                lights: $0.value.lights,
-                sensors: $0.value.sensors,
+                id: $0.key, name: $0.value.name,
+                lights: $0.value.lights, sensors: $0.value.sensors,
                 envSensors: $0.value.envSensors
             )
         }
@@ -313,16 +340,12 @@ struct RoomsView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        appState.lights = appState.lights.map {
-            ids.contains($0.id) ? $0.withIsOn(newState) : $0
-        }
+        appState.lights = appState.lights.map { ids.contains($0.id) ? $0.withIsOn(newState) : $0 }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in room.lights {
-                group.addTask {
-                    try? await client.setLight(id: light.id, isOn: newState)
-                }
+                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
             }
         }
         await appState.fetchDevices(ip: ip)
