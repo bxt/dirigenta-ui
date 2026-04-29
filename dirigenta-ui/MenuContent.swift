@@ -61,6 +61,10 @@ struct MenuContent: View {
 
     init() {}
 
+    fileprivate init(initialTab: Int) {
+        _selectedTab = State(initialValue: initialTab)
+    }
+
     fileprivate init(initialPairingStep: PairingStep) {
         _pairingStep = State(initialValue: initialPairingStep)
     }
@@ -408,6 +412,13 @@ struct MenuContent: View {
 #Preview("Normal — with devices") {
     let state = AppState.preview()
     return MenuContent()
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Normal — rooms tab") {
+    let state = AppState.preview()
+    return MenuContent(initialTab: 1)
         .environmentObject(state)
         .environmentObject(state.mdns)
 }
