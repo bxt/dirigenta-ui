@@ -213,21 +213,17 @@ final class AppState: ObservableObject {
         await fetchDevices(ip: ip)
 
         // Step 4: Save colour/brightness from the now-on state.
-        struct ColorState {
+        struct SavedAppearance {
             let id: String
             let lightLevel: Int?
-            let colorHue: Double?
-            let colorSaturation: Double?
-            let colorTemperature: Int?
+            let colorPreset: LightColorPreset?
         }
-        let savedColor = targetIds.compactMap { id -> ColorState? in
+        let savedColor = targetIds.compactMap { id -> SavedAppearance? in
             guard let light = lights.first(where: { $0.id == id }) else { return nil }
-            return ColorState(
+            return SavedAppearance(
                 id: id,
                 lightLevel: light.attributes.lightLevel,
-                colorHue: light.attributes.colorHue,
-                colorSaturation: light.attributes.colorSaturation,
-                colorTemperature: light.attributes.colorTemperature
+                colorPreset: light.colorPreset
             )
         }
 
@@ -235,7 +231,7 @@ final class AppState: ObservableObject {
         await withTaskGroup(of: Void.self) { group in
             for light in lights where targetIds.contains(light.id) {
                 group.addTask {
-                    if light.isColorLight {
+                    if light.supportsColorControls {
                         try? await client.setColor(id: light.id, hue: 0, saturation: 1.0)
                     }
                     if light.attributes.lightLevel != nil {
@@ -251,10 +247,8 @@ final class AppState: ObservableObject {
         await withTaskGroup(of: Void.self) { group in
             for s in savedColor {
                 group.addTask {
-                    if let hue = s.colorHue, let sat = s.colorSaturation {
-                        try? await client.setColor(id: s.id, hue: hue, saturation: sat)
-                    } else if let ct = s.colorTemperature {
-                        try? await client.setColorTemperature(id: s.id, colorTemperature: ct)
+                    if let preset = s.colorPreset {
+                        try? await client.applyColorPreset(preset, to: s.id)
                     }
                     if let level = s.lightLevel {
                         try? await client.setLightLevel(id: s.id, lightLevel: level)

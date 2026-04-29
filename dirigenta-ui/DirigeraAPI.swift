@@ -34,6 +34,7 @@ struct DirigeraDevice: Identifiable, Decodable {
         var colorTemperatureMax: Int? = nil
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
+        var colorMode: String? = nil // "color" | "temperature"
 
         func merging(_ other: Attributes?) -> Attributes {
             guard let other else { return self }
@@ -55,7 +56,8 @@ struct DirigeraDevice: Identifiable, Decodable {
                 colorTemperatureMax: other.colorTemperatureMax
                     ?? colorTemperatureMax,
                 colorHue: other.colorHue ?? colorHue,
-                colorSaturation: other.colorSaturation ?? colorSaturation
+                colorSaturation: other.colorSaturation ?? colorSaturation,
+                colorMode: other.colorMode ?? colorMode
             )
         }
     }
@@ -146,6 +148,30 @@ extension DirigeraDevice {
     var isColorLight: Bool { attributes.colorHue != nil }
     /// True if either colour control is available for this light.
     var supportsColorControls: Bool { isColorTemperatureLight || isColorLight }
+
+    /// The light's current colour/temperature preset, determined by `colorMode`.
+    /// Returns nil for lights with no colour support.
+    var colorPreset: LightColorPreset? {
+        guard supportsColorControls else { return nil }
+        switch attributes.colorMode {
+        case "color":
+            guard let hue = attributes.colorHue,
+                let sat = attributes.colorSaturation
+            else { return nil }
+            return LightColorPreset(hue: hue, saturation: sat)
+        case "temperature":
+            guard let ct = attributes.colorTemperature else { return nil }
+            return LightColorPreset(colorTemperature: ct)
+        default:
+            // colorMode not reported — return whichever values are present.
+            if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
+                return LightColorPreset(hue: hue, saturation: sat)
+            } else if let ct = attributes.colorTemperature {
+                return LightColorPreset(colorTemperature: ct)
+            }
+            return nil
+        }
+    }
 
     /// Merges env-sensor components that share a `relationId` into a single device.
     /// Returns the merged list and a map from each component id to the primary device id,
@@ -308,6 +334,25 @@ struct DirigeraEvent: Decodable {
     }
 }
 
+/// A light's colour/temperature state, used for saving presets and for
+/// snapshot/restore in the notification flash.
+struct LightColorPreset: Codable {
+    /// Colour-temperature mode value in Kelvin (mutually exclusive with hue/saturation).
+    var colorTemperature: Int? = nil
+    /// Hue in degrees 0–360 (colour mode).
+    var hue: Double? = nil
+    /// Saturation 0–1 (colour mode).
+    var saturation: Double? = nil
+
+    init(colorTemperature: Int) {
+        self.colorTemperature = colorTemperature
+    }
+    init(hue: Double, saturation: Double) {
+        self.hue = hue
+        self.saturation = saturation
+    }
+}
+
 // Used by patchAttributes — must live outside the generic function due to Swift restrictions.
 private struct PatchBody<A: Encodable>: Encodable {
     let attributes: A
@@ -428,6 +473,14 @@ final class DirigeraClient {
             Attrs(colorTemperature: colorTemperature),
             deviceId: id
         )
+    }
+
+    func applyColorPreset(_ preset: LightColorPreset, to id: String) async throws {
+        if let hue = preset.hue, let sat = preset.saturation {
+            try await setColor(id: id, hue: hue, saturation: sat)
+        } else if let ct = preset.colorTemperature {
+            try await setColorTemperature(id: id, colorTemperature: ct)
+        }
     }
 
     func setColor(id: String, hue: Double, saturation: Double) async throws {

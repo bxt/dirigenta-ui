@@ -1,13 +1,6 @@
 import AppKit
 import SwiftUI
 
-// Persisted colour/temperature preset for a single light.
-private struct LightColorDefault: Codable {
-    var colorTemperature: Int?
-    var hue: Double?        // 0–360
-    var saturation: Double? // 0–1
-}
-
 struct LightColorControls: View {
     let light: DirigeraDevice
     let onSetColorTemperature: (Int) -> Void
@@ -145,34 +138,23 @@ struct LightColorControls: View {
     private var defaultsKey: String { "lightColorDefault.\(light.id)" }
 
     private func saveDefault() {
-        var def = LightColorDefault()
-        if light.isColorTemperatureLight {
-            def.colorTemperature = Int(colorTempValue)
-        }
-        if light.isColorLight {
-            guard let ns = NSColor(selectedColor).usingColorSpace(.deviceRGB)
-            else { return }
-            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            ns.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            def.hue = Double(h) * 360.0
-            def.saturation = Double(s)
-        }
-        guard let data = try? JSONEncoder().encode(def) else { return }
+        guard let preset = light.colorPreset,
+            let data = try? JSONEncoder().encode(preset)
+        else { return }
         UserDefaults.standard.set(data, forKey: defaultsKey)
         hasSavedDefault = true
     }
 
     private func loadDefault() {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-            let def = try? JSONDecoder().decode(LightColorDefault.self, from: data)
+            let preset = try? JSONDecoder().decode(LightColorPreset.self, from: data)
         else { return }
-        if let ct = def.colorTemperature {
-            colorTempValue = Double(ct)
-            onSetColorTemperature(ct)
-        }
-        if let hue = def.hue, let sat = def.saturation {
+        if let hue = preset.hue, let sat = preset.saturation {
             selectedColor = Color(hue: hue / 360.0, saturation: sat, brightness: 1.0)
             onSetColor(hue, sat)
+        } else if let ct = preset.colorTemperature {
+            colorTempValue = Double(ct)
+            onSetColorTemperature(ct)
         }
     }
 
