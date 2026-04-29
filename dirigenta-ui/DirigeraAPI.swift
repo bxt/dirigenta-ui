@@ -695,15 +695,42 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
 //   1. requestPairing()    → get an authorization code from the hub
 //   2. (user presses the button on top of the hub)
 //   3. exchangeToken(...)  → exchange code + verifier for a bearer token
-struct DirigeraAuthClient {
+//
+// A single instance must be used for both steps so that:
+//   • only one URLSession is allocated and later properly invalidated, and
+//   • the leaf certificate fingerprint captured during step 1 can be stored
+//     in AppState so every subsequent DirigeraClient connection is pinned.
+final class DirigeraAuthClient {
     let ip: String
+    private let session: URLSession
 
-    private var session: URLSession {
-        URLSession(
+    /// Leaf-certificate fingerprint captured during the first TLS handshake.
+    /// Available after `requestPairing()` completes successfully.
+    var capturedFingerprint: Data? { fingerprintBox.data }
+
+    // FingerprintBox decouples fingerprint storage from self so the
+    // session→delegate→closure→box chain has no back-reference to self,
+    // avoiding a retain cycle without needing invalidate() to break one.
+    private let fingerprintBox = FingerprintBox()
+
+    init(ip: String) {
+        self.ip = ip
+        let box = fingerprintBox
+        let delegate = PinnedCertificateTLSDelegate(
+            requiredLeafFingerprint: nil,
+            onLeafFingerprint: { fp in box.data = fp }
+        )
+        session = URLSession(
             configuration: .default,
-            delegate: PinnedCertificateTLSDelegate(),
+            delegate: delegate,
             delegateQueue: nil
         )
+    }
+
+    /// Drains in-flight tasks and releases the URLSession + its delegate.
+    /// Always call this when the pairing flow finishes (success, failure, or cancel).
+    func invalidate() {
+        session.finishTasksAndInvalidate()
     }
 
     func requestPairing() async throws -> (code: String, verifier: String) {
@@ -771,6 +798,10 @@ struct DirigeraAuthClient {
     private func makeChallenge(for verifier: String) -> String {
         Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncoded()
     }
+}
+
+private final class FingerprintBox {
+    var data: Data?
 }
 
 extension Data {

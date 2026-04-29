@@ -14,6 +14,9 @@ struct PairingView: View {
 
     @State private var pairingStep: PairingStep = .idle
     @State private var tempToken: String = ""
+    // Held across both OAuth steps so both requests share the same URLSession.
+    // The fingerprint captured during step 1 is then pinned for step 2.
+    @State private var authClient: DirigeraAuthClient?
 
     init() {}
 
@@ -59,7 +62,11 @@ struct PairingView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("Cancel") { pairingStep = .idle }
+                Button("Cancel") {
+                authClient?.invalidate()
+                authClient = nil
+                pairingStep = .idle
+            }
                 Spacer()
                 Button("I pressed it") {
                     Task {
@@ -116,16 +123,20 @@ struct PairingView: View {
     }
 
     private func startPairing(ip: String) async {
+        // Discard any leftover client from a previous attempt.
+        authClient?.invalidate()
+        authClient = DirigeraAuthClient(ip: ip)
         pairingStep = .requesting
         do {
-            let (code, verifier) = try await DirigeraAuthClient(ip: ip)
-                .requestPairing()
+            let (code, verifier) = try await authClient!.requestPairing()
             pairingStep = .awaitingButtonPress(
                 ip: ip,
                 code: code,
                 verifier: verifier
             )
         } catch {
+            authClient?.invalidate()
+            authClient = nil
             pairingStep = .failed(
                 "Couldn't reach the hub. Make sure you're on the same network."
             )
@@ -136,12 +147,16 @@ struct PairingView: View {
     {
         pairingStep = .exchanging
         do {
-            let token = try await DirigeraAuthClient(ip: ip).exchangeToken(
-                code: code,
-                verifier: verifier
-            )
-            appState.accessToken = token
+            // Reuse the client from startPairing: same session, same pinned leaf cert.
+            let client = authClient ?? DirigeraAuthClient(ip: ip)
+            let token = try await client.exchangeToken(code: code, verifier: verifier)
+            let fingerprint = client.capturedFingerprint
+            client.invalidate()
+            authClient = nil
+            appState.completePairing(token: token, hubFingerprint: fingerprint)
         } catch {
+            authClient?.invalidate()
+            authClient = nil
             pairingStep = .failed(
                 "Pairing failed. Did you press the button? Try again."
             )

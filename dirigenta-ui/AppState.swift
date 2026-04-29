@@ -281,6 +281,17 @@ final class AppState: ObservableObject {
         await fetchDevices(ip: ip)
     }
 
+    /// Called by PairingView once both OAuth steps succeed.
+    /// Storing the fingerprint before the token ensures a single Keychain write
+    /// includes both, and that makeClient immediately builds a pinned session.
+    func completePairing(token: String, hubFingerprint: Data?) {
+        guard !Self.isPreview else { return }
+        if let fp = hubFingerprint {
+            hubCertFingerprint = fp
+        }
+        accessToken = token  // triggers didSet → evictCachedClient + saveCredentials + fetchDevices
+    }
+
     func syncPinnedState() {
         guard let id = pinnedLightId else { return }
         pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
