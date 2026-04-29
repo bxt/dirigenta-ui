@@ -791,7 +791,8 @@ final class DirigeraAuthClient {
 
     private func makeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        precondition(status == errSecSuccess, "SecRandomCopyBytes failed: \(status)")
         return Data(bytes).base64URLEncoded()
     }
 
