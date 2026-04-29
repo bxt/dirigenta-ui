@@ -169,6 +169,85 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Light notification
+
+    /// Flashes the pinned light (or all lights that are currently on) red for 1 second,
+    /// then restores their previous state. Triggered by a --notify IPC invocation.
+    func triggerNotification() async {
+        guard let ip = mdns.currentIPAddress, !accessToken.isEmpty else { return }
+        let client = makeClient(ip: ip)
+
+        // Decide which lights to flash.
+        let targetLights: [DirigeraDevice]
+        if let pinnedId = pinnedLightId, let pinned = lights.first(where: { $0.id == pinnedId }) {
+            targetLights = [pinned]
+        } else {
+            targetLights = lights.filter { $0.isOn }
+        }
+        guard !targetLights.isEmpty else { return }
+
+        // Snapshot state so we can restore it afterwards.
+        struct SavedState {
+            let id: String
+            let wasOn: Bool
+            let lightLevel: Int?
+            let colorHue: Double?
+            let colorSaturation: Double?
+            let colorTemperature: Int?
+        }
+        let saved = targetLights.map {
+            SavedState(
+                id: $0.id,
+                wasOn: $0.isOn,
+                lightLevel: $0.attributes.lightLevel,
+                colorHue: $0.attributes.colorHue,
+                colorSaturation: $0.attributes.colorSaturation,
+                colorTemperature: $0.attributes.colorTemperature
+            )
+        }
+
+        // Turn on (if needed) and flash red / max brightness.
+        await withTaskGroup(of: Void.self) { group in
+            for light in targetLights {
+                group.addTask {
+                    if !light.isOn {
+                        try? await client.setLight(id: light.id, isOn: true)
+                    }
+                    if light.isColorLight {
+                        try? await client.setColor(id: light.id, hue: 0, saturation: 1.0)
+                    }
+                    if light.attributes.lightLevel != nil {
+                        try? await client.setLightLevel(id: light.id, lightLevel: 100)
+                    }
+                }
+            }
+        }
+
+        try? await Task.sleep(for: .seconds(1))
+
+        // Restore previous state.
+        await withTaskGroup(of: Void.self) { group in
+            for s in saved {
+                group.addTask {
+                    if !s.wasOn {
+                        try? await client.setLight(id: s.id, isOn: false)
+                    } else {
+                        if let hue = s.colorHue, let sat = s.colorSaturation {
+                            try? await client.setColor(id: s.id, hue: hue, saturation: sat)
+                        } else if let ct = s.colorTemperature {
+                            try? await client.setColorTemperature(id: s.id, colorTemperature: ct)
+                        }
+                        if let level = s.lightLevel {
+                            try? await client.setLightLevel(id: s.id, lightLevel: level)
+                        }
+                    }
+                }
+            }
+        }
+
+        await fetchDevices(ip: ip)
+    }
+
     func syncPinnedState() {
         guard let id = pinnedLightId else { return }
         pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
