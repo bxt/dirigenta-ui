@@ -385,8 +385,7 @@ struct MenuContent: View {
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")
                 Text(onCount > 0 ? "\(onCount) of \(appState.lights.count) on" : "All off")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -409,12 +408,11 @@ struct MenuContent: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "thermometer.medium")
-                        .font(.caption)
                         .foregroundStyle(
                             avgReadings.allSatisfy { !$0.outOfRange }
-                                ? Color.secondary : Color.orange
+                                ? Color.primary : Color.orange
                         )
-                    EnvReadingsLine(readings: avgReadings)
+                    EnvReadingsLine(readings: avgReadings, isHeadline: true)
                 }
             }
         }
@@ -437,15 +435,13 @@ struct MenuContent: View {
                         systemName: anyOpen
                             ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
                     )
-                    .font(.caption)
-                    .foregroundStyle(anyOpen ? Color.orange : Color.secondary)
+                    .foregroundStyle(anyOpen ? Color.orange : Color.primary)
                     Text(
                         openCount > 0
                             ? "\(openCount) of \(appState.sensors.count) open"
                             : "All closed"
                     )
-                    .font(.caption)
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.secondary)
+                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
                 }
             }
         }

@@ -3,21 +3,28 @@ import SwiftUI
 
 // Reusable attributed-string display for a list of env sensor readings.
 // Used in both the rooms tab (averaged) and the devices tab (per-sensor).
+// isHeadline: true → body-sized white text, used for the DisclosureGroup
+// summary row; false (default) → caption2 secondary, used inside rows.
 struct EnvReadingsLine: View {
     let readings: [DirigeraDevice.Reading]
+    var isHeadline: Bool = false
+
+    private var attributed: AttributedString {
+        readings.enumerated().reduce(into: AttributedString()) { str, item in
+            let (i, r) = item
+            if i > 0 { str += AttributedString(" · ") }
+            var part = AttributedString(r.text)
+            if r.outOfRange { part.foregroundColor = .orange }
+            str += part
+        }
+    }
 
     var body: some View {
-        Text(
-            readings.enumerated().reduce(into: AttributedString()) { str, item in
-                let (i, r) = item
-                if i > 0 { str += AttributedString(" · ") }
-                var part = AttributedString(r.text)
-                if r.outOfRange { part.foregroundColor = .orange }
-                str += part
-            }
-        )
-        .font(.caption2)
-        .foregroundStyle(.secondary)
+        if isHeadline {
+            Text(attributed).foregroundStyle(.primary)
+        } else {
+            Text(attributed).font(.caption2).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -144,7 +151,6 @@ struct RoomsView: View {
     @ViewBuilder
     private func roomSection(_ room: RoomSummary) -> some View {
         Text(room.name)
-            .font(.caption)
             .fontWeight(.semibold)
 
         // Lights: toggle button in the label, chevron expands individual controls.
@@ -169,8 +175,7 @@ struct RoomsView: View {
                 .buttonStyle(.bordered)
                 .help(room.anyLightOn ? "Turn all off" : "Turn all on")
                 Text(onCount > 0 ? "\(onCount) of \(room.lights.count) on" : "All off")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
             }
         }
 
@@ -185,12 +190,11 @@ struct RoomsView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "thermometer.medium")
-                        .font(.caption)
                         .foregroundStyle(
                             envReadings.allSatisfy { !$0.outOfRange }
-                                ? Color.secondary : Color.orange
+                                ? Color.primary : Color.orange
                         )
-                    EnvReadingsLine(readings: envReadings)
+                    EnvReadingsLine(readings: envReadings, isHeadline: true)
                 }
             }
         }
@@ -209,15 +213,13 @@ struct RoomsView: View {
                         systemName: room.anySensorOpen
                             ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
                     )
-                    .font(.caption)
-                    .foregroundStyle(room.anySensorOpen ? Color.orange : Color.secondary)
+                    .foregroundStyle(room.anySensorOpen ? Color.orange : Color.primary)
                     Text(
                         openCount > 0
                             ? "\(openCount) of \(room.sensors.count) open"
                             : "All closed"
                     )
-                    .font(.caption)
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.secondary)
+                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
                 }
             }
         }
