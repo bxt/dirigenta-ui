@@ -109,7 +109,11 @@ struct MenuContent: View {
                         GeometryReader { geo in
                             Color.clear
                                 .onAppear { contentHeight = geo.size.height }
-                                .onChange(of: geo.size.height) { contentHeight = $0 }
+                                .onChange(of: geo.size.height) {
+                                    oldValue,
+                                    newValue in
+                                    contentHeight = newValue
+                                }
                         }
                     )
                 }
