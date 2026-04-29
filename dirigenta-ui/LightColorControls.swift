@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+// Persisted colour/temperature preset for a single light.
+private struct LightColorDefault: Codable {
+    var colorTemperature: Int?
+    var hue: Double?        // 0–360
+    var saturation: Double? // 0–1
+}
+
 struct LightColorControls: View {
     let light: DirigeraDevice
     let onSetColorTemperature: (Int) -> Void
@@ -8,6 +15,7 @@ struct LightColorControls: View {
 
     @State private var colorTempValue: Double
     @State private var selectedColor: Color
+    @State private var hasSavedDefault: Bool
 
     init(
         light: DirigeraDevice,
@@ -30,6 +38,11 @@ struct LightColorControls: View {
                 brightness: 1.0
             )
         )
+        _hasSavedDefault = State(
+            initialValue: UserDefaults.standard.data(
+                forKey: "lightColorDefault.\(light.id)"
+            ) != nil
+        )
     }
 
     var body: some View {
@@ -40,6 +53,7 @@ struct LightColorControls: View {
             if light.isColorLight {
                 colorRow
             }
+            defaultsRow
         }
         .padding(.leading, 22)
         .padding(.trailing, 4)
@@ -114,9 +128,53 @@ struct LightColorControls: View {
         }
     }
 
+    private var defaultsRow: some View {
+        HStack(spacing: 6) {
+            Spacer()
+            Button("Load default") { loadDefault() }
+                .disabled(!hasSavedDefault)
+            Button("Save default") { saveDefault() }
+        }
+        .font(.caption)
+    }
+
     // MARK: - Helpers
 
     private var kelvinLabel: String { "\(Int(colorTempValue)) K" }
+
+    private var defaultsKey: String { "lightColorDefault.\(light.id)" }
+
+    private func saveDefault() {
+        var def = LightColorDefault()
+        if light.isColorTemperatureLight {
+            def.colorTemperature = Int(colorTempValue)
+        }
+        if light.isColorLight {
+            guard let ns = NSColor(selectedColor).usingColorSpace(.deviceRGB)
+            else { return }
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            ns.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+            def.hue = Double(h) * 360.0
+            def.saturation = Double(s)
+        }
+        guard let data = try? JSONEncoder().encode(def) else { return }
+        UserDefaults.standard.set(data, forKey: defaultsKey)
+        hasSavedDefault = true
+    }
+
+    private func loadDefault() {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+            let def = try? JSONDecoder().decode(LightColorDefault.self, from: data)
+        else { return }
+        if let ct = def.colorTemperature {
+            colorTempValue = Double(ct)
+            onSetColorTemperature(ct)
+        }
+        if let hue = def.hue, let sat = def.saturation {
+            selectedColor = Color(hue: hue / 360.0, saturation: sat, brightness: 1.0)
+            onSetColor(hue, sat)
+        }
+    }
 
     private func showColorPanel() {
         let panel = NSColorPanel.shared
