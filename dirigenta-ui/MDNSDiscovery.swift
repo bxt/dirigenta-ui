@@ -3,6 +3,7 @@ import Foundation
 import Network
 import OSLog
 
+@MainActor
 final class MDNSResolver: ObservableObject {
     @Published var currentIPAddress: String? = nil
     @Published var isResolving: Bool = false
