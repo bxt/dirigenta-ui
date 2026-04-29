@@ -173,46 +173,68 @@ final class AppState: ObservableObject {
 
     /// Flashes the pinned light (or all lights that are currently on) red for 1 second,
     /// then restores their previous state. Triggered by a --notify IPC invocation.
+    ///
+    /// Sequence:
+    ///  1. Record which lights were on/off.
+    ///  2. Turn on any that were off.
+    ///  3. Fetch device state — lights now report correct colour/brightness.
+    ///  4. Save that colour/brightness.
+    ///  5. Flash red (colour lights) / full brightness for 1 second.
+    ///  6. Restore saved colour/brightness.
+    ///  7. Turn off the lights that were originally off.
     func triggerNotification() async {
         guard let ip = mdns.currentIPAddress, !accessToken.isEmpty else { return }
         let client = makeClient(ip: ip)
 
         // Decide which lights to flash.
-        let targetLights: [DirigeraDevice]
-        if let pinnedId = pinnedLightId, let pinned = lights.first(where: { $0.id == pinnedId }) {
-            targetLights = [pinned]
+        let targetIds: [String]
+        if let pinnedId = pinnedLightId, lights.contains(where: { $0.id == pinnedId }) {
+            targetIds = [pinnedId]
         } else {
-            targetLights = lights.filter { $0.isOn }
+            targetIds = lights.filter { $0.isOn }.map(\.id)
         }
-        guard !targetLights.isEmpty else { return }
+        guard !targetIds.isEmpty else { return }
 
-        // Snapshot state so we can restore it afterwards.
-        struct SavedState {
+        // Step 1: Record on/off state before we touch anything.
+        let wasOn = Dictionary(
+            uniqueKeysWithValues: targetIds.compactMap { id -> (String, Bool)? in
+                lights.first { $0.id == id }.map { (id, $0.isOn) }
+            }
+        )
+
+        // Step 2: Turn on any lights that are currently off.
+        await withTaskGroup(of: Void.self) { group in
+            for (id, on) in wasOn where !on {
+                group.addTask { try? await client.setLight(id: id, isOn: true) }
+            }
+        }
+
+        // Step 3: Fetch so lights now report their actual colour/brightness while on.
+        await fetchDevices(ip: ip)
+
+        // Step 4: Save colour/brightness from the now-on state.
+        struct ColorState {
             let id: String
-            let wasOn: Bool
             let lightLevel: Int?
             let colorHue: Double?
             let colorSaturation: Double?
             let colorTemperature: Int?
         }
-        let saved = targetLights.map {
-            SavedState(
-                id: $0.id,
-                wasOn: $0.isOn,
-                lightLevel: $0.attributes.lightLevel,
-                colorHue: $0.attributes.colorHue,
-                colorSaturation: $0.attributes.colorSaturation,
-                colorTemperature: $0.attributes.colorTemperature
+        let savedColor = targetIds.compactMap { id -> ColorState? in
+            guard let light = lights.first(where: { $0.id == id }) else { return nil }
+            return ColorState(
+                id: id,
+                lightLevel: light.attributes.lightLevel,
+                colorHue: light.attributes.colorHue,
+                colorSaturation: light.attributes.colorSaturation,
+                colorTemperature: light.attributes.colorTemperature
             )
         }
 
-        // Turn on (if needed) and flash red / max brightness.
+        // Step 5: Flash red / full brightness.
         await withTaskGroup(of: Void.self) { group in
-            for light in targetLights {
+            for light in lights where targetIds.contains(light.id) {
                 group.addTask {
-                    if !light.isOn {
-                        try? await client.setLight(id: light.id, isOn: true)
-                    }
                     if light.isColorLight {
                         try? await client.setColor(id: light.id, hue: 0, saturation: 1.0)
                     }
@@ -225,23 +247,26 @@ final class AppState: ObservableObject {
 
         try? await Task.sleep(for: .seconds(1))
 
-        // Restore previous state.
+        // Step 6: Restore colour/brightness.
         await withTaskGroup(of: Void.self) { group in
-            for s in saved {
+            for s in savedColor {
                 group.addTask {
-                    if !s.wasOn {
-                        try? await client.setLight(id: s.id, isOn: false)
-                    } else {
-                        if let hue = s.colorHue, let sat = s.colorSaturation {
-                            try? await client.setColor(id: s.id, hue: hue, saturation: sat)
-                        } else if let ct = s.colorTemperature {
-                            try? await client.setColorTemperature(id: s.id, colorTemperature: ct)
-                        }
-                        if let level = s.lightLevel {
-                            try? await client.setLightLevel(id: s.id, lightLevel: level)
-                        }
+                    if let hue = s.colorHue, let sat = s.colorSaturation {
+                        try? await client.setColor(id: s.id, hue: hue, saturation: sat)
+                    } else if let ct = s.colorTemperature {
+                        try? await client.setColorTemperature(id: s.id, colorTemperature: ct)
+                    }
+                    if let level = s.lightLevel {
+                        try? await client.setLightLevel(id: s.id, lightLevel: level)
                     }
                 }
+            }
+        }
+
+        // Step 7: Turn off lights that were originally off.
+        await withTaskGroup(of: Void.self) { group in
+            for (id, on) in wasOn where !on {
+                group.addTask { try? await client.setLight(id: id, isOn: false) }
             }
         }
 
