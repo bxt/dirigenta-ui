@@ -19,10 +19,12 @@ struct LightRowView: View {
             Button {
                 Task { await toggleLight() }
             } label: {
-                Label(
-                    light.displayName,
-                    systemImage: light.lightIcon(isOn: light.isOn)
-                )
+                Label {
+                    Text(light.displayName)
+                } icon: {
+                    Image(systemName: light.lightIcon(isOn: light.isOn))
+                        .foregroundStyle(light.isOn ? Color.orange : Color.primary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
