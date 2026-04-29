@@ -106,6 +106,7 @@ struct LightsSectionView: View {
     @Binding var pendingLightLevels: [String: Double]
     @Binding var colorPickerLightId: String?
     @Binding var actionError: String?
+    var showRoom: Bool = false
     let onToggleAll: () async -> Void
 
     var body: some View {
@@ -123,7 +124,8 @@ struct LightsSectionView: View {
                             light: light,
                             pendingLightLevels: $pendingLightLevels,
                             colorPickerLightId: $colorPickerLightId,
-                            actionError: $actionError
+                            actionError: $actionError,
+                            showRoom: showRoom
                         )
                     }
                 }

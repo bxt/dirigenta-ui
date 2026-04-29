@@ -116,7 +116,9 @@ struct MenuContent: View {
                                         pendingLightLevels: $pendingLightLevels,
                                         colorPickerLightId: $colorPickerLightId,
                                         actionError: $actionError,
+                                        showRoom: true,
                                         onToggleAll: { await toggleAllLights() }
+
                                     )
                                     if !appState.envSensors.isEmpty {
                                         Divider()

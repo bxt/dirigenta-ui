@@ -6,6 +6,7 @@ struct LightRowView: View {
     @Binding var pendingLightLevels: [String: Double]
     @Binding var colorPickerLightId: String?
     @Binding var actionError: String?
+    var showRoom: Bool = false
 
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
@@ -16,6 +17,10 @@ struct LightRowView: View {
                 Label(light.displayName, systemImage: light.lightIcon(isOn: light.isOn))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if showRoom, let roomName = light.room?.name {
+                Text(roomName).font(.caption2).foregroundStyle(.secondary)
+            }
 
             if light.isOn && light.supportsColorControls {
                 Button {
