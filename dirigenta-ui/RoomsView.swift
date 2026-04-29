@@ -114,21 +114,20 @@ struct RoomsView: View {
         if !envReadings.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedEnvRoomIds)) {
                 ForEach(room.envSensors) { sensor in
-                    HStack(alignment: .top, spacing: 4) {
-                        Image(systemName: "thermometer.medium")
-                            .font(.caption)
-                            .foregroundStyle(
-                                sensor.isComfortable ? Color.secondary : Color.orange
-                            )
+                    Label {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(sensor.displayName)
-                                .font(.caption)
                             EnvReadingsLine(readings: sensor.envReadings)
                             if let battery = sensor.attributes.batteryPercentage {
                                 Text("\(battery)% battery")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
+                    } icon: {
+                        Image(systemName: "thermometer.medium")
+                            .foregroundStyle(
+                                sensor.isComfortable ? Color.secondary : Color.orange
+                            )
                     }
                     .padding(.leading, 4)
                 }
@@ -149,16 +148,9 @@ struct RoomsView: View {
         if !room.sensors.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedSensorsRoomIds)) {
                 ForEach(room.sensors) { sensor in
-                    HStack(alignment: .top, spacing: 4) {
-                        Image(
-                            systemName: sensor.isOpen
-                                ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
+                    Label {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(sensor.displayName)
-                                .font(.caption)
                             if sensor.isOpen, let duration = sensor.openDuration(now: now) {
                                 let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
                                 Text("open for \(duration)")
@@ -170,6 +162,12 @@ struct RoomsView: View {
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
+                    } icon: {
+                        Image(
+                            systemName: sensor.isOpen
+                                ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                        )
+                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
                     }
                     .padding(.leading, 4)
                 }
