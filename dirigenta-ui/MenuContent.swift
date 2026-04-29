@@ -194,14 +194,14 @@ struct MenuContent: View {
                     appState.applyEvent(event)
                 }
                 guard !Task.isCancelled else { break }
-                if attempt == maxRetries {
+                // A connection that delivered events was live — reset before
+                // checking the retry limit so a live-then-dropped attempt 8
+                // is not incorrectly treated as exhausting the budget.
+                if receivedAnyEvent { attempt = 0 }
+                if attempt >= maxRetries {
                     appState.wsConnectionState = .disconnected
                     break
                 }
-                // A connection that delivered events was live — treat the next
-                // reconnect as a fresh attempt so a single long-running drop
-                // doesn't exhaust the retry budget accumulated over past hours.
-                if receivedAnyEvent { attempt = 0 }
                 appState.wsConnectionState = .connecting
                 let base = min(pow(2.0, Double(attempt)), 60.0)
                 let jitter = Double.random(in: -0.25 * base...0.25 * base)
