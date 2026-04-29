@@ -4,32 +4,34 @@ import OSLog
 import SwiftUI
 
 final class StatusBarController: NSObject {
-    private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
-    private var appState: AppState!
+    private let statusItem: NSStatusItem
+    private let popover: NSPopover
+    private let appState: AppState
     private var eventMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
 
-    func setup(appState: AppState) {
+    init(appState: AppState) {
         self.appState = appState
-
-        statusItem = NSStatusBar.system.statusItem(
+        self.statusItem = NSStatusBar.system.statusItem(
             withLength: NSStatusItem.squareLength
         )
-        guard let button = statusItem.button else { return }
-        button.action = #selector(handleClick(_:))
-        button.sendAction(on: [.leftMouseDown, .rightMouseDown])
-        button.target = self
-        updateIcon()
 
         let contentView = MenuContent()
             .environmentObject(appState)
             .environmentObject(appState.mdns)
-        popover = NSPopover()
+        let popover = NSPopover()
         popover.behavior = .applicationDefined
-        popover.contentViewController = NSHostingController(
-            rootView: contentView
-        )
+        popover.contentViewController = NSHostingController(rootView: contentView)
+        self.popover = popover
+
+        super.init()
+
+        if let button = statusItem.button {
+            button.action = #selector(handleClick(_:))
+            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
+            button.target = self
+        }
+        updateIcon()
 
         appState.$pinnedLightId
             .receive(on: RunLoop.main)
@@ -48,7 +50,7 @@ final class StatusBarController: NSObject {
     }
 
     private func updateIcon() {
-        guard let button = statusItem?.button else { return }
+        guard let button = statusItem.button else { return }
         let name: String
         if let id = appState.pinnedLightId,
             let light = appState.lights.first(where: { $0.id == id })

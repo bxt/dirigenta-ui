@@ -16,7 +16,9 @@ struct DirigentaApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let appState = AppState()
-    private let statusBarController = StatusBarController()
+    // lazy so it can reference appState and defer NSStatusBar access until
+    // applicationDidFinishLaunching, when the app environment is fully ready.
+    private lazy var statusBarController = StatusBarController(appState: appState)
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // When invoked with --notify, post the distributed notification to the
@@ -34,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         appState.mdns.start()
-        statusBarController.setup(appState: appState)
+        _ = statusBarController  // trigger lazy init
 
         // Listen for notifications from --notify invocations.
         DistributedNotificationCenter.default().addObserver(
