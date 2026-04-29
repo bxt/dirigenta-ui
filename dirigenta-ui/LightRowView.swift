@@ -13,8 +13,13 @@ struct LightRowView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Button { Task { await toggleLight() } } label: {
-                Label(light.displayName, systemImage: light.lightIcon(isOn: light.isOn))
+            Button {
+                Task { await toggleLight() }
+            } label: {
+                Label(
+                    light.displayName,
+                    systemImage: light.lightIcon(isOn: light.isOn)
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -24,13 +29,15 @@ struct LightRowView: View {
 
             if light.isOn && light.supportsColorControls {
                 Button {
-                    colorPickerLightId = colorPickerLightId == light.id ? nil : light.id
+                    colorPickerLightId =
+                        colorPickerLightId == light.id ? nil : light.id
                 } label: {
                     Image(systemName: "gearshape").font(.caption)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(
-                    colorPickerLightId == light.id ? Color.accentColor : Color.secondary
+                    colorPickerLightId == light.id
+                        ? Color.accentColor : Color.secondary
                 )
                 .help("Color settings")
             }
@@ -43,14 +50,21 @@ struct LightRowView: View {
                     appState.pinnedLightIsOn = light.isOn
                 }
             } label: {
-                Image(systemName: appState.pinnedLightId == light.id ? "pin.fill" : "pin")
-                    .font(.caption)
+                Image(
+                    systemName: appState.pinnedLightId == light.id
+                        ? "pin.fill" : "pin"
+                )
+                .font(.caption)
             }
             .buttonStyle(.plain)
             .foregroundStyle(
-                appState.pinnedLightId == light.id ? Color.accentColor : Color.secondary
+                appState.pinnedLightId == light.id
+                    ? Color.accentColor : Color.secondary
             )
-            .help(appState.pinnedLightId == light.id ? "Unpin light" : "Pin to menu bar")
+            .help(
+                appState.pinnedLightId == light.id
+                    ? "Unpin light" : "Pin to menu bar"
+            )
         }
 
         if light.isOn, let level = light.attributes.lightLevel {
@@ -72,8 +86,12 @@ struct LightRowView: View {
         if light.isOn && colorPickerLightId == light.id {
             LightColorControls(
                 light: light,
-                onSetColorTemperature: { temp in Task { await setColorTemperature(to: temp) } },
-                onSetColor: { hue, sat in Task { await setColor(hue: hue, saturation: sat) } }
+                onSetColorTemperature: { temp in
+                    Task { await setColorTemperature(to: temp) }
+                },
+                onSetColor: { hue, sat in
+                    Task { await setColor(hue: hue, saturation: sat) }
+                }
             )
         }
     }
@@ -95,7 +113,9 @@ struct LightRowView: View {
                 $0.id == light.id ? $0.withIsOn(!newState) : $0
             }
             actionError = "Failed to toggle \(light.displayName)"
-            Logger.api.error("Toggle error: \(error.localizedDescription, privacy: .public)")
+            Logger.api.error(
+                "Toggle error: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -111,7 +131,9 @@ struct LightRowView: View {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
             actionError = "Failed to set brightness for \(light.displayName)"
-            Logger.api.error("Brightness error: \(error.localizedDescription, privacy: .public)")
+            Logger.api.error(
+                "Brightness error: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -123,7 +145,10 @@ struct LightRowView: View {
         }
         let client = appState.makeClient(ip: ip)
         do {
-            try await client.setColorTemperature(id: light.id, colorTemperature: value)
+            try await client.setColorTemperature(
+                id: light.id,
+                colorTemperature: value
+            )
         } catch {
             actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error(
@@ -136,14 +161,21 @@ struct LightRowView: View {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
         appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withColor(hue: hue, saturation: saturation) : $0
+            $0.id == light.id
+                ? $0.withColor(hue: hue, saturation: saturation) : $0
         }
         let client = appState.makeClient(ip: ip)
         do {
-            try await client.setColor(id: light.id, hue: hue, saturation: saturation)
+            try await client.setColor(
+                id: light.id,
+                hue: hue,
+                saturation: saturation
+            )
         } catch {
             actionError = "Failed to set colour for \(light.displayName)"
-            Logger.api.error("Color error: \(error.localizedDescription, privacy: .public)")
+            Logger.api.error(
+                "Color error: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 }

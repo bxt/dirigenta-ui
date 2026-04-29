@@ -41,7 +41,9 @@ struct EnvSensorRow: View {
                 Text(sensor.displayName)
                 EnvReadingsLine(readings: sensor.envReadings)
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -51,7 +53,9 @@ struct EnvSensorRow: View {
             }
         } icon: {
             Image(systemName: "thermometer.medium")
-                .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.orange)
+                .foregroundStyle(
+                    sensor.isComfortable ? Color.secondary : Color.orange
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -75,7 +79,9 @@ struct OpenCloseSensorRow: View {
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -132,13 +138,17 @@ struct LightsSectionView: View {
                 .padding(.top, 4)
                 .padding(.leading, 10)
             } label: {
-                Button { Task { await onToggleAll() } } label: {
+                Button {
+                    Task { await onToggleAll() }
+                } label: {
                     Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
                 }
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")
-                Text(onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off")
-                    .foregroundStyle(.primary)
+                Text(
+                    onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off"
+                )
+                .foregroundStyle(.primary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -199,8 +209,12 @@ struct OpenCloseSensorsSectionView: View {
             DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(spacing: 8) {
                     ForEach(sensors) { sensor in
-                        OpenCloseSensorRow(sensor: sensor, now: now, showRoom: showRoom)
-                            .padding(.leading, 4)
+                        OpenCloseSensorRow(
+                            sensor: sensor,
+                            now: now,
+                            showRoom: showRoom
+                        )
+                        .padding(.leading, 4)
                     }
                 }
                 .padding(.top, 4)
@@ -209,7 +223,8 @@ struct OpenCloseSensorsSectionView: View {
                 HStack(spacing: 8) {
                     Image(
                         systemName: anyOpen
-                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                            ? "sensor.tag.radiowaves.forward.fill"
+                            : "sensor.fill"
                     )
                     .foregroundStyle(anyOpen ? Color.orange : Color.primary)
                     Text(
@@ -217,7 +232,9 @@ struct OpenCloseSensorsSectionView: View {
                             ? "\(openCount) of \(sensors.count) open"
                             : "All closed"
                     )
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
+                    .foregroundStyle(
+                        openCount > 0 ? Color.orange : Color.primary
+                    )
                 }
             }
         }
@@ -250,10 +267,18 @@ struct RoomsView: View {
     @State private var expandedSensorsRoomIds: Set<String> = []
 
     // Creates a Bool Binding from a Set<String>, toggling membership of `id`.
-    private func membership(_ id: String, in set: Binding<Set<String>>) -> Binding<Bool> {
+    private func membership(_ id: String, in set: Binding<Set<String>>)
+        -> Binding<Bool>
+    {
         Binding(
             get: { set.wrappedValue.contains(id) },
-            set: { if $0 { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) } }
+            set: {
+                if $0 {
+                    set.wrappedValue.insert(id)
+                } else {
+                    set.wrappedValue.remove(id)
+                }
+            }
         )
     }
 
@@ -307,8 +332,12 @@ struct RoomsView: View {
     // MARK: - Data
 
     private var roomSummaries: [RoomSummary] {
-        var byRoom: [String: (name: String, lights: [DirigeraDevice], sensors: [DirigeraDevice],
-            envSensors: [DirigeraDevice])] = [:]
+        var byRoom:
+            [String: (
+                name: String, lights: [DirigeraDevice],
+                sensors: [DirigeraDevice],
+                envSensors: [DirigeraDevice]
+            )] = [:]
         for device in appState.lights {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])
@@ -329,8 +358,10 @@ struct RoomsView: View {
         }
         return byRoom.sorted { $0.value.name < $1.value.name }.map {
             RoomSummary(
-                id: $0.key, name: $0.value.name,
-                lights: $0.value.lights, sensors: $0.value.sensors,
+                id: $0.key,
+                name: $0.value.name,
+                lights: $0.value.lights,
+                sensors: $0.value.sensors,
                 envSensors: $0.value.envSensors
             )
         }
@@ -342,12 +373,16 @@ struct RoomsView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        appState.lights = appState.lights.map { ids.contains($0.id) ? $0.withIsOn(newState) : $0 }
+        appState.lights = appState.lights.map {
+            ids.contains($0.id) ? $0.withIsOn(newState) : $0
+        }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in room.lights {
-                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
+                group.addTask {
+                    try? await client.setLight(id: light.id, isOn: newState)
+                }
             }
         }
         await appState.fetchDevices(ip: ip)
