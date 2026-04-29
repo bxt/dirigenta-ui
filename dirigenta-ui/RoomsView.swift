@@ -45,6 +45,14 @@ struct RoomsView: View {
     @State private var expandedEnvRoomIds: Set<String> = []
     @State private var expandedSensorsRoomIds: Set<String> = []
 
+    // Creates a Bool Binding from a Set<String>, toggling membership of `id`.
+    private func membership(_ id: String, in set: Binding<Set<String>>) -> Binding<Bool> {
+        Binding(
+            get: { set.wrappedValue.contains(id) },
+            set: { if $0 { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) } }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             let rooms = roomSummaries
@@ -74,29 +82,11 @@ struct RoomsView: View {
             .font(.caption)
             .fontWeight(.semibold)
 
+        // Lights: toggle button in the label, chevron expands individual controls.
+        // The Button inside the label captures its own tap so clicking the
+        // lightbulb only toggles all lights; the chevron handles expansion.
         if !room.lights.isEmpty {
-            HStack(spacing: 8) {
-                Button { Task { await toggleRoomLights(room) } } label: {
-                    Image(systemName: room.anyLightOn ? "lightbulb.fill" : "lightbulb")
-                        .imageScale(.large)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(room.anyLightOn ? Color.primary : Color.secondary)
-                .help(room.anyLightOn ? "Turn all off" : "Turn all on")
-
-                Button {
-                    expandedLightsRoomIds = expandedLightsRoomIds.symmetricDifference([room.id])
-                } label: {
-                    Image(systemName: "gearshape").font(.caption)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(
-                    expandedLightsRoomIds.contains(room.id) ? Color.accentColor : Color.secondary
-                )
-                .help("Light details")
-            }
-
-            if expandedLightsRoomIds.contains(room.id) {
+            DisclosureGroup(isExpanded: membership(room.id, in: $expandedLightsRoomIds)) {
                 ForEach(room.lights) { light in
                     LightRowView(
                         light: light,
@@ -106,27 +96,21 @@ struct RoomsView: View {
                     )
                     .padding(.leading, 4)
                 }
+            } label: {
+                Button { Task { await toggleRoomLights(room) } } label: {
+                    Image(systemName: room.anyLightOn ? "lightbulb.fill" : "lightbulb")
+                        .imageScale(.large)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(room.anyLightOn ? Color.primary : Color.secondary)
+                .help(room.anyLightOn ? "Turn all off" : "Turn all on")
             }
         }
 
+        // Averaged env-sensor readings; chevron expands per-sensor detail.
         let envReadings = DirigeraDevice.averagedEnvReadings(from: room.envSensors)
         if !envReadings.isEmpty {
-            Button {
-                expandedEnvRoomIds = expandedEnvRoomIds.symmetricDifference([room.id])
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "thermometer.medium")
-                        .font(.caption)
-                        .foregroundStyle(
-                            envReadings.allSatisfy { !$0.outOfRange }
-                                ? Color.secondary : Color.orange
-                        )
-                    EnvReadingsLine(readings: envReadings)
-                }
-            }
-            .buttonStyle(.plain)
-
-            if expandedEnvRoomIds.contains(room.id) {
+            DisclosureGroup(isExpanded: membership(room.id, in: $expandedEnvRoomIds)) {
                 ForEach(room.envSensors) { sensor in
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
@@ -145,23 +129,22 @@ struct RoomsView: View {
                     }
                     .padding(.leading, 4)
                 }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "thermometer.medium")
+                        .font(.caption)
+                        .foregroundStyle(
+                            envReadings.allSatisfy { !$0.outOfRange }
+                                ? Color.secondary : Color.orange
+                        )
+                    EnvReadingsLine(readings: envReadings)
+                }
             }
         }
 
+        // Open/close sensor status; chevron expands per-sensor detail.
         if !room.sensors.isEmpty {
-            Button {
-                expandedSensorsRoomIds = expandedSensorsRoomIds.symmetricDifference([room.id])
-            } label: {
-                Image(
-                    systemName: room.anySensorOpen
-                        ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
-                )
-                .foregroundStyle(room.anySensorOpen ? Color.orange : Color.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(room.anySensorOpen ? "A sensor is open" : "All sensors closed")
-
-            if expandedSensorsRoomIds.contains(room.id) {
+            DisclosureGroup(isExpanded: membership(room.id, in: $expandedSensorsRoomIds)) {
                 ForEach(room.sensors) { sensor in
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
@@ -186,6 +169,18 @@ struct RoomsView: View {
                     }
                     .padding(.leading, 4)
                 }
+            } label: {
+                Label {
+                    Text(room.anySensorOpen ? "A sensor is open" : "All sensors closed")
+                        .foregroundStyle(room.anySensorOpen ? Color.orange : Color.secondary)
+                } icon: {
+                    Image(
+                        systemName: room.anySensorOpen
+                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                    )
+                    .foregroundStyle(room.anySensorOpen ? Color.orange : Color.secondary)
+                }
+                .font(.caption)
             }
         }
     }
