@@ -129,6 +129,7 @@ struct RoomsView: View {
                                 sensor.isComfortable ? Color.secondary : Color.orange
                             )
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 4)
                 }
             } label: {
@@ -169,6 +170,7 @@ struct RoomsView: View {
                         )
                         .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 4)
                 }
             } label: {
