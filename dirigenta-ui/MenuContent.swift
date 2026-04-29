@@ -151,12 +151,14 @@ struct MenuContent: View {
                             GeometryReader { geo in
                                 Color.clear
                                     .onAppear {
-                                        contentHeight = geo.size.height
+                                        DispatchQueue.main.async {
+                                            contentHeight = geo.size.height
+                                        }
                                     }
-                                    .onChange(of: geo.size.height) {
-                                        oldValue,
-                                        newValue in
-                                        contentHeight = newValue
+                                    .onChange(of: geo.size.height) { _, newValue in
+                                        DispatchQueue.main.async {
+                                            contentHeight = newValue
+                                        }
                                     }
                             }
                         )
