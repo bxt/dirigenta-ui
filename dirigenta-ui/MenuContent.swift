@@ -2,14 +2,6 @@ import AppKit
 import OSLog
 import SwiftUI
 
-private enum PairingStep {
-    case idle
-    case requesting
-    case awaitingButtonPress(ip: String, code: String, verifier: String)
-    case exchanging
-    case failed(String)
-}
-
 private struct DiscoveryStatusView: View {
     @EnvironmentObject private var mdns: MDNSResolver
 
@@ -45,8 +37,6 @@ private struct ScreenReader: NSViewRepresentable {
 struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
-    @State private var tempToken: String = ""
-    @State private var pairingStep: PairingStep = .idle
     @State private var actionError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
@@ -65,10 +55,6 @@ struct MenuContent: View {
         _selectedTab = State(initialValue: initialTab)
     }
 
-    fileprivate init(initialPairingStep: PairingStep) {
-        _pairingStep = State(initialValue: initialPairingStep)
-    }
-
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
             as? String ?? "?"
@@ -83,7 +69,7 @@ struct MenuContent: View {
             DiscoveryStatusView()
             Divider()
             if appState.accessToken.isEmpty {
-                pairingView
+                PairingView()
             } else {
                 // Show a loading/error placeholder only on the very first fetch,
                 // before any devices have arrived. Background refreshes (e.g. after
@@ -107,8 +93,7 @@ struct MenuContent: View {
                     }
                     .pickerStyle(.segmented)
 
-                    let screenHeight =
-                        currentScreen?.visibleFrame.height ?? 8000
+                    let screenHeight = currentScreen?.visibleFrame.height ?? 8000
                     let maxHeight = screenHeight - 200
                     ScrollView {
                         Group {
@@ -122,7 +107,6 @@ struct MenuContent: View {
                                         actionError: $actionError,
                                         showRoom: true,
                                         onToggleAll: { await toggleAllLights() }
-
                                     )
                                     if !appState.envSensors.isEmpty {
                                         Divider()
@@ -180,21 +164,15 @@ struct MenuContent: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if let error = appState.devicesError {
-                            Label(
-                                error,
-                                systemImage: "exclamationmark.triangle"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
                         } else {
                             switch appState.wsConnectionState {
                             case .connecting:
-                                Label(
-                                    "Connecting…",
-                                    systemImage: "arrow.clockwise"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                Label("Connecting…", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             case .disconnected:
                                 Label("Disconnected", systemImage: "wifi.slash")
                                     .font(.caption)
@@ -222,8 +200,7 @@ struct MenuContent: View {
         .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
         .task(
-            id:
-                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
+            id: "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
         ) {
             guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
             else { return }
@@ -257,136 +234,6 @@ struct MenuContent: View {
                 try? await Task.sleep(for: .seconds(1))
                 now = Date()
             }
-        }
-    }
-
-    // MARK: - Pairing
-
-    @ViewBuilder
-    private var pairingView: some View {
-        switch pairingStep {
-        case .idle:
-            Text("Connect your Dirigera hub")
-                .font(.headline)
-            Text(
-                "The app will guide you through pairing. Keep your hub nearby — you'll need to press the button on top."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Start pairing") {
-                    guard let ip = mdns.currentIPAddress else { return }
-                    Task { await startPairing(ip: ip) }
-                }
-                .disabled(mdns.currentIPAddress == nil)
-            }
-            manualTokenEntry
-
-        case .requesting:
-            HStack(spacing: 8) {
-                ProgressView()
-                Text("Contacting hub…")
-                    .foregroundStyle(.secondary)
-            }
-
-        case .awaitingButtonPress(let ip, let code, let verifier):
-            Text("Press the button on top of your hub")
-                .font(.headline)
-            Text(
-                "Hold it for about 5 seconds until the light pulses, then tap the button below."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Button("Cancel") { pairingStep = .idle }
-                Spacer()
-                Button("I pressed it") {
-                    Task {
-                        await finishPairing(
-                            ip: ip,
-                            code: code,
-                            verifier: verifier
-                        )
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-            }
-
-        case .exchanging:
-            HStack(spacing: 8) {
-                ProgressView()
-                Text("Completing pairing…")
-                    .foregroundStyle(.secondary)
-            }
-
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Try again") { pairingStep = .idle }
-            }
-            manualTokenEntry
-        }
-    }
-
-    @ViewBuilder
-    private var manualTokenEntry: some View {
-        DisclosureGroup("Have a token? Enter it manually") {
-            SecureField("Access Token", text: $tempToken)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Spacer()
-                Button("Save") {
-                    let trimmed = tempToken.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    )
-                    guard !trimmed.isEmpty else { return }
-                    appState.accessToken = trimmed
-                }
-                .disabled(
-                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .isEmpty
-                )
-            }
-        }
-        .font(.caption)
-    }
-
-    private func startPairing(ip: String) async {
-        pairingStep = .requesting
-        do {
-            let (code, verifier) = try await DirigeraAuthClient(ip: ip)
-                .requestPairing()
-            pairingStep = .awaitingButtonPress(
-                ip: ip,
-                code: code,
-                verifier: verifier
-            )
-        } catch {
-            pairingStep = .failed(
-                "Couldn't reach the hub. Make sure you're on the same network."
-            )
-        }
-    }
-
-    private func finishPairing(ip: String, code: String, verifier: String) async
-    {
-        pairingStep = .exchanging
-        do {
-            let token = try await DirigeraAuthClient(ip: ip).exchangeToken(
-                code: code,
-                verifier: verifier
-            )
-            appState.accessToken = token
-        } catch {
-            pairingStep = .failed(
-                "Pairing failed. Did you press the button? Try again."
-            )
         }
     }
 
@@ -441,50 +288,4 @@ struct MenuContent: View {
     return MenuContent()
         .environmentObject(state)
         .environmentObject(state.mdns)
-}
-
-#Preview("Pairing — requesting") {
-    let state = AppState.preview()
-    state.accessToken = ""
-    state.mdns.currentIPAddress = "192.168.1.100"
-    return MenuContent(initialPairingStep: .requesting)
-        .environmentObject(state)
-        .environmentObject(state.mdns)
-}
-
-#Preview("Pairing — awaiting button press") {
-    let state = AppState.preview()
-    state.accessToken = ""
-    state.mdns.currentIPAddress = "192.168.1.100"
-    return MenuContent(
-        initialPairingStep: .awaitingButtonPress(
-            ip: "192.168.1.100",
-            code: "abc123",
-            verifier: "xyz456"
-        )
-    )
-    .environmentObject(state)
-    .environmentObject(state.mdns)
-}
-
-#Preview("Pairing — exchanging") {
-    let state = AppState.preview()
-    state.accessToken = ""
-    state.mdns.currentIPAddress = "192.168.1.100"
-    return MenuContent(initialPairingStep: .exchanging)
-        .environmentObject(state)
-        .environmentObject(state.mdns)
-}
-
-#Preview("Pairing — failed") {
-    let state = AppState.preview()
-    state.accessToken = ""
-    state.mdns.currentIPAddress = "192.168.1.100"
-    return MenuContent(
-        initialPairingStep: .failed(
-            "Pairing failed. Did you press the button? Try again."
-        )
-    )
-    .environmentObject(state)
-    .environmentObject(state.mdns)
 }
