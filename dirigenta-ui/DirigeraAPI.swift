@@ -742,18 +742,29 @@ final class DirigeraAuthClient {
 
         struct Body: Encodable {
             let audience = "homesmart.local"
-            let grant_type = "authorization_code"
-            let code_challenge: String
-            let code_challenge_method = "S256"
+            let grantType = "authorization_code"
+            let codeChallenge: String
+            let codeChallengeMethod = "S256"
+            enum CodingKeys: String, CodingKey {
+                case audience
+                case grantType = "grant_type"
+                case codeChallenge = "code_challenge"
+                case codeChallengeMethod = "code_challenge_method"
+            }
         }
-        struct Response: Decodable { let authorization_code: String }
+        struct Response: Decodable {
+            let authorizationCode: String
+            enum CodingKeys: String, CodingKey {
+                case authorizationCode = "authorization_code"
+            }
+        }
 
         let data = try await post(
             "/v1/oauth/authorize",
-            body: try JSONEncoder().encode(Body(code_challenge: challenge))
+            body: try JSONEncoder().encode(Body(codeChallenge: challenge))
         )
         let code = try JSONDecoder().decode(Response.self, from: data)
-            .authorization_code
+            .authorizationCode
         return (code: code, verifier: verifier)
     }
 
@@ -761,18 +772,28 @@ final class DirigeraAuthClient {
         struct Body: Encodable {
             let code: String
             let name = "dirigenta-ui"
-            let grant_type = "authorization_code"
-            let code_verifier: String
+            let grantType = "authorization_code"
+            let codeVerifier: String
+            enum CodingKeys: String, CodingKey {
+                case code, name
+                case grantType = "grant_type"
+                case codeVerifier = "code_verifier"
+            }
         }
-        struct Response: Decodable { let access_token: String }
+        struct Response: Decodable {
+            let accessToken: String
+            enum CodingKeys: String, CodingKey {
+                case accessToken = "access_token"
+            }
+        }
 
         let data = try await post(
             "/v1/oauth/token",
             body: try JSONEncoder().encode(
-                Body(code: code, code_verifier: verifier)
+                Body(code: code, codeVerifier: verifier)
             )
         )
-        return try JSONDecoder().decode(Response.self, from: data).access_token
+        return try JSONDecoder().decode(Response.self, from: data).accessToken
     }
 
     private func post(_ path: String, body: Data) async throws -> Data {
