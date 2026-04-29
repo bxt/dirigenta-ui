@@ -22,9 +22,6 @@ final class AppState: ObservableObject {
             guard !Self.isPreview else { return }
             if accessToken.isEmpty {
                 try? KeychainService.delete("dirigeraHub")
-                // Also clean up legacy separate keys if they still exist.
-                try? KeychainService.delete("dirigeraAccessToken")
-                try? KeychainService.delete("dirigeraHubFingerprint")
                 hubCertFingerprint = nil
                 clearDevices()
             } else {
@@ -71,7 +68,7 @@ final class AppState: ObservableObject {
             accessToken = ""
             pinnedLightId = nil
         } else {
-            // Read from the combined key (one Keychain prompt).
+            // Read token and hub fingerprint from the combined key (one Keychain prompt).
             if let raw = try? KeychainService.get("dirigeraHub"),
                 let data = raw.data(using: .utf8),
                 let creds = try? JSONDecoder().decode(HubCredentials.self, from: data)
@@ -81,17 +78,7 @@ final class AppState: ObservableObject {
                     Data(base64Encoded: $0)
                 }
             } else {
-                // One-time migration from legacy separate keys.
-                // We only read the token here (already approved by the user) and
-                // skip "dirigeraHubFingerprint" to avoid an extra prompt — the
-                // fingerprint will be re-captured on the next successful connection.
-                accessToken =
-                    (try? KeychainService.get("dirigeraAccessToken")) ?? ""
-                if !accessToken.isEmpty {
-                    saveCredentials()
-                    try? KeychainService.delete("dirigeraAccessToken")
-                    try? KeychainService.delete("dirigeraHubFingerprint")
-                }
+                accessToken = ""
             }
             pinnedLightId = UserDefaults.standard.string(
                 forKey: "pinnedLightId"
