@@ -183,11 +183,14 @@ struct MenuContent: View {
             else { return }
             appState.wsConnectionState = .connecting
             let maxRetries = 8
-            for attempt in 0...maxRetries {
+            var attempt = 0
+            while attempt <= maxRetries {
                 if Task.isCancelled { break }
                 let client = appState.makeClient(ip: ip)
+                var receivedAnyEvent = false
                 for await event in client.eventStream() {
                     appState.wsConnectionState = .connected
+                    receivedAnyEvent = true
                     appState.applyEvent(event)
                 }
                 guard !Task.isCancelled else { break }
@@ -195,6 +198,10 @@ struct MenuContent: View {
                     appState.wsConnectionState = .disconnected
                     break
                 }
+                // A connection that delivered events was live — treat the next
+                // reconnect as a fresh attempt so a single long-running drop
+                // doesn't exhaust the retry budget accumulated over past hours.
+                if receivedAnyEvent { attempt = 0 }
                 appState.wsConnectionState = .connecting
                 let base = min(pow(2.0, Double(attempt)), 60.0)
                 let jitter = Double.random(in: -0.25 * base...0.25 * base)
@@ -203,6 +210,7 @@ struct MenuContent: View {
                     "Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…"
                 )
                 try? await Task.sleep(for: .seconds(delay))
+                attempt += 1
             }
         }
         .task {
