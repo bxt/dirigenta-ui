@@ -97,6 +97,7 @@ struct RoomsView: View {
                     .padding(.leading, 4)
                 }
             } label: {
+                let onCount = room.lights.filter { $0.isOn }.count
                 Button { Task { await toggleRoomLights(room) } } label: {
                     Image(systemName: room.anyLightOn ? "lightbulb.fill" : "lightbulb")
                         .imageScale(.large)
@@ -104,6 +105,9 @@ struct RoomsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(room.anyLightOn ? Color.primary : Color.secondary)
                 .help(room.anyLightOn ? "Turn all off" : "Turn all on")
+                Text(onCount > 0 ? "\(onCount) of \(room.lights.count) on" : "All off")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
 
@@ -170,9 +174,14 @@ struct RoomsView: View {
                     .padding(.leading, 4)
                 }
             } label: {
+                let openCount = room.sensors.filter { $0.isOpen }.count
                 Label {
-                    Text(room.anySensorOpen ? "A sensor is open" : "All sensors closed")
-                        .foregroundStyle(room.anySensorOpen ? Color.orange : Color.secondary)
+                    Text(
+                        openCount > 0
+                            ? "\(openCount) of \(room.sensors.count) open"
+                            : "All closed"
+                    )
+                    .foregroundStyle(openCount > 0 ? Color.orange : Color.secondary)
                 } icon: {
                     Image(
                         systemName: room.anySensorOpen
