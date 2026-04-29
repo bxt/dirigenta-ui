@@ -91,9 +91,19 @@ struct LightRowView: View {
                     .multilineTextAlignment(.trailing)
                     .textFieldStyle(.squareBorder)
                     .focused($levelFieldFocused)
-                    .onSubmit { commitLevelText() }
+                    .onChange(of: levelText) { _, newValue in
+                        // Strip any non-digit characters
+                        let digits = newValue.filter(\.isNumber)
+                        if digits != newValue { levelText = digits; return }
+                        // Apply immediately to slider and hub on each valid value
+                        guard let value = Int(digits), (1...100).contains(value)
+                        else { return }
+                        pendingLightLevels[light.id] = Double(value)
+                        Task { await setBrightness(to: value) }
+                    }
                     .onChange(of: levelFieldFocused) { _, isFocused in
-                        if !isFocused { commitLevelText() }
+                        // Reset display if field was left empty or out of range
+                        if !isFocused { levelText = "\(Int(displayValue))" }
                     }
             }
             .padding(.leading, 22)
@@ -138,19 +148,6 @@ struct LightRowView: View {
                 "Toggle error: \(error.localizedDescription, privacy: .public)"
             )
         }
-    }
-
-    private func commitLevelText() {
-        guard let raw = Int(levelText.trimmingCharacters(in: .whitespaces)) else {
-            // Reset display to current value on invalid input
-            if let level = light.attributes.lightLevel {
-                levelText = "\(pendingLightLevels[light.id].map(Int.init) ?? level)"
-            }
-            return
-        }
-        let clamped = min(100, max(1, raw))
-        levelText = "\(clamped)"
-        Task { await setBrightness(to: clamped) }
     }
 
     private func setBrightness(to level: Int) async {
