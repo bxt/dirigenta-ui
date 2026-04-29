@@ -181,6 +181,9 @@ extension DirigeraDevice {
         return nil
     }
 
+    /// UserDefaults key for persisting this light's saved colour/brightness default.
+    var colorDefaultsKey: String { "lightColorDefault.\(id)" }
+
     /// Merges env-sensor components that share a `relationId` into a single device.
     /// Returns the merged list and a map from each component id to the primary device id,
     /// used to route WebSocket events back to the right merged entry.

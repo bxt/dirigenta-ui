@@ -172,7 +172,7 @@ struct LightRowView: View {
         guard discoTask != nil else { return }
         discoTask?.cancel()
         discoTask = nil
-        let key = "lightColorDefault.\(light.id)"
+        let key = light.colorDefaultsKey
         guard let data = UserDefaults.standard.data(forKey: key),
             let preset = try? JSONDecoder().decode(LightColorPreset.self, from: data)
         else { return }

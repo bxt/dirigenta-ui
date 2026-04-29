@@ -36,7 +36,7 @@ struct LightColorControls: View {
         )
         _hasSavedDefault = State(
             initialValue: UserDefaults.standard.data(
-                forKey: "lightColorDefault.\(light.id)"
+                forKey: light.colorDefaultsKey
             ) != nil
         )
     }
@@ -138,7 +138,7 @@ struct LightColorControls: View {
 
     private var kelvinLabel: String { "\(Int(colorTempValue)) K" }
 
-    private var defaultsKey: String { "lightColorDefault.\(light.id)" }
+    private var defaultsKey: String { light.colorDefaultsKey }
 
     private func saveDefault() {
         guard let preset = light.colorPreset,
