@@ -188,7 +188,6 @@ struct MenuContent: View {
                 let client = appState.makeClient(ip: ip)
                 for await event in client.eventStream() {
                     appState.wsConnectionState = .connected
-                    guard !appState.isLoadingDevices else { continue }
                     appState.applyEvent(event)
                 }
                 guard !Task.isCancelled else { break }
