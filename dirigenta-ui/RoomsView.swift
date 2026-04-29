@@ -158,14 +158,16 @@ struct RoomsView: View {
         // lightbulb only toggles all lights; the chevron handles expansion.
         if !room.lights.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedLightsRoomIds)) {
-                ForEach(room.lights) { light in
-                    LightRowView(
-                        light: light,
-                        pendingLightLevels: $pendingLightLevels,
-                        colorPickerLightId: $colorPickerLightId,
-                        actionError: $actionError
-                    )
-                    .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(room.lights) { light in
+                        LightRowView(
+                            light: light,
+                            pendingLightLevels: $pendingLightLevels,
+                            colorPickerLightId: $colorPickerLightId,
+                            actionError: $actionError
+                        )
+                        .padding(.leading, 4)
+                    }
                 }
             } label: {
                 let onCount = room.lights.filter { $0.isOn }.count
@@ -183,9 +185,11 @@ struct RoomsView: View {
         let envReadings = DirigeraDevice.averagedEnvReadings(from: room.envSensors)
         if !envReadings.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedEnvRoomIds)) {
-                ForEach(room.envSensors) { sensor in
-                    EnvSensorRow(sensor: sensor)
-                        .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(room.envSensors) { sensor in
+                        EnvSensorRow(sensor: sensor)
+                            .padding(.leading, 4)
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -202,9 +206,11 @@ struct RoomsView: View {
         // Open/close sensor status; chevron expands per-sensor detail.
         if !room.sensors.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedSensorsRoomIds)) {
-                ForEach(room.sensors) { sensor in
-                    OpenCloseSensorRow(sensor: sensor, now: now)
-                        .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(room.sensors) { sensor in
+                        OpenCloseSensorRow(sensor: sensor, now: now)
+                            .padding(.leading, 4)
+                    }
                 }
             } label: {
                 let openCount = room.sensors.filter { $0.isOpen }.count

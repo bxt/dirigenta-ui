@@ -369,14 +369,16 @@ struct MenuContent: View {
             let anyOn = appState.lights.contains { $0.isOn }
             let onCount = appState.lights.filter { $0.isOn }.count
             DisclosureGroup(isExpanded: $devicesLightsExpanded) {
-                ForEach(appState.lights) { light in
-                    LightRowView(
-                        light: light,
-                        pendingLightLevels: $pendingLightLevels,
-                        colorPickerLightId: $colorPickerLightId,
-                        actionError: $actionError
-                    )
-                    .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(appState.lights) { light in
+                        LightRowView(
+                            light: light,
+                            pendingLightLevels: $pendingLightLevels,
+                            colorPickerLightId: $colorPickerLightId,
+                            actionError: $actionError
+                        )
+                        .padding(.leading, 4)
+                    }
                 }
             } label: {
                 Button { Task { await toggleAllLights() } } label: {
@@ -401,9 +403,11 @@ struct MenuContent: View {
             Divider()
             let avgReadings = DirigeraDevice.averagedEnvReadings(from: appState.envSensors)
             DisclosureGroup(isExpanded: $devicesEnvExpanded) {
-                ForEach(appState.envSensors) { sensor in
-                    EnvSensorRow(sensor: sensor, showRoom: true)
-                        .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(appState.envSensors) { sensor in
+                        EnvSensorRow(sensor: sensor, showRoom: true)
+                            .padding(.leading, 4)
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -425,9 +429,11 @@ struct MenuContent: View {
             let anyOpen = appState.sensors.contains { $0.isOpen }
             let openCount = appState.sensors.filter { $0.isOpen }.count
             DisclosureGroup(isExpanded: $devicesSensorsExpanded) {
-                ForEach(appState.sensors) { sensor in
-                    OpenCloseSensorRow(sensor: sensor, now: now, showRoom: true)
-                        .padding(.leading, 4)
+                VStack(spacing: 12) {
+                    ForEach(appState.sensors) { sensor in
+                        OpenCloseSensorRow(sensor: sensor, now: now, showRoom: true)
+                            .padding(.leading, 4)
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
