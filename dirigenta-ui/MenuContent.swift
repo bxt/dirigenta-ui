@@ -32,7 +32,7 @@ private struct DiscoveryStatusView: View {
     }
 }
 
-private struct FooterHeightKey: PreferenceKey {
+private struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
@@ -67,6 +67,7 @@ struct MenuContent: View {
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
+    @State private var selectedTab: Int = 0
 
     init() {}
 
@@ -90,68 +91,38 @@ struct MenuContent: View {
             if appState.accessToken.isEmpty {
                 pairingView
             } else {
-                let screenHeight =
-                    currentScreen?.visibleFrame.height ?? 8000
+                Picker("", selection: $selectedTab) {
+                    Text("Devices").tag(0)
+                    Text("Rooms").tag(1)
+                }
+                .pickerStyle(.segmented)
+
+                let screenHeight = currentScreen?.visibleFrame.height ?? 8000
                 let maxHeight = screenHeight - 200
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        lightsSection
-                        sensorsSection
-                        envSensorsSection
-                    }
-                    .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry)") {
-                        // AppState auto-fetches devices when the IP resolves.
-                        // This task only maintains the WebSocket for live updates.
-                        guard let ip = mdns.currentIPAddress else { return }
-                        appState.wsConnectionState = .connecting
-                        let maxRetries = 8
-                        for attempt in 0...maxRetries {
-                            if Task.isCancelled { break }
-                            let client = appState.makeClient(ip: ip)
-                            for await event in client.eventStream() {
-                                appState.wsConnectionState = .connected
-                                guard !appState.isLoadingDevices else {
-                                    continue
-                                }
-                                appState.applyEvent(event)
+                    Group {
+                        if selectedTab == 0 {
+                            VStack(alignment: .leading, spacing: 8) {
+                                lightsSection
+                                sensorsSection
+                                envSensorsSection
                             }
-                            guard !Task.isCancelled else { break }
-                            if attempt == maxRetries {
-                                appState.wsConnectionState = .disconnected
-                                break
-                            }
-                            appState.wsConnectionState = .connecting
-                            let base = min(pow(2.0, Double(attempt)), 60.0)
-                            let jitter = Double.random(
-                                in: -0.25 * base...0.25 * base
-                            )
-                            let delay = max(1.0, base + jitter)
-                            Logger.webSocket.info(
-                                "Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…"
-                            )
-                            try? await Task.sleep(for: .seconds(delay))
-                        }
-                    }
-                    .task {
-                        while !Task.isCancelled {
-                            try? await Task.sleep(for: .seconds(1))
-                            now = Date()
+                        } else {
+                            RoomsView(now: now)
                         }
                     }
                     .frame(width: 276)
                     .background(
-                        GeometryReader { contentGeometry in
-                            Color.clear.onAppear {
-                                contentHeight = contentGeometry.size.height
-                                Logger.statusBar.error(
-                                    "contentHeight: \(contentHeight)"
-                                )
-                            }
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: ContentHeightKey.self, value: geo.size.height
+                            )
                         }
                     )
-
-                }.frame(height: min(contentHeight, maxHeight))
-                    .scrollDisabled(contentHeight < maxHeight)
+                }
+                .frame(height: min(contentHeight, maxHeight))
+                .scrollDisabled(contentHeight < maxHeight)
+                .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
             }
 
             VStack(spacing: 8) {
@@ -166,21 +137,15 @@ struct MenuContent: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if let error = appState.devicesError {
-                            Label(
-                                error,
-                                systemImage: "exclamationmark.triangle"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
                         } else {
                             switch appState.wsConnectionState {
                             case .connecting:
-                                Label(
-                                    "Connecting…",
-                                    systemImage: "arrow.clockwise"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                Label("Connecting…", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             case .disconnected:
                                 Label("Disconnected", systemImage: "wifi.slash")
                                     .font(.caption)
@@ -207,6 +172,39 @@ struct MenuContent: View {
         .frame(width: 300)
         .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
+        .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)") {
+            guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty else { return }
+            appState.wsConnectionState = .connecting
+            let maxRetries = 8
+            for attempt in 0...maxRetries {
+                if Task.isCancelled { break }
+                let client = appState.makeClient(ip: ip)
+                for await event in client.eventStream() {
+                    appState.wsConnectionState = .connected
+                    guard !appState.isLoadingDevices else { continue }
+                    appState.applyEvent(event)
+                }
+                guard !Task.isCancelled else { break }
+                if attempt == maxRetries {
+                    appState.wsConnectionState = .disconnected
+                    break
+                }
+                appState.wsConnectionState = .connecting
+                let base = min(pow(2.0, Double(attempt)), 60.0)
+                let jitter = Double.random(in: -0.25 * base...0.25 * base)
+                let delay = max(1.0, base + jitter)
+                Logger.webSocket.info(
+                    "Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…"
+                )
+                try? await Task.sleep(for: .seconds(delay))
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                now = Date()
+            }
+        }
     }
 
     // MARK: - Pairing
@@ -253,13 +251,7 @@ struct MenuContent: View {
                 Button("Cancel") { pairingStep = .idle }
                 Spacer()
                 Button("I pressed it") {
-                    Task {
-                        await finishPairing(
-                            ip: ip,
-                            code: code,
-                            verifier: verifier
-                        )
-                    }
+                    Task { await finishPairing(ip: ip, code: code, verifier: verifier) }
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -291,15 +283,12 @@ struct MenuContent: View {
             HStack {
                 Spacer()
                 Button("Save") {
-                    let trimmed = tempToken.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    )
+                    let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     appState.accessToken = trimmed
                 }
                 .disabled(
-                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .isEmpty
+                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
             }
         }
@@ -309,13 +298,8 @@ struct MenuContent: View {
     private func startPairing(ip: String) async {
         pairingStep = .requesting
         do {
-            let (code, verifier) = try await DirigeraAuthClient(ip: ip)
-                .requestPairing()
-            pairingStep = .awaitingButtonPress(
-                ip: ip,
-                code: code,
-                verifier: verifier
-            )
+            let (code, verifier) = try await DirigeraAuthClient(ip: ip).requestPairing()
+            pairingStep = .awaitingButtonPress(ip: ip, code: code, verifier: verifier)
         } catch {
             pairingStep = .failed(
                 "Couldn't reach the hub. Make sure you're on the same network."
@@ -323,23 +307,19 @@ struct MenuContent: View {
         }
     }
 
-    private func finishPairing(ip: String, code: String, verifier: String) async
-    {
+    private func finishPairing(ip: String, code: String, verifier: String) async {
         pairingStep = .exchanging
         do {
             let token = try await DirigeraAuthClient(ip: ip).exchangeToken(
-                code: code,
-                verifier: verifier
+                code: code, verifier: verifier
             )
             appState.accessToken = token
         } catch {
-            pairingStep = .failed(
-                "Pairing failed. Did you press the button? Try again."
-            )
+            pairingStep = .failed("Pairing failed. Did you press the button? Try again.")
         }
     }
 
-    // MARK: - Lights
+    // MARK: - Devices tab sections
 
     @ViewBuilder
     private var lightsSection: some View {
@@ -367,97 +347,12 @@ struct MenuContent: View {
                         .padding(.top, 2)
                 }
                 ForEach(group.devices) { light in
-                    HStack(spacing: 4) {
-                        Button {
-                            Task { await toggleLight(light) }
-                        } label: {
-                            Label(
-                                light.displayName,
-                                systemImage: light.lightIcon(isOn: light.isOn)
-                            )
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        if light.isOn && light.supportsColorControls {
-                            Button {
-                                colorPickerLightId =
-                                    colorPickerLightId == light.id
-                                    ? nil : light.id
-                            } label: {
-                                Image(systemName: "gearshape")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(
-                                colorPickerLightId == light.id
-                                    ? Color.accentColor : Color.secondary
-                            )
-                            .help("Color settings")
-                        }
-                        Button {
-                            if appState.pinnedLightId == light.id {
-                                appState.pinnedLightId = nil
-                            } else {
-                                appState.pinnedLightId = light.id
-                                appState.pinnedLightIsOn = light.isOn
-                            }
-                        } label: {
-                            Image(
-                                systemName: appState.pinnedLightId == light.id
-                                    ? "pin.fill" : "pin"
-                            )
-                            .font(.caption)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(
-                            appState.pinnedLightId == light.id
-                                ? Color.accentColor : Color.secondary
-                        )
-                        .help(
-                            appState.pinnedLightId == light.id
-                                ? "Unpin light" : "Pin to menu bar"
-                        )
-                    }
-                    if light.isOn, let level = light.attributes.lightLevel {
-                        Slider(
-                            value: Binding(
-                                get: {
-                                    pendingLightLevels[light.id]
-                                        ?? Double(level)
-                                },
-                                set: { pendingLightLevels[light.id] = $0 }
-                            ),
-                            in: 1...100
-                        ) { editing in
-                            if !editing,
-                                let pending = pendingLightLevels[light.id]
-                            {
-                                Task {
-                                    await setBrightness(light, to: Int(pending))
-                                }
-                            }
-                        }
-                        .padding(.leading, 22)
-                        .padding(.trailing, 4)
-                    }
-                    if light.isOn && colorPickerLightId == light.id {
-                        LightColorControls(
-                            light: light,
-                            onSetColorTemperature: { temp in
-                                Task {
-                                    await setColorTemperature(light, to: temp)
-                                }
-                            },
-                            onSetColor: { hue, saturation in
-                                Task {
-                                    await setColor(
-                                        light,
-                                        hue: hue,
-                                        saturation: saturation
-                                    )
-                                }
-                            }
-                        )
-                    }
+                    LightRowView(
+                        light: light,
+                        pendingLightLevels: $pendingLightLevels,
+                        colorPickerLightId: $colorPickerLightId,
+                        actionError: $actionError
+                    )
                 }
             }
             if let error = actionError {
@@ -484,31 +379,23 @@ struct MenuContent: View {
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(sensor.displayName)
-                            if sensor.isOpen,
-                                let duration = openDuration(sensor)
-                            {
-                                let overdue = (openSeconds(sensor) ?? 0) >= 15 * 60
+                            if sensor.isOpen, let duration = sensor.openDuration(now: now) {
+                                let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
                                 Text("open for \(duration)")
                                     .font(.caption2)
                                     .foregroundStyle(overdue ? Color.orange : .secondary)
                             }
-                            if let sub = subtitle(
-                                battery: sensor.attributes.batteryPercentage
-                            ) {
-                                Text(sub).font(.caption2).foregroundStyle(
-                                    .secondary
-                                )
+                            if let battery = sensor.attributes.batteryPercentage {
+                                Text("\(battery)% battery")
+                                    .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                     } icon: {
                         Image(
                             systemName: sensor.isOpen
-                                ? "sensor.tag.radiowaves.forward.fill"
-                                : "sensor.fill"
+                                ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
                         )
-                        .foregroundStyle(
-                            sensor.isOpen ? Color.orange : Color.secondary
-                        )
+                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
                     }
                 }
             }
@@ -533,37 +420,17 @@ struct MenuContent: View {
                             Text(sensor.displayName)
                             let readings = sensor.envReadings
                             if !readings.isEmpty {
-                                Text(
-                                    readings.enumerated().reduce(
-                                        into: AttributedString()
-                                    ) { str, item in
-                                        let (i, r) = item
-                                        if i > 0 {
-                                            str += AttributedString(" · ")
-                                        }
-                                        var part = AttributedString(r.text)
-                                        if r.outOfRange {
-                                            part.foregroundColor = .orange
-                                        }
-                                        str += part
-                                    }
-                                )
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                EnvReadingsLine(readings: readings)
                             }
-                            if let sub = subtitle(
-                                battery: sensor.attributes.batteryPercentage
-                            ) {
-                                Text(sub).font(.caption2).foregroundStyle(
-                                    .secondary
-                                )
+                            if let battery = sensor.attributes.batteryPercentage {
+                                Text("\(battery)% battery")
+                                    .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                     } icon: {
                         Image(systemName: "thermometer.medium")
                             .foregroundStyle(
-                                sensor.isComfortable
-                                    ? Color.secondary : Color.orange
+                                sensor.isComfortable ? Color.secondary : Color.orange
                             )
                     }
                 }
@@ -572,10 +439,6 @@ struct MenuContent: View {
     }
 
     // MARK: - Helpers
-
-    private func subtitle(battery: Int?) -> String? {
-        battery.map { "\($0)% battery" }
-    }
 
     private func grouped(_ devices: [DirigeraDevice]) -> [DeviceGroup] {
         var byRoom: [String: (name: String, devices: [DirigeraDevice])] = [:]
@@ -594,124 +457,6 @@ struct MenuContent: View {
             result.append(DeviceGroup(id: "", roomName: nil, devices: noRoom))
         }
         return result
-    }
-
-    private static let isoWithFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    private static let isoWithoutFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
-
-    private func openSeconds(_ sensor: DirigeraDevice) -> Int? {
-        guard let raw = sensor.lastSeen else { return nil }
-        let date =
-            Self.isoWithFractional.date(from: raw)
-            ?? Self.isoWithoutFractional.date(from: raw)
-        guard let date else { return nil }
-        let s = Int(now.timeIntervalSince(date))
-        return s > 0 ? s : nil
-    }
-
-    private func openDuration(_ sensor: DirigeraDevice) -> String? {
-        guard let s = openSeconds(sensor) else { return nil }
-        return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
-    }
-
-    // MARK: - Light actions
-
-    private func setBrightness(_ light: DirigeraDevice, to level: Int) async {
-        guard let ip = mdns.currentIPAddress else { return }
-        actionError = nil
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withLightLevel(level) : $0
-        }
-        pendingLightLevels[light.id] = nil
-        let client = appState.makeClient(ip: ip)
-        do {
-            try await client.setLightLevel(id: light.id, lightLevel: level)
-        } catch {
-            actionError = "Failed to set brightness for \(light.displayName)"
-            Logger.api.error(
-                "Brightness error: \(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
-
-    private func setColorTemperature(_ light: DirigeraDevice, to value: Int)
-        async
-    {
-        guard let ip = mdns.currentIPAddress else { return }
-        actionError = nil
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withColorTemperature(value) : $0
-        }
-        let client = appState.makeClient(ip: ip)
-        do {
-            try await client.setColorTemperature(
-                id: light.id,
-                colorTemperature: value
-            )
-        } catch {
-            actionError = "Failed to set colour for \(light.displayName)"
-            Logger.api.error(
-                "Color temperature error: \(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
-
-    private func setColor(
-        _ light: DirigeraDevice,
-        hue: Double,
-        saturation: Double
-    ) async {
-        guard let ip = mdns.currentIPAddress else { return }
-        actionError = nil
-        appState.lights = appState.lights.map {
-            $0.id == light.id
-                ? $0.withColor(hue: hue, saturation: saturation) : $0
-        }
-        let client = appState.makeClient(ip: ip)
-        do {
-            try await client.setColor(
-                id: light.id,
-                hue: hue,
-                saturation: saturation
-            )
-        } catch {
-            actionError = "Failed to set colour for \(light.displayName)"
-            Logger.api.error(
-                "Color error: \(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
-
-    private func toggleLight(_ light: DirigeraDevice) async {
-        guard let ip = mdns.currentIPAddress else { return }
-        actionError = nil
-        let newState = !light.isOn
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withIsOn(newState) : $0
-        }
-        appState.syncPinnedState()
-        let client = appState.makeClient(ip: ip)
-        do {
-            try await client.setLight(id: light.id, isOn: newState)
-            await appState.fetchDevices(ip: ip)
-        } catch {
-            appState.lights = appState.lights.map {
-                $0.id == light.id ? $0.withIsOn(!newState) : $0
-            }
-            actionError = "Failed to toggle \(light.displayName)"
-            Logger.api.error(
-                "Toggle error: \(error.localizedDescription, privacy: .public)"
-            )
-        }
     }
 }
 

@@ -236,6 +236,45 @@ extension DirigeraDevice {
     }
 
     var isComfortable: Bool { envReadings.allSatisfy { !$0.outOfRange } }
+
+    static func averagedEnvReadings(from sensors: [DirigeraDevice]) -> [Reading] {
+        let avg: ([Double]) -> Double? = { $0.isEmpty ? nil : $0.reduce(0, +) / Double($0.count) }
+        let virtual = DirigeraDevice(
+            id: "", type: "sensor", deviceType: "environmentSensor",
+            attributes: .init(
+                currentTemperature: avg(sensors.compactMap { $0.attributes.currentTemperature }),
+                currentRH: avg(sensors.compactMap { $0.attributes.currentRH }),
+                currentCO2: avg(sensors.compactMap { $0.attributes.currentCO2 }),
+                currentPM25: avg(sensors.compactMap { $0.attributes.currentPM25 })
+            )
+        )
+        return virtual.envReadings
+    }
+
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    func openSeconds(now: Date) -> Int? {
+        guard let raw = lastSeen else { return nil }
+        let date = Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
+        guard let date else { return nil }
+        let s = Int(now.timeIntervalSince(date))
+        return s > 0 ? s : nil
+    }
+
+    func openDuration(now: Date) -> String? {
+        guard let s = openSeconds(now: now) else { return nil }
+        return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
+    }
 }
 
 struct DirigeraEvent: Decodable {
