@@ -283,7 +283,7 @@ struct RoomsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             let rooms = roomSummaries
             if rooms.isEmpty {
                 Label("No rooms found", systemImage: "house.slash")
@@ -304,7 +304,7 @@ struct RoomsView: View {
     @ViewBuilder
     private func roomSection(_ room: RoomSummary) -> some View {
         Text(room.name)
-            .fontWeight(.semibold)
+            .fontWeight(.semibold).padding(.top, 8)
 
         if !room.lights.isEmpty {
             LightsSectionView(
