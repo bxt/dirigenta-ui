@@ -11,6 +11,9 @@ struct LightRowView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
+    @State private var levelText: String = ""
+    @FocusState private var levelFieldFocused: Bool
+
     var body: some View {
         HStack(spacing: 4) {
             Button {
@@ -68,19 +71,35 @@ struct LightRowView: View {
         }
 
         if light.isOn, let level = light.attributes.lightLevel {
-            Slider(
-                value: Binding(
-                    get: { pendingLightLevels[light.id] ?? Double(level) },
-                    set: { pendingLightLevels[light.id] = $0 }
-                ),
-                in: 1...100
-            ) { editing in
-                if !editing, let pending = pendingLightLevels[light.id] {
-                    Task { await setBrightness(to: Int(pending)) }
+            let displayValue = pendingLightLevels[light.id] ?? Double(level)
+            HStack(spacing: 4) {
+                Slider(
+                    value: Binding(
+                        get: { displayValue },
+                        set: { pendingLightLevels[light.id] = $0 }
+                    ),
+                    in: 1...100
+                ) { editing in
+                    if !editing, let pending = pendingLightLevels[light.id] {
+                        Task { await setBrightness(to: Int(pending)) }
+                    }
                 }
+                TextField("", text: $levelText)
+                    .frame(width: 40)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.squareBorder)
+                    .focused($levelFieldFocused)
+                    .onSubmit { commitLevelText() }
+                    .onChange(of: levelFieldFocused) { _, isFocused in
+                        if !isFocused { commitLevelText() }
+                    }
             }
             .padding(.leading, 22)
             .padding(.trailing, 4)
+            .onAppear { levelText = "\(Int(displayValue))" }
+            .onChange(of: displayValue) { _, newValue in
+                if !levelFieldFocused { levelText = "\(Int(newValue))" }
+            }
         }
 
         if light.isOn && colorPickerLightId == light.id {
@@ -117,6 +136,19 @@ struct LightRowView: View {
                 "Toggle error: \(error.localizedDescription, privacy: .public)"
             )
         }
+    }
+
+    private func commitLevelText() {
+        guard let raw = Int(levelText.trimmingCharacters(in: .whitespaces)) else {
+            // Reset display to current value on invalid input
+            if let level = light.attributes.lightLevel {
+                levelText = "\(pendingLightLevels[light.id].map(Int.init) ?? level)"
+            }
+            return
+        }
+        let clamped = min(100, max(1, raw))
+        levelText = "\(clamped)"
+        Task { await setBrightness(to: clamped) }
     }
 
     private func setBrightness(to level: Int) async {
