@@ -133,8 +133,8 @@ struct RoomsView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        appState.lights = appState.lights.map {
-            ids.contains($0.id) ? $0.withIsOn(newState) : $0
+        for i in appState.lights.indices where ids.contains(appState.lights[i].id) {
+            appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)

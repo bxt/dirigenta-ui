@@ -51,7 +51,7 @@ struct DevicesView: View {
         actionError = nil
         let anyOn = appState.lights.contains { $0.isOn }
         let newState = !anyOn
-        appState.lights = appState.lights.map { $0.withIsOn(newState) }
+        for i in appState.lights.indices { appState.lights[i].attributes.isOn = newState }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in

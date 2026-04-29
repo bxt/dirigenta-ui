@@ -9,14 +9,14 @@ struct Room: Decodable {
 
 struct DirigeraDevice: Identifiable, Decodable {
     let id: String
-    let type: String
+    var type: String
     var deviceType: String? = nil
     var relationId: String? = nil
     var isReachable: Bool? = nil
     var lastSeen: String? = nil
     var room: Room? = nil
     var customIcon: String? = nil
-    let attributes: Attributes
+    var attributes: Attributes
 
     struct Attributes: Decodable {
         var customName: String? = nil
@@ -36,29 +36,26 @@ struct DirigeraDevice: Identifiable, Decodable {
         var colorSaturation: Double? = nil
         var colorMode: String? = nil // "color" | "temperature"
 
-        func merging(_ other: Attributes?) -> Attributes {
-            guard let other else { return self }
-            return Attributes(
-                customName: other.customName ?? customName,
-                model: other.model ?? model,
-                isOn: other.isOn ?? isOn,
-                isOpen: other.isOpen ?? isOpen,
-                lightLevel: other.lightLevel ?? lightLevel,
-                batteryPercentage: other.batteryPercentage ?? batteryPercentage,
-                currentTemperature: other.currentTemperature
-                    ?? currentTemperature,
-                currentRH: other.currentRH ?? currentRH,
-                currentCO2: other.currentCO2 ?? currentCO2,
-                currentPM25: other.currentPM25 ?? currentPM25,
-                colorTemperature: other.colorTemperature ?? colorTemperature,
-                colorTemperatureMin: other.colorTemperatureMin
-                    ?? colorTemperatureMin,
-                colorTemperatureMax: other.colorTemperatureMax
-                    ?? colorTemperatureMax,
-                colorHue: other.colorHue ?? colorHue,
-                colorSaturation: other.colorSaturation ?? colorSaturation,
-                colorMode: other.colorMode ?? colorMode
-            )
+        /// Overwrites each field with the corresponding non-nil value from `other`.
+        /// Add new fields here whenever Attributes gains a new property.
+        mutating func merge(_ other: Attributes?) {
+            guard let other else { return }
+            if let v = other.customName { customName = v }
+            if let v = other.model { model = v }
+            if let v = other.isOn { isOn = v }
+            if let v = other.isOpen { isOpen = v }
+            if let v = other.lightLevel { lightLevel = v }
+            if let v = other.batteryPercentage { batteryPercentage = v }
+            if let v = other.currentTemperature { currentTemperature = v }
+            if let v = other.currentRH { currentRH = v }
+            if let v = other.currentCO2 { currentCO2 = v }
+            if let v = other.currentPM25 { currentPM25 = v }
+            if let v = other.colorTemperature { colorTemperature = v }
+            if let v = other.colorTemperatureMin { colorTemperatureMin = v }
+            if let v = other.colorTemperatureMax { colorTemperatureMax = v }
+            if let v = other.colorHue { colorHue = v }
+            if let v = other.colorSaturation { colorSaturation = v }
+            if let v = other.colorMode { colorMode = v }
         }
     }
 
@@ -87,52 +84,14 @@ struct DirigeraDevice: Identifiable, Decodable {
         isOn ? lightSymbol + ".fill" : lightSymbol
     }
 
-    func modifyingAttributes(_ transform: (inout Attributes) -> Void)
-        -> DirigeraDevice
-    {
-        var updated = attributes
-        transform(&updated)
-        return DirigeraDevice(
-            id: id,
-            type: type,
-            deviceType: deviceType,
-            relationId: relationId,
-            isReachable: isReachable,
-            lastSeen: lastSeen,
-            room: room,
-            customIcon: customIcon,
-            attributes: updated
-        )
-    }
-
-    func withIsOn(_ value: Bool) -> DirigeraDevice {
-        modifyingAttributes { $0.isOn = value }
-    }
-    func withLightLevel(_ value: Int) -> DirigeraDevice {
-        modifyingAttributes { $0.lightLevel = value }
-    }
-    func withColorTemperature(_ value: Int) -> DirigeraDevice {
-        modifyingAttributes { $0.colorTemperature = value }
-    }
-    func withColor(hue: Double, saturation: Double) -> DirigeraDevice {
-        modifyingAttributes {
-            $0.colorHue = hue
-            $0.colorSaturation = saturation
-        }
-    }
-
-    func merging(_ data: DirigeraEvent.DeviceData) -> DirigeraDevice {
-        DirigeraDevice(
-            id: id,
-            type: data.type ?? type,
-            deviceType: data.deviceType ?? deviceType,
-            relationId: relationId,
-            isReachable: data.isReachable ?? isReachable,
-            lastSeen: data.lastSeen ?? lastSeen,
-            room: data.room ?? room,
-            customIcon: data.customIcon ?? customIcon,
-            attributes: attributes.merging(data.attributes)
-        )
+    mutating func merge(_ data: DirigeraEvent.DeviceData) {
+        if let v = data.type { type = v }
+        if let v = data.deviceType { deviceType = v }
+        if let v = data.isReachable { isReachable = v }
+        if let v = data.lastSeen { lastSeen = v }
+        if let v = data.room { room = v }
+        if let v = data.customIcon { customIcon = v }
+        attributes.merge(data.attributes)
     }
 }
 
@@ -209,9 +168,8 @@ extension DirigeraDevice {
                 a.attributes.customName == a.attributes.model
             }
             guard let first = sorted.first else { continue }
-            let mergedAttrs = sorted.dropFirst().reduce(first.attributes) {
-                $0.merging($1.attributes)
-            }
+            var mergedAttrs = first.attributes
+            for device in sorted.dropFirst() { mergedAttrs.merge(device.attributes) }
             let room = sorted.first(where: { $0.room != nil })?.room
             result.append(
                 DirigeraDevice(

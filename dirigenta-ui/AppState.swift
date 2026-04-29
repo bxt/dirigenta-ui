@@ -186,14 +186,14 @@ final class AppState: ObservableObject {
             let data = event.data, let id = data.id
         else { return }
         if let i = lights.firstIndex(where: { $0.id == id }) {
-            lights[i] = lights[i].merging(data)
+            lights[i].merge(data)
             syncPinnedState()
         } else if let i = sensors.firstIndex(where: { $0.id == id }) {
-            sensors[i] = sensors[i].merging(data)
+            sensors[i].merge(data)
         } else {
             let primaryId = envSensorIdMap[id] ?? id
             if let i = envSensors.firstIndex(where: { $0.id == primaryId }) {
-                envSensors[i] = envSensors[i].merging(data)
+                envSensors[i].merge(data)
             }
         }
     }

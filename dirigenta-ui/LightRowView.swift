@@ -189,8 +189,8 @@ struct LightRowView: View {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
         let newState = !light.isOn
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withIsOn(newState) : $0
+        if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
@@ -198,8 +198,8 @@ struct LightRowView: View {
             try await client.setLight(id: light.id, isOn: newState)
             await appState.fetchDevices(ip: ip)
         } catch {
-            appState.lights = appState.lights.map {
-                $0.id == light.id ? $0.withIsOn(!newState) : $0
+            if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+                appState.lights[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(light.displayName)"
             Logger.api.error(
@@ -212,18 +212,16 @@ struct LightRowView: View {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
         let oldLevel = light.attributes.lightLevel
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withLightLevel(level) : $0
+        if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            appState.lights[i].attributes.lightLevel = level
         }
         pendingLightLevels[light.id] = nil
         let client = appState.makeClient(ip: ip)
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
-            if let oldLevel {
-                appState.lights = appState.lights.map {
-                    $0.id == light.id ? $0.withLightLevel(oldLevel) : $0
-                }
+            if let oldLevel, let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+                appState.lights[i].attributes.lightLevel = oldLevel
             }
             actionError = "Failed to set brightness for \(light.displayName)"
             Logger.api.error(
@@ -236,8 +234,8 @@ struct LightRowView: View {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
         let oldValue = light.attributes.colorTemperature
-        appState.lights = appState.lights.map {
-            $0.id == light.id ? $0.withColorTemperature(value) : $0
+        if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            appState.lights[i].attributes.colorTemperature = value
         }
         let client = appState.makeClient(ip: ip)
         do {
@@ -246,10 +244,8 @@ struct LightRowView: View {
                 colorTemperature: value
             )
         } catch {
-            if let oldValue {
-                appState.lights = appState.lights.map {
-                    $0.id == light.id ? $0.withColorTemperature(oldValue) : $0
-                }
+            if let oldValue, let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+                appState.lights[i].attributes.colorTemperature = oldValue
             }
             actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error(
@@ -263,9 +259,9 @@ struct LightRowView: View {
         actionError = nil
         let oldHue = light.attributes.colorHue
         let oldSaturation = light.attributes.colorSaturation
-        appState.lights = appState.lights.map {
-            $0.id == light.id
-                ? $0.withColor(hue: hue, saturation: saturation) : $0
+        if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            appState.lights[i].attributes.colorHue = hue
+            appState.lights[i].attributes.colorSaturation = saturation
         }
         let client = appState.makeClient(ip: ip)
         do {
@@ -275,11 +271,11 @@ struct LightRowView: View {
                 saturation: saturation
             )
         } catch {
-            if let oldHue, let oldSaturation {
-                appState.lights = appState.lights.map {
-                    $0.id == light.id
-                        ? $0.withColor(hue: oldHue, saturation: oldSaturation) : $0
-                }
+            if let oldHue, let oldSaturation,
+                let i = appState.lights.firstIndex(where: { $0.id == light.id })
+            {
+                appState.lights[i].attributes.colorHue = oldHue
+                appState.lights[i].attributes.colorSaturation = oldSaturation
             }
             actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error(
