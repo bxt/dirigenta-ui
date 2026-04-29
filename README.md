@@ -24,8 +24,52 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 - **Full RGB colour** picker for colour lights
 - **Environment sensors** — temperature, humidity, CO₂, and PM2.5 readings with out-of-range highlights
 - **Pin a light** to the status bar icon for one-click toggling
+- **Terminal notifications** — flash lights red at the end of a CLI command (see below)
 - Automatic hub discovery via mDNS (no manual IP entry needed)
 - Real-time updates over WebSocket
+
+## Light notifications from the terminal
+
+dirigenta-ui can flash your lights as a visual notification at the end of a long-running terminal command — handy for builds, tests, or deploys that run in the background.
+
+### How it works
+
+Pass `--notify` to the app binary. It posts an IPC message to the already-running instance and exits immediately (< 100 ms). The running app then:
+
+1. Flashes the **pinned light** if one is set, otherwise flashes **all lights that are currently on**
+2. Lights that were off are turned on for the flash and switched back off afterwards
+3. Colour lights turn **red** at full brightness for 1 second, then restore their previous colour, temperature, and brightness
+4. White-spectrum and dimmable lights flash at **full brightness** for 1 second, then restore their previous level
+
+The app must be running and connected to the hub for the notification to have any effect.
+
+### Usage
+
+```bash
+# Run after any command
+your-long-running-command && \
+  /Applications/dirigenta-ui.app/Contents/MacOS/dirigenta-ui --notify
+```
+
+```bash
+# Notify whether the command succeeded or failed
+your-long-running-command; \
+  /Applications/dirigenta-ui.app/Contents/MacOS/dirigenta-ui --notify
+```
+
+### Shell alias
+
+Add this to your `~/.bashrc` or `~/.zshrc` for a short alias:
+
+```bash
+alias notify-lights='/Applications/dirigenta-ui.app/Contents/MacOS/dirigenta-ui --notify'
+```
+
+Then use it like:
+
+```bash
+./long-running-build.sh && notify-lights
+```
 
 ## Building from source
 
