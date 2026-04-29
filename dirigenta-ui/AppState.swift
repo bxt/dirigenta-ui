@@ -9,6 +9,7 @@ private struct HubCredentials: Codable {
     var hubFingerprint: String?  // base64-encoded SHA-256 of the hub's leaf TLS cert
 }
 
+@MainActor
 final class AppState: ObservableObject {
 
     // MARK: - Persistence-backed state
@@ -97,8 +98,10 @@ final class AppState: ObservableObject {
                 .compactMap { $0 }
                 .removeDuplicates()
                 .sink { [weak self] ip in
-                    guard let self, !self.accessToken.isEmpty else { return }
-                    Task { await self.fetchDevices(ip: ip) }
+                    Task { @MainActor [weak self] in
+                        guard let self, !self.accessToken.isEmpty else { return }
+                        await self.fetchDevices(ip: ip)
+                    }
                 }
                 .store(in: &cancellables)
         }
@@ -121,7 +124,7 @@ final class AppState: ObservableObject {
             pinnedLeafFingerprint: hubCertFingerprint,
             onLeafFingerprint: hubCertFingerprint == nil
                 ? { [weak self] fp in
-                    DispatchQueue.main.async {
+                    Task { @MainActor [weak self] in
                         guard let self, self.hubCertFingerprint == nil else {
                             return
                         }
