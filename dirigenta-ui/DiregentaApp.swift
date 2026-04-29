@@ -2,7 +2,13 @@ import SwiftUI
 
 extension Notification.Name {
     /// Distributed notification posted by `--notify` invocations to trigger a light flash.
-    static let dirigentaUINotify = Notification.Name("dev.bxt.dirigenta-ui.notify")
+    /// Derived from the bundle identifier so it stays in sync if the app is renamed.
+    static let dirigentaUINotify: Notification.Name = {
+        guard let id = Bundle.main.bundleIdentifier else {
+            preconditionFailure("Bundle identifier is missing — cannot construct IPC notification name")
+        }
+        return Notification.Name("\(id).notify")
+    }()
 }
 
 @main
