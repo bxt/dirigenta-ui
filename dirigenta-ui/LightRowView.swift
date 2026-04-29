@@ -171,6 +171,15 @@ struct LightRowView: View {
     private func stopDisco() {
         discoTask?.cancel()
         discoTask = nil
+        let key = "lightColorDefault.\(light.id)"
+        guard let data = UserDefaults.standard.data(forKey: key),
+            let preset = try? JSONDecoder().decode(LightColorPreset.self, from: data)
+        else { return }
+        Task {
+            guard let ip = mdns.currentIPAddress else { return }
+            let client = appState.makeClient(ip: ip)
+            try? await client.applyColorPreset(preset, to: light.id)
+        }
     }
 
     // MARK: - Actions
