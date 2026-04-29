@@ -202,9 +202,10 @@ final class AppState: ObservableObject {
         state.accessToken = "preview-token"
         state.lights = [
             DirigeraDevice(
-                id: "l1",
+                id: "ll1",
                 type: "light",
                 room: Room(id: "r1", name: "Living Room"),
+                customIcon: "lighting_floor_lamp",
                 attributes: .init(
                     customName: "Floor Lamp",
                     isOn: true,
@@ -215,9 +216,21 @@ final class AppState: ObservableObject {
                 )
             ),
             DirigeraDevice(
-                id: "l2",
+                id: "ll2",
                 type: "light",
                 room: Room(id: "r1", name: "Living Room"),
+                customIcon: "lighting_cone_pendant",
+                attributes: .init(
+                    customName: "Ceiling Light",
+                    isOn: false,
+                    lightLevel: 100
+                )
+            ),
+            DirigeraDevice(
+                id: "ll3",
+                type: "light",
+                room: Room(id: "r2", name: "Kitchen"),
+                customIcon: "lighting_chandelier",
                 attributes: .init(
                     customName: "Ceiling Light",
                     isOn: false,
@@ -230,13 +243,24 @@ final class AppState: ObservableObject {
                 id: "s1",
                 type: "sensor",
                 deviceType: "openCloseSensor",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Window",
+                    isOpen: true,
+                    batteryPercentage: 20
+                )
+            ),
+            DirigeraDevice(
+                id: "s2",
+                type: "sensor",
+                deviceType: "openCloseSensor",
                 room: Room(id: "r2", name: "Kitchen"),
                 attributes: .init(
                     customName: "Window",
                     isOpen: false,
                     batteryPercentage: 85
                 )
-            )
+            ),
         ]
         state.envSensors = [
             DirigeraDevice(
@@ -251,7 +275,20 @@ final class AppState: ObservableObject {
                     currentCO2: 650,
                     currentPM25: 5
                 )
-            )
+            ),
+            DirigeraDevice(
+                id: "e2",
+                type: "sensor",
+                deviceType: "environmentSensor",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Air Quality Backup",
+                    currentTemperature: 20.2,
+                    currentRH: 43,
+                    currentCO2: 652,
+                    currentPM25: 4
+                )
+            ),
         ]
         return state
     }
