@@ -138,7 +138,13 @@ struct RoomsView: View {
         }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
-        try? await client.setLightsIsOn(ids: room.lights.map(\.id), isOn: newState)
+        await withTaskGroup(of: Void.self) { group in
+            for light in room.lights {
+                group.addTask {
+                    try? await client.setLight(id: light.id, isOn: newState)
+                }
+            }
+        }
         await appState.fetchDevices(ip: ip)
     }
 }

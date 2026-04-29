@@ -313,12 +313,6 @@ private struct PatchBody<A: Encodable>: Encodable {
     let attributes: A
 }
 
-// Used by setLightsIsOn to batch-update multiple devices in one request.
-private struct PatchBodyWithId<A: Encodable>: Encodable {
-    let id: String
-    let attributes: A
-}
-
 final class DirigeraClient {
     private let ip: String
     private let token: String
@@ -421,15 +415,6 @@ final class DirigeraClient {
     func setLight(id: String, isOn: Bool) async throws {
         struct Attrs: Encodable { let isOn: Bool }
         try await patchAttributes(Attrs(isOn: isOn), deviceId: id)
-    }
-
-    // Sends a single PATCH /v1/devices request with all ids in one body,
-    // avoiding N parallel requests when toggling multiple lights at once.
-    func setLightsIsOn(ids: [String], isOn: Bool) async throws {
-        struct Attrs: Encodable { let isOn: Bool }
-        let items = ids.map { PatchBodyWithId(id: $0, attributes: Attrs(isOn: isOn)) }
-        let body = try JSONEncoder().encode(items)
-        try await patch("/v1/devices", body: body)
     }
 
     func setLightLevel(id: String, lightLevel: Int) async throws {
