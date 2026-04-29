@@ -623,14 +623,14 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             challenge.protectionSpace.authenticationMethod
                 == NSURLAuthenticationMethodServerTrust
         else {
-            print(
-                "[TLS] Unexpected auth method: \(challenge.protectionSpace.authenticationMethod)"
+            Logger.api.warning(
+                "[TLS] Unexpected auth method: \(challenge.protectionSpace.authenticationMethod, privacy: .public)"
             )
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
         guard let trust = challenge.protectionSpace.serverTrust else {
-            print("[TLS] No serverTrust in challenge")
+            Logger.api.warning("[TLS] No serverTrust in challenge")
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -640,7 +640,7 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
                 PinnedCertificateTLSDelegate.rootCADER as CFData
             )
         else {
-            print("[TLS] Failed to decode pinned root CA DER data")
+            Logger.api.error("[TLS] Failed to decode pinned root CA DER data")
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
@@ -659,8 +659,8 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         guard SecTrustEvaluateWithError(trust, &error) else {
-            print(
-                "[TLS] Trust evaluation failed for \(challenge.protectionSpace.host): \(error as Any)"
+            Logger.api.warning(
+                "[TLS] Trust evaluation failed for \(challenge.protectionSpace.host, privacy: .public): \(String(describing: error), privacy: .public)"
             )
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
