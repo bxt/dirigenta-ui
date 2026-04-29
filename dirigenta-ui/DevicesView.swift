@@ -54,13 +54,7 @@ struct DevicesView: View {
         appState.lights = appState.lights.map { $0.withIsOn(newState) }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
-        await withTaskGroup(of: Void.self) { group in
-            for light in appState.lights {
-                group.addTask {
-                    try? await client.setLight(id: light.id, isOn: newState)
-                }
-            }
-        }
+        try? await client.setLightsIsOn(ids: appState.lights.map(\.id), isOn: newState)
         await appState.fetchDevices(ip: ip)
     }
 }
