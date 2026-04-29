@@ -115,14 +115,20 @@ struct MenuContent: View {
                     .background(
                         GeometryReader { geo in
                             Color.clear.preference(
-                                key: ContentHeightKey.self, value: geo.size.height
+                                key: ContentHeightKey.self,
+                                value: geo.size.height
                             )
                         }
                     )
                 }
                 .frame(height: min(contentHeight, maxHeight))
                 .scrollDisabled(contentHeight < maxHeight)
-                .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+                .onPreferenceChange(ContentHeightKey.self) {
+                    Logger.statusBar.error(
+                        "contentHeight: \(contentHeight)"
+                    )
+                    contentHeight = $0
+                }
             }
 
             VStack(spacing: 8) {
@@ -137,15 +143,21 @@ struct MenuContent: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if let error = appState.devicesError {
-                            Label(error, systemImage: "exclamationmark.triangle")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                            Label(
+                                error,
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                         } else {
                             switch appState.wsConnectionState {
                             case .connecting:
-                                Label("Connecting…", systemImage: "arrow.clockwise")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Label(
+                                    "Connecting…",
+                                    systemImage: "arrow.clockwise"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             case .disconnected:
                                 Label("Disconnected", systemImage: "wifi.slash")
                                     .font(.caption)
@@ -172,8 +184,12 @@ struct MenuContent: View {
         .frame(width: 300)
         .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
-        .task(id: "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)") {
-            guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty else { return }
+        .task(
+            id:
+                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
+        ) {
+            guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
+            else { return }
             appState.wsConnectionState = .connecting
             let maxRetries = 8
             for attempt in 0...maxRetries {
@@ -251,7 +267,13 @@ struct MenuContent: View {
                 Button("Cancel") { pairingStep = .idle }
                 Spacer()
                 Button("I pressed it") {
-                    Task { await finishPairing(ip: ip, code: code, verifier: verifier) }
+                    Task {
+                        await finishPairing(
+                            ip: ip,
+                            code: code,
+                            verifier: verifier
+                        )
+                    }
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -283,12 +305,15 @@ struct MenuContent: View {
             HStack {
                 Spacer()
                 Button("Save") {
-                    let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmed = tempToken.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
                     guard !trimmed.isEmpty else { return }
                     appState.accessToken = trimmed
                 }
                 .disabled(
-                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty
                 )
             }
         }
@@ -298,8 +323,13 @@ struct MenuContent: View {
     private func startPairing(ip: String) async {
         pairingStep = .requesting
         do {
-            let (code, verifier) = try await DirigeraAuthClient(ip: ip).requestPairing()
-            pairingStep = .awaitingButtonPress(ip: ip, code: code, verifier: verifier)
+            let (code, verifier) = try await DirigeraAuthClient(ip: ip)
+                .requestPairing()
+            pairingStep = .awaitingButtonPress(
+                ip: ip,
+                code: code,
+                verifier: verifier
+            )
         } catch {
             pairingStep = .failed(
                 "Couldn't reach the hub. Make sure you're on the same network."
@@ -307,15 +337,19 @@ struct MenuContent: View {
         }
     }
 
-    private func finishPairing(ip: String, code: String, verifier: String) async {
+    private func finishPairing(ip: String, code: String, verifier: String) async
+    {
         pairingStep = .exchanging
         do {
             let token = try await DirigeraAuthClient(ip: ip).exchangeToken(
-                code: code, verifier: verifier
+                code: code,
+                verifier: verifier
             )
             appState.accessToken = token
         } catch {
-            pairingStep = .failed("Pairing failed. Did you press the button? Try again.")
+            pairingStep = .failed(
+                "Pairing failed. Did you press the button? Try again."
+            )
         }
     }
 
@@ -379,13 +413,20 @@ struct MenuContent: View {
                     Label {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(sensor.displayName)
-                            if sensor.isOpen, let duration = sensor.openDuration(now: now) {
-                                let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
+                            if sensor.isOpen,
+                                let duration = sensor.openDuration(now: now)
+                            {
+                                let overdue =
+                                    (sensor.openSeconds(now: now) ?? 0) >= 15
+                                    * 60
                                 Text("open for \(duration)")
                                     .font(.caption2)
-                                    .foregroundStyle(overdue ? Color.orange : .secondary)
+                                    .foregroundStyle(
+                                        overdue ? Color.orange : .secondary
+                                    )
                             }
-                            if let battery = sensor.attributes.batteryPercentage {
+                            if let battery = sensor.attributes.batteryPercentage
+                            {
                                 Text("\(battery)% battery")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
@@ -393,9 +434,12 @@ struct MenuContent: View {
                     } icon: {
                         Image(
                             systemName: sensor.isOpen
-                                ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                                ? "sensor.tag.radiowaves.forward.fill"
+                                : "sensor.fill"
                         )
-                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
+                        .foregroundStyle(
+                            sensor.isOpen ? Color.orange : Color.secondary
+                        )
                     }
                 }
             }
@@ -422,7 +466,8 @@ struct MenuContent: View {
                             if !readings.isEmpty {
                                 EnvReadingsLine(readings: readings)
                             }
-                            if let battery = sensor.attributes.batteryPercentage {
+                            if let battery = sensor.attributes.batteryPercentage
+                            {
                                 Text("\(battery)% battery")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
@@ -430,7 +475,8 @@ struct MenuContent: View {
                     } icon: {
                         Image(systemName: "thermometer.medium")
                             .foregroundStyle(
-                                sensor.isComfortable ? Color.secondary : Color.orange
+                                sensor.isComfortable
+                                    ? Color.secondary : Color.orange
                             )
                     }
                 }
@@ -451,7 +497,11 @@ struct MenuContent: View {
             }
         }
         var result = byRoom.sorted { $0.value.name < $1.value.name }.map {
-            DeviceGroup(id: $0.key, roomName: $0.value.name, devices: $0.value.devices)
+            DeviceGroup(
+                id: $0.key,
+                roomName: $0.value.name,
+                devices: $0.value.devices
+            )
         }
         if !noRoom.isEmpty {
             result.append(DeviceGroup(id: "", roomName: nil, devices: noRoom))
@@ -500,7 +550,9 @@ struct MenuContent: View {
     state.mdns.currentIPAddress = "192.168.1.100"
     return MenuContent(
         initialPairingStep: .awaitingButtonPress(
-            ip: "192.168.1.100", code: "abc123", verifier: "xyz456"
+            ip: "192.168.1.100",
+            code: "abc123",
+            verifier: "xyz456"
         )
     )
     .environmentObject(state)
