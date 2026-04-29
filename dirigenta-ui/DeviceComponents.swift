@@ -140,6 +140,9 @@ struct LightsSectionView: View {
                     Task { await onToggleAll() }
                 } label: {
                     Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
+                        .foregroundStyle(
+                            anyOn ? Color.orange : Color.primary
+                        )
                 }
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")
