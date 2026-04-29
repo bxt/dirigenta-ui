@@ -2,6 +2,13 @@ import Combine
 import Foundation
 import OSLog
 
+// Both the access token and hub TLS fingerprint are stored together in a single
+// Keychain item so macOS only needs to prompt for access once.
+private struct HubCredentials: Codable {
+    var accessToken: String
+    var hubFingerprint: String?  // base64-encoded SHA-256 of the hub's leaf TLS cert
+}
+
 final class AppState: ObservableObject {
 
     // MARK: - Persistence-backed state
@@ -13,28 +20,21 @@ final class AppState: ObservableObject {
     @Published var accessToken: String {
         didSet {
             guard !Self.isPreview else { return }
-            do {
-                if accessToken.isEmpty {
-                    try KeychainService.delete("dirigeraAccessToken")
-                    try? KeychainService.delete("dirigeraHubFingerprint")
-                    hubCertFingerprint = nil
-                    clearDevices()
-                } else {
-                    try KeychainService.set(
-                        accessToken,
-                        for: "dirigeraAccessToken"
-                    )
-                    // The Combine pipeline only fires when the IP changes, so if mDNS
-                    // already has a result (hub was found before the token was entered),
-                    // kick off a fetch manually.
-                    if let ip = mdns.currentIPAddress {
-                        Task { await self.fetchDevices(ip: ip) }
-                    }
+            if accessToken.isEmpty {
+                try? KeychainService.delete("dirigeraHub")
+                // Also clean up legacy separate keys if they still exist.
+                try? KeychainService.delete("dirigeraAccessToken")
+                try? KeychainService.delete("dirigeraHubFingerprint")
+                hubCertFingerprint = nil
+                clearDevices()
+            } else {
+                saveCredentials()
+                // The Combine pipeline only fires when the IP changes, so if mDNS
+                // already has a result (hub was found before the token was entered),
+                // kick off a fetch manually.
+                if let ip = mdns.currentIPAddress {
+                    Task { await self.fetchDevices(ip: ip) }
                 }
-            } catch {
-                Logger.keychain.error(
-                    "\(error.localizedDescription, privacy: .public)"
-                )
             }
         }
     }
@@ -71,11 +71,28 @@ final class AppState: ObservableObject {
             accessToken = ""
             pinnedLightId = nil
         } else {
-            accessToken =
-                (try? KeychainService.get("dirigeraAccessToken")) ?? ""
-            hubCertFingerprint =
-                (try? KeychainService.get("dirigeraHubFingerprint"))
-                .flatMap { Data(base64Encoded: $0) }
+            // Read from the combined key (one Keychain prompt).
+            if let raw = try? KeychainService.get("dirigeraHub"),
+                let data = raw.data(using: .utf8),
+                let creds = try? JSONDecoder().decode(HubCredentials.self, from: data)
+            {
+                accessToken = creds.accessToken
+                hubCertFingerprint = creds.hubFingerprint.flatMap {
+                    Data(base64Encoded: $0)
+                }
+            } else {
+                // One-time migration from legacy separate keys.
+                // We only read the token here (already approved by the user) and
+                // skip "dirigeraHubFingerprint" to avoid an extra prompt — the
+                // fingerprint will be re-captured on the next successful connection.
+                accessToken =
+                    (try? KeychainService.get("dirigeraAccessToken")) ?? ""
+                if !accessToken.isEmpty {
+                    saveCredentials()
+                    try? KeychainService.delete("dirigeraAccessToken")
+                    try? KeychainService.delete("dirigeraHubFingerprint")
+                }
+            }
             pinnedLightId = UserDefaults.standard.string(
                 forKey: "pinnedLightId"
             )
@@ -103,10 +120,7 @@ final class AppState: ObservableObject {
                     DispatchQueue.main.async {
                         guard let self, self.hubCertFingerprint == nil else { return }
                         self.hubCertFingerprint = fp
-                        try? KeychainService.set(
-                            fp.base64EncodedString(),
-                            for: "dirigeraHubFingerprint"
-                        )
+                        self.saveCredentials()
                     }
                 }
                 : nil
@@ -166,6 +180,18 @@ final class AppState: ObservableObject {
     func syncPinnedState() {
         guard let id = pinnedLightId else { return }
         pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
+    }
+
+    private func saveCredentials() {
+        guard !Self.isPreview else { return }
+        let creds = HubCredentials(
+            accessToken: accessToken,
+            hubFingerprint: hubCertFingerprint?.base64EncodedString()
+        )
+        guard let data = try? JSONEncoder().encode(creds),
+            let str = String(data: data, encoding: .utf8)
+        else { return }
+        try? KeychainService.set(str, for: "dirigeraHub")
     }
 
     private func clearDevices() {
