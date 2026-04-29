@@ -42,12 +42,6 @@ private struct ScreenReader: NSViewRepresentable {
     }
 }
 
-private struct DeviceGroup: Identifiable {
-    let id: String
-    let roomName: String?
-    let devices: [DirigeraDevice]
-}
-
 struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
@@ -61,6 +55,9 @@ struct MenuContent: View {
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
     @State private var selectedTab: Int = 0
+    @State private var devicesLightsExpanded: Bool = true
+    @State private var devicesEnvExpanded: Bool = true
+    @State private var devicesSensorsExpanded: Bool = true
 
     init() {}
 
@@ -369,22 +366,27 @@ struct MenuContent: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
-            ForEach(grouped(appState.lights)) { group in
-                if let name = group.roomName {
-                    Text(name)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textCase(.uppercase)
-                        .padding(.top, 2)
-                }
-                ForEach(group.devices) { light in
+            let anyOn = appState.lights.contains { $0.isOn }
+            let onCount = appState.lights.filter { $0.isOn }.count
+            DisclosureGroup(isExpanded: $devicesLightsExpanded) {
+                ForEach(appState.lights) { light in
                     LightRowView(
                         light: light,
                         pendingLightLevels: $pendingLightLevels,
                         colorPickerLightId: $colorPickerLightId,
                         actionError: $actionError
                     )
+                    .padding(.leading, 4)
                 }
+            } label: {
+                Button { Task { await toggleAllLights() } } label: {
+                    Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
+                }
+                .buttonStyle(.bordered)
+                .help(anyOn ? "Turn all off" : "Turn all on")
+                Text(onCount > 0 ? "\(onCount) of \(appState.lights.count) on" : "All off")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -395,115 +397,76 @@ struct MenuContent: View {
     }
 
     @ViewBuilder
-    private var sensorsSection: some View {
-        if !appState.sensors.isEmpty {
+    private var envSensorsSection: some View {
+        if !appState.envSensors.isEmpty {
             Divider()
-            ForEach(grouped(appState.sensors)) { group in
-                if let name = group.roomName {
-                    Text(name)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textCase(.uppercase)
-                        .padding(.top, 2)
+            let avgReadings = DirigeraDevice.averagedEnvReadings(from: appState.envSensors)
+            DisclosureGroup(isExpanded: $devicesEnvExpanded) {
+                ForEach(appState.envSensors) { sensor in
+                    EnvSensorRow(sensor: sensor, showRoom: true)
+                        .padding(.leading, 4)
                 }
-                ForEach(group.devices) { sensor in
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sensor.displayName)
-                            if sensor.isOpen,
-                                let duration = sensor.openDuration(now: now)
-                            {
-                                let overdue =
-                                    (sensor.openSeconds(now: now) ?? 0) >= 15
-                                    * 60
-                                Text("open for \(duration)")
-                                    .font(.caption2)
-                                    .foregroundStyle(
-                                        overdue ? Color.orange : .secondary
-                                    )
-                            }
-                            if let battery = sensor.attributes.batteryPercentage
-                            {
-                                Text("\(battery)% battery")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    } icon: {
-                        Image(
-                            systemName: sensor.isOpen
-                                ? "sensor.tag.radiowaves.forward.fill"
-                                : "sensor.fill"
-                        )
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "thermometer.medium")
+                        .font(.caption)
                         .foregroundStyle(
-                            sensor.isOpen ? Color.orange : Color.secondary
+                            avgReadings.allSatisfy { !$0.outOfRange }
+                                ? Color.secondary : Color.orange
                         )
-                    }
+                    EnvReadingsLine(readings: avgReadings)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private var envSensorsSection: some View {
-        if !appState.envSensors.isEmpty {
+    private var sensorsSection: some View {
+        if !appState.sensors.isEmpty {
             Divider()
-            ForEach(grouped(appState.envSensors)) { group in
-                if let name = group.roomName {
-                    Text(name)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .textCase(.uppercase)
-                        .padding(.top, 2)
+            let anyOpen = appState.sensors.contains { $0.isOpen }
+            let openCount = appState.sensors.filter { $0.isOpen }.count
+            DisclosureGroup(isExpanded: $devicesSensorsExpanded) {
+                ForEach(appState.sensors) { sensor in
+                    OpenCloseSensorRow(sensor: sensor, now: now, showRoom: true)
+                        .padding(.leading, 4)
                 }
-                ForEach(group.devices) { sensor in
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sensor.displayName)
-                            let readings = sensor.envReadings
-                            if !readings.isEmpty {
-                                EnvReadingsLine(readings: readings)
-                            }
-                            if let battery = sensor.attributes.batteryPercentage
-                            {
-                                Text("\(battery)% battery")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    } icon: {
-                        Image(systemName: "thermometer.medium")
-                            .foregroundStyle(
-                                sensor.isComfortable
-                                    ? Color.secondary : Color.orange
-                            )
-                    }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(
+                        systemName: anyOpen
+                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(anyOpen ? Color.orange : Color.secondary)
+                    Text(
+                        openCount > 0
+                            ? "\(openCount) of \(appState.sensors.count) open"
+                            : "All closed"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(openCount > 0 ? Color.orange : Color.secondary)
                 }
             }
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Actions
 
-    private func grouped(_ devices: [DirigeraDevice]) -> [DeviceGroup] {
-        var byRoom: [String: (name: String, devices: [DirigeraDevice])] = [:]
-        var noRoom: [DirigeraDevice] = []
-        for device in devices {
-            if let room = device.room {
-                byRoom[room.id, default: (room.name, [])].devices.append(device)
-            } else {
-                noRoom.append(device)
+    private func toggleAllLights() async {
+        guard let ip = mdns.currentIPAddress else { return }
+        actionError = nil
+        let anyOn = appState.lights.contains { $0.isOn }
+        let newState = !anyOn
+        appState.lights = appState.lights.map { $0.withIsOn(newState) }
+        appState.syncPinnedState()
+        let client = appState.makeClient(ip: ip)
+        await withTaskGroup(of: Void.self) { group in
+            for light in appState.lights {
+                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
             }
         }
-        var result = byRoom.sorted { $0.value.name < $1.value.name }.map {
-            DeviceGroup(
-                id: $0.key,
-                roomName: $0.value.name,
-                devices: $0.value.devices
-            )
-        }
-        if !noRoom.isEmpty {
-            result.append(DeviceGroup(id: "", roomName: nil, devices: noRoom))
-        }
-        return result
+        await appState.fetchDevices(ip: ip)
     }
 }
 

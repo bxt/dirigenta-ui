@@ -21,6 +21,71 @@ struct EnvReadingsLine: View {
     }
 }
 
+// Shared individual env-sensor row. Pass showRoom: true in the devices tab
+// to append the room name next to the battery level.
+struct EnvSensorRow: View {
+    let sensor: DirigeraDevice
+    var showRoom: Bool = false
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(sensor.displayName)
+                EnvReadingsLine(readings: sensor.envReadings)
+                let footer = [
+                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    showRoom ? sensor.room?.name : nil,
+                ].compactMap { $0 }
+                if !footer.isEmpty {
+                    Text(footer.joined(separator: " · "))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        } icon: {
+            Image(systemName: "thermometer.medium")
+                .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.orange)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// Shared individual open/close sensor row. Pass showRoom: true in the devices
+// tab to append the room name next to the battery level.
+struct OpenCloseSensorRow: View {
+    let sensor: DirigeraDevice
+    let now: Date
+    var showRoom: Bool = false
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(sensor.displayName)
+                if sensor.isOpen, let duration = sensor.openDuration(now: now) {
+                    let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
+                    Text("open for \(duration)")
+                        .font(.caption2)
+                        .foregroundStyle(overdue ? Color.orange : .secondary)
+                }
+                let footer = [
+                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    showRoom ? sensor.room?.name : nil,
+                ].compactMap { $0 }
+                if !footer.isEmpty {
+                    Text(footer.joined(separator: " · "))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        } icon: {
+            Image(
+                systemName: sensor.isOpen
+                    ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+            )
+            .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct RoomSummary: Identifiable {
     let id: String
     let name: String
@@ -114,23 +179,8 @@ struct RoomsView: View {
         if !envReadings.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedEnvRoomIds)) {
                 ForEach(room.envSensors) { sensor in
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sensor.displayName)
-                            EnvReadingsLine(readings: sensor.envReadings)
-                            if let battery = sensor.attributes.batteryPercentage {
-                                Text("\(battery)% battery")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    } icon: {
-                        Image(systemName: "thermometer.medium")
-                            .foregroundStyle(
-                                sensor.isComfortable ? Color.secondary : Color.orange
-                            )
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 4)
+                    EnvSensorRow(sensor: sensor)
+                        .padding(.leading, 4)
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -149,29 +199,8 @@ struct RoomsView: View {
         if !room.sensors.isEmpty {
             DisclosureGroup(isExpanded: membership(room.id, in: $expandedSensorsRoomIds)) {
                 ForEach(room.sensors) { sensor in
-                    Label {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(sensor.displayName)
-                            if sensor.isOpen, let duration = sensor.openDuration(now: now) {
-                                let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
-                                Text("open for \(duration)")
-                                    .font(.caption2)
-                                    .foregroundStyle(overdue ? Color.orange : .secondary)
-                            }
-                            if let battery = sensor.attributes.batteryPercentage {
-                                Text("\(battery)% battery")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    } icon: {
-                        Image(
-                            systemName: sensor.isOpen
-                                ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
-                        )
-                        .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 4)
+                    OpenCloseSensorRow(sensor: sensor, now: now)
+                        .padding(.leading, 4)
                 }
             } label: {
                 let openCount = room.sensors.filter { $0.isOpen }.count
