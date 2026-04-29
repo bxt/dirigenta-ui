@@ -47,29 +47,21 @@ struct RoomsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if appState.isLoadingDevices {
-                Label("Loading…", systemImage: "arrow.clockwise")
+            let rooms = roomSummaries
+            if rooms.isEmpty {
+                Label("No rooms found", systemImage: "house.slash")
                     .font(.caption).foregroundStyle(.secondary)
-            } else if let error = appState.devicesError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(.orange)
             } else {
-                let rooms = roomSummaries
-                if rooms.isEmpty {
-                    Label("No rooms found", systemImage: "house.slash")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    ForEach(rooms) { room in
-                        roomSection(room)
-                        if room.id != rooms.last?.id {
-                            Divider()
-                        }
+                ForEach(rooms) { room in
+                    roomSection(room)
+                    if room.id != rooms.last?.id {
+                        Divider()
                     }
                 }
-                if let error = actionError {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                }
+            }
+            if let error = actionError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
             }
         }
     }

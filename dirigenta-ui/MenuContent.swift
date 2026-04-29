@@ -84,6 +84,22 @@ struct MenuContent: View {
             if appState.accessToken.isEmpty {
                 pairingView
             } else {
+                // Show a loading/error placeholder only on the very first fetch,
+                // before any devices have arrived. Background refreshes (e.g. after
+                // a toggle) leave the existing device data in place and are
+                // indicated by the footer instead.
+                let noDevicesYet =
+                    appState.lights.isEmpty && appState.sensors.isEmpty
+                    && appState.envSensors.isEmpty
+                if noDevicesYet && appState.isLoadingDevices {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Loading devices…").foregroundStyle(.secondary)
+                    }
+                } else if noDevicesYet, let error = appState.devicesError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                } else {
                 Picker("", selection: $selectedTab) {
                     Text("Devices").tag(0)
                     Text("Rooms").tag(1)
@@ -119,6 +135,7 @@ struct MenuContent: View {
                 }
                 .frame(height: min(contentHeight, maxHeight))
                 .scrollDisabled(contentHeight < maxHeight)
+                } // end devices-loaded else
             }
 
             VStack(spacing: 8) {
@@ -348,19 +365,9 @@ struct MenuContent: View {
     @ViewBuilder
     private var lightsSection: some View {
         if appState.lights.isEmpty {
-            if appState.isLoadingDevices {
-                Label("Loading lights…", systemImage: "arrow.clockwise")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if let error = appState.devicesError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            } else {
-                Label("No lights found", systemImage: "lightbulb.slash")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Label("No lights found", systemImage: "lightbulb.slash")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } else {
             ForEach(grouped(appState.lights)) { group in
                 if let name = group.roomName {
