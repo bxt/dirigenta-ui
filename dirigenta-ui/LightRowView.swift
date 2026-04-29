@@ -95,7 +95,9 @@ struct LightRowView: View {
                         // Strip any non-digit characters
                         let digits = newValue.filter(\.isNumber)
                         if digits != newValue { levelText = digits; return }
-                        // Apply immediately to slider and hub on each valid value
+                        // Only apply when the user is actively editing the field,
+                        // not when levelText is updated programmatically from the slider.
+                        guard levelFieldFocused else { return }
                         guard let value = Int(digits), (1...100).contains(value)
                         else { return }
                         pendingLightLevels[light.id] = Double(value)
