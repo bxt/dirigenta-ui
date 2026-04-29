@@ -2,6 +2,31 @@ import SwiftUI
 
 // MARK: - Row components
 
+// Battery + optional room name footer used by sensor rows.
+// Battery text turns orange when below 10%.
+private struct SensorFooter: View {
+    let battery: Int?
+    let room: String?
+
+    var body: some View {
+        if battery != nil || room != nil {
+            HStack(spacing: 0) {
+                if let battery {
+                    Text("\(battery)% battery")
+                        .foregroundStyle(battery < 10 ? Color.orange : Color.secondary)
+                    if room != nil {
+                        Text(" · ").foregroundStyle(.secondary)
+                    }
+                }
+                if let room {
+                    Text(room).foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption2)
+        }
+    }
+}
+
 // Attributed-string display for a list of env sensor readings.
 // isHeadline: true → body-sized primary text, for DisclosureGroup summary
 // rows; false (default) → caption2 secondary, for inside detail rows.
@@ -39,16 +64,10 @@ struct EnvSensorRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(sensor.displayName)
                 EnvReadingsLine(readings: sensor.envReadings)
-                let footer = [
-                    sensor.attributes.batteryPercentage.map {
-                        "\($0)% battery"
-                    },
-                    showRoom ? sensor.room?.name : nil,
-                ].compactMap { $0 }
-                if !footer.isEmpty {
-                    Text(footer.joined(separator: " · "))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
+                SensorFooter(
+                    battery: sensor.attributes.batteryPercentage,
+                    room: showRoom ? sensor.room?.name : nil
+                )
             }
         } icon: {
             Image(systemName: "thermometer.medium")
@@ -77,16 +96,10 @@ struct OpenCloseSensorRow: View {
                         .font(.caption2)
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
-                let footer = [
-                    sensor.attributes.batteryPercentage.map {
-                        "\($0)% battery"
-                    },
-                    showRoom ? sensor.room?.name : nil,
-                ].compactMap { $0 }
-                if !footer.isEmpty {
-                    Text(footer.joined(separator: " · "))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
+                SensorFooter(
+                    battery: sensor.attributes.batteryPercentage,
+                    room: showRoom ? sensor.room?.name : nil
+                )
             }
         } icon: {
             Image(
