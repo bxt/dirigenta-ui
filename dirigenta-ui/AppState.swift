@@ -20,7 +20,7 @@ final class AppState: ObservableObject {
 
     @Published var accessToken: String {
         didSet {
-            guard !Self.isPreview else { return }
+            guard !Self.isPreview, accessToken != oldValue else { return }
             if accessToken.isEmpty {
                 evictCachedClient()
                 try? KeychainService.delete("dirigeraHub")
