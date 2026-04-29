@@ -30,6 +30,7 @@ jobs:
           xcodebuild build \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
+            -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             MARKETING_VERSION="$MARKETING_VERSION" \
