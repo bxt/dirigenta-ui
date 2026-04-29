@@ -211,6 +211,7 @@ struct LightRowView: View {
     private func setBrightness(to level: Int) async {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
+        let oldLevel = light.attributes.lightLevel
         appState.lights = appState.lights.map {
             $0.id == light.id ? $0.withLightLevel(level) : $0
         }
@@ -219,6 +220,11 @@ struct LightRowView: View {
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
+            if let oldLevel {
+                appState.lights = appState.lights.map {
+                    $0.id == light.id ? $0.withLightLevel(oldLevel) : $0
+                }
+            }
             actionError = "Failed to set brightness for \(light.displayName)"
             Logger.api.error(
                 "Brightness error: \(error.localizedDescription, privacy: .public)"
@@ -229,6 +235,7 @@ struct LightRowView: View {
     private func setColorTemperature(to value: Int) async {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
+        let oldValue = light.attributes.colorTemperature
         appState.lights = appState.lights.map {
             $0.id == light.id ? $0.withColorTemperature(value) : $0
         }
@@ -239,6 +246,11 @@ struct LightRowView: View {
                 colorTemperature: value
             )
         } catch {
+            if let oldValue {
+                appState.lights = appState.lights.map {
+                    $0.id == light.id ? $0.withColorTemperature(oldValue) : $0
+                }
+            }
             actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error(
                 "Color temperature error: \(error.localizedDescription, privacy: .public)"
@@ -249,6 +261,8 @@ struct LightRowView: View {
     private func setColor(hue: Double, saturation: Double) async {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
+        let oldHue = light.attributes.colorHue
+        let oldSaturation = light.attributes.colorSaturation
         appState.lights = appState.lights.map {
             $0.id == light.id
                 ? $0.withColor(hue: hue, saturation: saturation) : $0
@@ -261,6 +275,12 @@ struct LightRowView: View {
                 saturation: saturation
             )
         } catch {
+            if let oldHue, let oldSaturation {
+                appState.lights = appState.lights.map {
+                    $0.id == light.id
+                        ? $0.withColor(hue: oldHue, saturation: oldSaturation) : $0
+                }
+            }
             actionError = "Failed to set colour for \(light.displayName)"
             Logger.api.error(
                 "Color error: \(error.localizedDescription, privacy: .public)"
