@@ -32,13 +32,6 @@ private struct DiscoveryStatusView: View {
     }
 }
 
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 private struct ScreenReader: NSViewRepresentable {
     let onScreen: (NSScreen) -> Void
     func makeNSView(context: Context) -> NSView { NSView() }
@@ -114,21 +107,14 @@ struct MenuContent: View {
                     .frame(width: 276)
                     .background(
                         GeometryReader { geo in
-                            Color.clear.preference(
-                                key: ContentHeightKey.self,
-                                value: geo.size.height
-                            )
+                            Color.clear
+                                .onAppear { contentHeight = geo.size.height }
+                                .onChange(of: geo.size.height) { contentHeight = $0 }
                         }
                     )
                 }
                 .frame(height: min(contentHeight, maxHeight))
                 .scrollDisabled(contentHeight < maxHeight)
-                .onPreferenceChange(ContentHeightKey.self) {
-                    Logger.statusBar.error(
-                        "contentHeight: \(contentHeight)"
-                    )
-                    contentHeight = $0
-                }
             }
 
             VStack(spacing: 8) {
