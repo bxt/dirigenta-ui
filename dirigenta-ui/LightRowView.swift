@@ -13,6 +13,9 @@ struct LightRowView: View {
 
     @State private var levelText: String = ""
     @FocusState private var levelFieldFocused: Bool
+    @State private var discoTask: Task<Void, Never>? = nil
+
+    private var isDiscoActive: Bool { discoTask != nil }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -49,6 +52,17 @@ struct LightRowView: View {
                 .help("Color settings")
             }
 
+            if light.isOn && light.isColorLight {
+                Button {
+                    isDiscoActive ? stopDisco() : startDisco()
+                } label: {
+                    Image(systemName: "sparkles").font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isDiscoActive ? Color.accentColor : Color.secondary)
+                .help(isDiscoActive ? "Stop disco mode" : "Start disco mode")
+            }
+
             Button {
                 if appState.pinnedLightId == light.id {
                     appState.pinnedLightId = nil
@@ -73,6 +87,8 @@ struct LightRowView: View {
                     ? "Unpin light" : "Pin to menu bar"
             )
         }
+        .onDisappear { stopDisco() }
+        .onChange(of: light.isOn) { _, isOn in if !isOn { stopDisco() } }
 
         if light.isOn, let level = light.attributes.lightLevel {
             let displayValue = pendingLightLevels[light.id] ?? Double(level)
@@ -133,6 +149,28 @@ struct LightRowView: View {
             )
         }
     }
+
+    // MARK: - Disco
+
+    private func startDisco() {
+        guard let ip = mdns.currentIPAddress else { return }
+        let client = appState.makeClient(ip: ip)
+        let id = light.id
+        discoTask = Task {
+            while !Task.isCancelled {
+                let hue = Double.random(in: 0..<360)
+                try? await client.setColor(id: id, hue: hue, saturation: 1.0)
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func stopDisco() {
+        discoTask?.cancel()
+        discoTask = nil
+    }
+
+    // MARK: - Actions
 
     private func toggleLight() async {
         guard let ip = mdns.currentIPAddress else { return }
