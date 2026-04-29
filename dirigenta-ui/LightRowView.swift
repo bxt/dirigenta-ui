@@ -169,6 +169,7 @@ struct LightRowView: View {
     }
 
     private func stopDisco() {
+        guard discoTask != nil else { return }
         discoTask?.cancel()
         discoTask = nil
         let key = "lightColorDefault.\(light.id)"
