@@ -97,42 +97,45 @@ struct MenuContent: View {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else {
-                Picker("", selection: $selectedTab) {
-                    Text("Devices").tag(0)
-                    Text("Rooms").tag(1)
-                }
-                .pickerStyle(.segmented)
-
-                let screenHeight = currentScreen?.visibleFrame.height ?? 8000
-                let maxHeight = screenHeight - 200
-                ScrollView {
-                    Group {
-                        if selectedTab == 0 {
-                            VStack(alignment: .leading, spacing: 8) {
-                                lightsSection
-                                sensorsSection
-                                envSensorsSection
-                            }
-                        } else {
-                            RoomsView(now: now)
-                        }
+                    Picker("", selection: $selectedTab) {
+                        Text("Devices").tag(0)
+                        Text("Rooms").tag(1)
                     }
-                    .frame(width: 276)
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .onAppear { contentHeight = geo.size.height }
-                                .onChange(of: geo.size.height) {
-                                    oldValue,
-                                    newValue in
-                                    contentHeight = newValue
+                    .pickerStyle(.segmented)
+
+                    let screenHeight =
+                        currentScreen?.visibleFrame.height ?? 8000
+                    let maxHeight = screenHeight - 200
+                    ScrollView {
+                        Group {
+                            if selectedTab == 0 {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    lightsSection
+                                    sensorsSection
+                                    envSensorsSection
                                 }
+                            } else {
+                                RoomsView(now: now)
+                            }
                         }
-                    )
-                }
-                .frame(height: min(contentHeight, maxHeight))
-                .scrollDisabled(contentHeight < maxHeight)
-                } // end devices-loaded else
+                        .frame(width: 276)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        contentHeight = geo.size.height
+                                    }
+                                    .onChange(of: geo.size.height) {
+                                        oldValue,
+                                        newValue in
+                                        contentHeight = newValue
+                                    }
+                            }
+                        )
+                    }
+                    .frame(height: min(contentHeight, maxHeight))
+                    .scrollDisabled(contentHeight < maxHeight)
+                }  // end devices-loaded else
             }
 
             VStack(spacing: 8) {
@@ -485,7 +488,9 @@ struct MenuContent: View {
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in appState.lights {
-                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
+                group.addTask {
+                    try? await client.setLight(id: light.id, isOn: newState)
+                }
             }
         }
         await appState.fetchDevices(ip: ip)

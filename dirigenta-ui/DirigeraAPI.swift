@@ -66,16 +66,18 @@ struct DirigeraDevice: Identifiable, Decodable {
 
     var lightSymbol: String {
         switch customIcon {
-        case "products_chandelier_bulb":    return "lightbulb.led.wide"
+        case "products_chandelier_bulb": return "lightbulb.led.wide"
         case "lighting_pendant_light",
-             "lighting_cone_pendant":       return "lamp.ceiling"
-        case "lighting_chandelier":         return "chandelier"
-        case "lighting_ached_lamp":         return "lamp.desk"
+            "lighting_cone_pendant":
+            return "lamp.ceiling"
+        case "lighting_chandelier": return "chandelier"
+        case "lighting_ached_lamp": return "lamp.desk"
         case "lighting_nightstand_light",
-             "lighting_wall_lamp":          return "lamp.table"
-        case "lighting_floor_lamp":         return "lamp.floor"
-        case "lighting_spot_chandelier":    return "light.recessed.3"
-        default:                            return "lightbulb.led"
+            "lighting_wall_lamp":
+            return "lamp.table"
+        case "lighting_floor_lamp": return "lamp.floor"
+        case "lighting_spot_chandelier": return "light.recessed.3"
+        default: return "lightbulb.led"
         }
     }
 
@@ -237,15 +239,26 @@ extension DirigeraDevice {
 
     var isComfortable: Bool { envReadings.allSatisfy { !$0.outOfRange } }
 
-    static func averagedEnvReadings(from sensors: [DirigeraDevice]) -> [Reading] {
-        let avg: ([Double]) -> Double? = { $0.isEmpty ? nil : $0.reduce(0, +) / Double($0.count) }
+    static func averagedEnvReadings(from sensors: [DirigeraDevice]) -> [Reading]
+    {
+        let avg: ([Double]) -> Double? = {
+            $0.isEmpty ? nil : $0.reduce(0, +) / Double($0.count)
+        }
         let virtual = DirigeraDevice(
-            id: "", type: "sensor", deviceType: "environmentSensor",
+            id: "",
+            type: "sensor",
+            deviceType: "environmentSensor",
             attributes: .init(
-                currentTemperature: avg(sensors.compactMap { $0.attributes.currentTemperature }),
+                currentTemperature: avg(
+                    sensors.compactMap { $0.attributes.currentTemperature }
+                ),
                 currentRH: avg(sensors.compactMap { $0.attributes.currentRH }),
-                currentCO2: avg(sensors.compactMap { $0.attributes.currentCO2 }),
-                currentPM25: avg(sensors.compactMap { $0.attributes.currentPM25 })
+                currentCO2: avg(
+                    sensors.compactMap { $0.attributes.currentCO2 }
+                ),
+                currentPM25: avg(
+                    sensors.compactMap { $0.attributes.currentPM25 }
+                )
             )
         )
         return virtual.envReadings
@@ -265,7 +278,8 @@ extension DirigeraDevice {
 
     func openSeconds(now: Date) -> Int? {
         guard let raw = lastSeen else { return nil }
-        let date = Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
+        let date =
+            Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
         guard let date else { return nil }
         let s = Int(now.timeIntervalSince(date))
         return s > 0 ? s : nil
@@ -589,7 +603,8 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
         }
 
         // Extract the leaf certificate's SHA-256 fingerprint for hub-specific pinning.
-        let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] ?? []
+        let chain =
+            SecTrustCopyCertificateChain(trust) as? [SecCertificate] ?? []
         guard let leaf = chain.first else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return

@@ -71,7 +71,10 @@ final class AppState: ObservableObject {
             // Read token and hub fingerprint from the combined key (one Keychain prompt).
             if let raw = try? KeychainService.get("dirigeraHub"),
                 let data = raw.data(using: .utf8),
-                let creds = try? JSONDecoder().decode(HubCredentials.self, from: data)
+                let creds = try? JSONDecoder().decode(
+                    HubCredentials.self,
+                    from: data
+                )
             {
                 accessToken = creds.accessToken
                 hubCertFingerprint = creds.hubFingerprint.flatMap {
@@ -105,7 +108,9 @@ final class AppState: ObservableObject {
             onLeafFingerprint: hubCertFingerprint == nil
                 ? { [weak self] fp in
                     DispatchQueue.main.async {
-                        guard let self, self.hubCertFingerprint == nil else { return }
+                        guard let self, self.hubCertFingerprint == nil else {
+                            return
+                        }
                         self.hubCertFingerprint = fp
                         self.saveCredentials()
                     }

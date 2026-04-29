@@ -40,7 +40,9 @@ struct EnvSensorRow: View {
                 Text(sensor.displayName)
                 EnvReadingsLine(readings: sensor.envReadings)
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -50,7 +52,9 @@ struct EnvSensorRow: View {
             }
         } icon: {
             Image(systemName: "thermometer.medium")
-                .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.orange)
+                .foregroundStyle(
+                    sensor.isComfortable ? Color.secondary : Color.orange
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -74,7 +78,9 @@ struct OpenCloseSensorRow: View {
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -118,10 +124,18 @@ struct RoomsView: View {
     @State private var expandedSensorsRoomIds: Set<String> = []
 
     // Creates a Bool Binding from a Set<String>, toggling membership of `id`.
-    private func membership(_ id: String, in set: Binding<Set<String>>) -> Binding<Bool> {
+    private func membership(_ id: String, in set: Binding<Set<String>>)
+        -> Binding<Bool>
+    {
         Binding(
             get: { set.wrappedValue.contains(id) },
-            set: { if $0 { set.wrappedValue.insert(id) } else { set.wrappedValue.remove(id) } }
+            set: {
+                if $0 {
+                    set.wrappedValue.insert(id)
+                } else {
+                    set.wrappedValue.remove(id)
+                }
+            }
         )
     }
 
@@ -284,8 +298,10 @@ struct RoomsView: View {
         }
         return byRoom.sorted { $0.value.name < $1.value.name }.map {
             RoomSummary(
-                id: $0.key, name: $0.value.name,
-                lights: $0.value.lights, sensors: $0.value.sensors,
+                id: $0.key,
+                name: $0.value.name,
+                lights: $0.value.lights,
+                sensors: $0.value.sensors,
                 envSensors: $0.value.envSensors
             )
         }
@@ -297,12 +313,16 @@ struct RoomsView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        appState.lights = appState.lights.map { ids.contains($0.id) ? $0.withIsOn(newState) : $0 }
+        appState.lights = appState.lights.map {
+            ids.contains($0.id) ? $0.withIsOn(newState) : $0
+        }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in room.lights {
-                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
+                group.addTask {
+                    try? await client.setLight(id: light.id, isOn: newState)
+                }
             }
         }
         await appState.fetchDevices(ip: ip)
