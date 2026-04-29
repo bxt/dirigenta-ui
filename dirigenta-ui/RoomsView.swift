@@ -157,8 +157,10 @@ struct RoomsView: View {
         // The Button inside the label captures its own tap so clicking the
         // lightbulb only toggles all lights; the chevron handles expansion.
         if !room.lights.isEmpty {
-            DisclosureGroup(isExpanded: membership(room.id, in: $expandedLightsRoomIds)) {
-                VStack(spacing: 12) {
+            DisclosureGroup(
+                isExpanded: membership(room.id, in: $expandedLightsRoomIds)
+            ) {
+                VStack(spacing: 8) {
                     ForEach(room.lights) { light in
                         LightRowView(
                             light: light,
@@ -166,31 +168,45 @@ struct RoomsView: View {
                             colorPickerLightId: $colorPickerLightId,
                             actionError: $actionError
                         )
-                        .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 8)
             } label: {
                 let onCount = room.lights.filter { $0.isOn }.count
-                Button { Task { await toggleRoomLights(room) } } label: {
-                    Image(systemName: room.anyLightOn ? "lightbulb.fill" : "lightbulb")
+                Button {
+                    Task { await toggleRoomLights(room) }
+                } label: {
+                    Image(
+                        systemName: room.anyLightOn
+                            ? "lightbulb.fill" : "lightbulb"
+                    )
                 }
                 .buttonStyle(.bordered)
                 .help(room.anyLightOn ? "Turn all off" : "Turn all on")
-                Text(onCount > 0 ? "\(onCount) of \(room.lights.count) on" : "All off")
-                    .foregroundStyle(.primary)
+                Text(
+                    onCount > 0
+                        ? "\(onCount) of \(room.lights.count) on" : "All off"
+                )
+                .foregroundStyle(.primary)
             }
         }
 
         // Averaged env-sensor readings; chevron expands per-sensor detail.
-        let envReadings = DirigeraDevice.averagedEnvReadings(from: room.envSensors)
+        let envReadings = DirigeraDevice.averagedEnvReadings(
+            from: room.envSensors
+        )
         if !envReadings.isEmpty {
-            DisclosureGroup(isExpanded: membership(room.id, in: $expandedEnvRoomIds)) {
-                VStack(spacing: 12) {
+            DisclosureGroup(
+                isExpanded: membership(room.id, in: $expandedEnvRoomIds)
+            ) {
+                VStack(spacing: 8) {
                     ForEach(room.envSensors) { sensor in
                         EnvSensorRow(sensor: sensor)
-                            .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 8)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "thermometer.medium")
@@ -205,27 +221,35 @@ struct RoomsView: View {
 
         // Open/close sensor status; chevron expands per-sensor detail.
         if !room.sensors.isEmpty {
-            DisclosureGroup(isExpanded: membership(room.id, in: $expandedSensorsRoomIds)) {
-                VStack(spacing: 12) {
+            DisclosureGroup(
+                isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
+            ) {
+                VStack(spacing: 8) {
                     ForEach(room.sensors) { sensor in
                         OpenCloseSensorRow(sensor: sensor, now: now)
-                            .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 8)
             } label: {
                 let openCount = room.sensors.filter { $0.isOpen }.count
                 HStack(spacing: 4) {
                     Image(
                         systemName: room.anySensorOpen
-                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                            ? "sensor.tag.radiowaves.forward.fill"
+                            : "sensor.fill"
                     )
-                    .foregroundStyle(room.anySensorOpen ? Color.orange : Color.primary)
+                    .foregroundStyle(
+                        room.anySensorOpen ? Color.orange : Color.primary
+                    )
                     Text(
                         openCount > 0
                             ? "\(openCount) of \(room.sensors.count) open"
                             : "All closed"
                     )
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
+                    .foregroundStyle(
+                        openCount > 0 ? Color.orange : Color.primary
+                    )
                 }
             }
         }
@@ -234,8 +258,12 @@ struct RoomsView: View {
     // MARK: - Data
 
     private var roomSummaries: [RoomSummary] {
-        var byRoom: [String: (name: String, lights: [DirigeraDevice], sensors: [DirigeraDevice],
-            envSensors: [DirigeraDevice])] = [:]
+        var byRoom:
+            [String: (
+                name: String, lights: [DirigeraDevice],
+                sensors: [DirigeraDevice],
+                envSensors: [DirigeraDevice]
+            )] = [:]
         for device in appState.lights {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])

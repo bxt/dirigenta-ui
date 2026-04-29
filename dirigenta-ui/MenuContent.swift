@@ -369,7 +369,7 @@ struct MenuContent: View {
             let anyOn = appState.lights.contains { $0.isOn }
             let onCount = appState.lights.filter { $0.isOn }.count
             DisclosureGroup(isExpanded: $devicesLightsExpanded) {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     ForEach(appState.lights) { light in
                         LightRowView(
                             light: light,
@@ -377,17 +377,24 @@ struct MenuContent: View {
                             colorPickerLightId: $colorPickerLightId,
                             actionError: $actionError
                         )
-                        .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 10)
             } label: {
-                Button { Task { await toggleAllLights() } } label: {
+                Button {
+                    Task { await toggleAllLights() }
+                } label: {
                     Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
                 }
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")
-                Text(onCount > 0 ? "\(onCount) of \(appState.lights.count) on" : "All off")
-                    .foregroundStyle(.primary)
+                Text(
+                    onCount > 0
+                        ? "\(onCount) of \(appState.lights.count) on"
+                        : "All off"
+                )
+                .foregroundStyle(.primary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -401,16 +408,19 @@ struct MenuContent: View {
     private var envSensorsSection: some View {
         if !appState.envSensors.isEmpty {
             Divider()
-            let avgReadings = DirigeraDevice.averagedEnvReadings(from: appState.envSensors)
+            let avgReadings = DirigeraDevice.averagedEnvReadings(
+                from: appState.envSensors
+            )
             DisclosureGroup(isExpanded: $devicesEnvExpanded) {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     ForEach(appState.envSensors) { sensor in
                         EnvSensorRow(sensor: sensor, showRoom: true)
-                            .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 15)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     Image(systemName: "thermometer.medium")
                         .foregroundStyle(
                             avgReadings.allSatisfy { !$0.outOfRange }
@@ -418,6 +428,7 @@ struct MenuContent: View {
                         )
                     EnvReadingsLine(readings: avgReadings, isHeadline: true)
                 }
+                .padding(.leading, 4)
             }
         }
     }
@@ -429,17 +440,24 @@ struct MenuContent: View {
             let anyOpen = appState.sensors.contains { $0.isOpen }
             let openCount = appState.sensors.filter { $0.isOpen }.count
             DisclosureGroup(isExpanded: $devicesSensorsExpanded) {
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     ForEach(appState.sensors) { sensor in
-                        OpenCloseSensorRow(sensor: sensor, now: now, showRoom: true)
-                            .padding(.leading, 4)
+                        OpenCloseSensorRow(
+                            sensor: sensor,
+                            now: now,
+                            showRoom: true
+                        )
+                        .padding(.leading, 4)
                     }
                 }
+                .padding(.top, 4)
+                .padding(.leading, 8)
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     Image(
                         systemName: anyOpen
-                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                            ? "sensor.tag.radiowaves.forward.fill"
+                            : "sensor.fill"
                     )
                     .foregroundStyle(anyOpen ? Color.orange : Color.primary)
                     Text(
@@ -447,7 +465,9 @@ struct MenuContent: View {
                             ? "\(openCount) of \(appState.sensors.count) open"
                             : "All closed"
                     )
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
+                    .foregroundStyle(
+                        openCount > 0 ? Color.orange : Color.primary
+                    )
                 }
             }
         }
