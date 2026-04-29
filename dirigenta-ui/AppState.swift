@@ -21,10 +21,12 @@ final class AppState: ObservableObject {
         didSet {
             guard !Self.isPreview else { return }
             if accessToken.isEmpty {
+                evictCachedClient()
                 try? KeychainService.delete("dirigeraHub")
                 hubCertFingerprint = nil
                 clearDevices()
             } else {
+                evictCachedClient()
                 saveCredentials()
                 // The Combine pipeline only fires when the IP changes, so if mDNS
                 // already has a result (hub was found before the token was entered),
@@ -60,6 +62,10 @@ final class AppState: ObservableObject {
 
     let mdns = MDNSResolver()
     private var cancellables: Set<AnyCancellable> = []
+
+    // Cached client — reused across all requests as long as IP and token are stable.
+    private var _cachedClient: DirigeraClient?
+    private var _cachedClientIP: String = ""
 
     // MARK: - Init
 
@@ -100,8 +106,16 @@ final class AppState: ObservableObject {
 
     // MARK: - Client factory
 
+    /// Returns a cached `DirigeraClient` for the given IP, creating a new one only
+    /// when the IP changes (or after a token / fingerprint change evicted the cache).
+    /// Each `DirigeraClient` owns a `URLSession` with a TLS delegate; without caching
+    /// every call-site would allocate a new session that is never invalidated.
     func makeClient(ip: String) -> DirigeraClient {
-        DirigeraClient(
+        if let cached = _cachedClient, _cachedClientIP == ip {
+            return cached
+        }
+        _cachedClient?.invalidate()
+        let client = DirigeraClient(
             ip: ip,
             token: accessToken,
             pinnedLeafFingerprint: hubCertFingerprint,
@@ -113,10 +127,22 @@ final class AppState: ObservableObject {
                         }
                         self.hubCertFingerprint = fp
                         self.saveCredentials()
+                        // Evict so the next makeClient builds a session that pins
+                        // the now-known fingerprint.
+                        self.evictCachedClient()
                     }
                 }
                 : nil
         )
+        _cachedClient = client
+        _cachedClientIP = ip
+        return client
+    }
+
+    private func evictCachedClient() {
+        _cachedClient?.invalidate()
+        _cachedClient = nil
+        _cachedClientIP = ""
     }
 
     // MARK: - Device fetch & events

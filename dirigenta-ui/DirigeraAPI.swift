@@ -389,6 +389,12 @@ final class DirigeraClient {
         self.session = session
     }
 
+    /// Drains in-flight tasks and releases the URLSession + its delegate.
+    /// Call this before discarding the client.
+    func invalidate() {
+        session.finishTasksAndInvalidate()
+    }
+
     func eventStream() -> AsyncStream<DirigeraEvent> {
         AsyncStream { continuation in
             guard let url = URL(string: "wss://\(ip):8443/v1") else {
