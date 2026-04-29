@@ -40,7 +40,9 @@ struct EnvSensorRow: View {
                 Text(sensor.displayName)
                 EnvReadingsLine(readings: sensor.envReadings)
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -50,7 +52,9 @@ struct EnvSensorRow: View {
             }
         } icon: {
             Image(systemName: "thermometer.medium")
-                .foregroundStyle(sensor.isComfortable ? Color.secondary : Color.orange)
+                .foregroundStyle(
+                    sensor.isComfortable ? Color.secondary : Color.orange
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -74,7 +78,9 @@ struct OpenCloseSensorRow: View {
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
                 let footer = [
-                    sensor.attributes.batteryPercentage.map { "\($0)% battery" },
+                    sensor.attributes.batteryPercentage.map {
+                        "\($0)% battery"
+                    },
                     showRoom ? sensor.room?.name : nil,
                 ].compactMap { $0 }
                 if !footer.isEmpty {
@@ -130,13 +136,17 @@ struct LightsSectionView: View {
                 .padding(.top, 4)
                 .padding(.leading, 10)
             } label: {
-                Button { Task { await onToggleAll() } } label: {
+                Button {
+                    Task { await onToggleAll() }
+                } label: {
                     Image(systemName: anyOn ? "lightbulb.fill" : "lightbulb")
                 }
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")
-                Text(onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off")
-                    .foregroundStyle(.primary)
+                Text(
+                    onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off"
+                )
+                .foregroundStyle(.primary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -198,7 +208,9 @@ struct OpenCloseSensorsSectionView: View {
                 VStack(spacing: 8) {
                     ForEach(sensors) { sensor in
                         OpenCloseSensorRow(
-                            sensor: sensor, now: now, showRoom: showRoom
+                            sensor: sensor,
+                            now: now,
+                            showRoom: showRoom
                         )
                         .padding(.leading, 4)
                     }
@@ -209,7 +221,8 @@ struct OpenCloseSensorsSectionView: View {
                 HStack(spacing: 8) {
                     Image(
                         systemName: anyOpen
-                            ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+                            ? "sensor.tag.radiowaves.forward.fill"
+                            : "sensor.fill"
                     )
                     .foregroundStyle(anyOpen ? Color.orange : Color.primary)
                     Text(
@@ -217,7 +230,9 @@ struct OpenCloseSensorsSectionView: View {
                             ? "\(openCount) of \(sensors.count) open"
                             : "All closed"
                     )
-                    .foregroundStyle(openCount > 0 ? Color.orange : Color.primary)
+                    .foregroundStyle(
+                        openCount > 0 ? Color.orange : Color.primary
+                    )
                 }
             }
         }

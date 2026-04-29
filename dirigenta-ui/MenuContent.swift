@@ -88,7 +88,8 @@ struct MenuContent: View {
                     }
                     .pickerStyle(.segmented)
 
-                    let screenHeight = currentScreen?.visibleFrame.height ?? 8000
+                    let screenHeight =
+                        currentScreen?.visibleFrame.height ?? 8000
                     let maxHeight = screenHeight - 200
                     ScrollView {
                         Group {
@@ -107,7 +108,9 @@ struct MenuContent: View {
                                             contentHeight = geo.size.height
                                         }
                                     }
-                                    .onChange(of: geo.size.height) { _, newValue in
+                                    .onChange(of: geo.size.height) {
+                                        _,
+                                        newValue in
                                         DispatchQueue.main.async {
                                             contentHeight = newValue
                                         }
@@ -131,15 +134,21 @@ struct MenuContent: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if let error = appState.devicesError {
-                            Label(error, systemImage: "exclamationmark.triangle")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                            Label(
+                                error,
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                         } else {
                             switch appState.wsConnectionState {
                             case .connecting:
-                                Label("Connecting…", systemImage: "arrow.clockwise")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Label(
+                                    "Connecting…",
+                                    systemImage: "arrow.clockwise"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             case .disconnected:
                                 Label("Disconnected", systemImage: "wifi.slash")
                                     .font(.caption)
@@ -167,7 +176,8 @@ struct MenuContent: View {
         .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
         .task(
-            id: "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
+            id:
+                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
         ) {
             guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
             else { return }

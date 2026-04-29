@@ -62,7 +62,13 @@ struct PairingView: View {
                 Button("Cancel") { pairingStep = .idle }
                 Spacer()
                 Button("I pressed it") {
-                    Task { await finishPairing(ip: ip, code: code, verifier: verifier) }
+                    Task {
+                        await finishPairing(
+                            ip: ip,
+                            code: code,
+                            verifier: verifier
+                        )
+                    }
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -94,11 +100,16 @@ struct PairingView: View {
             HStack {
                 Spacer()
                 Button("Save") {
-                    let trimmed = tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmed = tempToken.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
                     guard !trimmed.isEmpty else { return }
                     appState.accessToken = trimmed
                 }
-                .disabled(tempToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(
+                    tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty
+                )
             }
         }
         .font(.caption)
@@ -107,21 +118,33 @@ struct PairingView: View {
     private func startPairing(ip: String) async {
         pairingStep = .requesting
         do {
-            let (code, verifier) = try await DirigeraAuthClient(ip: ip).requestPairing()
-            pairingStep = .awaitingButtonPress(ip: ip, code: code, verifier: verifier)
+            let (code, verifier) = try await DirigeraAuthClient(ip: ip)
+                .requestPairing()
+            pairingStep = .awaitingButtonPress(
+                ip: ip,
+                code: code,
+                verifier: verifier
+            )
         } catch {
-            pairingStep = .failed("Couldn't reach the hub. Make sure you're on the same network.")
+            pairingStep = .failed(
+                "Couldn't reach the hub. Make sure you're on the same network."
+            )
         }
     }
 
-    private func finishPairing(ip: String, code: String, verifier: String) async {
+    private func finishPairing(ip: String, code: String, verifier: String) async
+    {
         pairingStep = .exchanging
         do {
             let token = try await DirigeraAuthClient(ip: ip).exchangeToken(
-                code: code, verifier: verifier)
+                code: code,
+                verifier: verifier
+            )
             appState.accessToken = token
         } catch {
-            pairingStep = .failed("Pairing failed. Did you press the button? Try again.")
+            pairingStep = .failed(
+                "Pairing failed. Did you press the button? Try again."
+            )
         }
     }
 }
@@ -157,7 +180,11 @@ struct PairingView: View {
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(
             initialPairingStep: .awaitingButtonPress(
-                ip: "192.168.1.100", code: "abc123", verifier: "xyz456"))
+                ip: "192.168.1.100",
+                code: "abc123",
+                verifier: "xyz456"
+            )
+        )
     }
     .padding(12)
     .frame(width: 300)
@@ -185,7 +212,9 @@ struct PairingView: View {
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(
             initialPairingStep: .failed(
-                "Pairing failed. Did you press the button? Try again."))
+                "Pairing failed. Did you press the button? Try again."
+            )
+        )
     }
     .padding(12)
     .frame(width: 300)

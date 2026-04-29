@@ -23,7 +23,9 @@ struct LightRowView: View {
                     Text(light.displayName)
                 } icon: {
                     Image(systemName: light.lightIcon(isOn: light.isOn))
-                        .foregroundStyle(light.isOn ? Color.orange : Color.primary)
+                        .foregroundStyle(
+                            light.isOn ? Color.orange : Color.primary
+                        )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +96,10 @@ struct LightRowView: View {
                     .onChange(of: levelText) { _, newValue in
                         // Strip any non-digit characters
                         let digits = newValue.filter(\.isNumber)
-                        if digits != newValue { levelText = digits; return }
+                        if digits != newValue {
+                            levelText = digits
+                            return
+                        }
                         // Only apply when the user is actively editing the field,
                         // not when levelText is updated programmatically from the slider.
                         guard levelFieldFocused else { return }
