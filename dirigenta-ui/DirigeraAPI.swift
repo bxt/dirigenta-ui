@@ -149,28 +149,36 @@ extension DirigeraDevice {
     /// True if either colour control is available for this light.
     var supportsColorControls: Bool { isColorTemperatureLight || isColorLight }
 
-    /// The light's current colour/temperature preset, determined by `colorMode`.
-    /// Returns nil for lights with no colour support.
+    /// The light's current appearance preset (level + colour/temperature),
+    /// determined by `colorMode`. Returns nil for lights with neither level
+    /// nor colour support.
     var colorPreset: LightColorPreset? {
-        guard supportsColorControls else { return nil }
-        switch attributes.colorMode {
-        case "color":
-            guard let hue = attributes.colorHue,
-                let sat = attributes.colorSaturation
-            else { return nil }
-            return LightColorPreset(hue: hue, saturation: sat)
-        case "temperature":
-            guard let ct = attributes.colorTemperature else { return nil }
-            return LightColorPreset(colorTemperature: ct)
-        default:
-            // colorMode not reported — return whichever values are present.
-            if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
-                return LightColorPreset(hue: hue, saturation: sat)
-            } else if let ct = attributes.colorTemperature {
-                return LightColorPreset(colorTemperature: ct)
+        guard isLight else { return nil }
+        let level = attributes.lightLevel
+        guard supportsColorControls || level != nil else { return nil }
+
+        if supportsColorControls {
+            switch attributes.colorMode {
+            case "color":
+                if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
+                    return LightColorPreset(lightLevel: level, hue: hue, saturation: sat)
+                }
+            case "temperature":
+                if let ct = attributes.colorTemperature {
+                    return LightColorPreset(lightLevel: level, colorTemperature: ct)
+                }
+            default:
+                // colorMode not reported — use whichever values are present.
+                if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
+                    return LightColorPreset(lightLevel: level, hue: hue, saturation: sat)
+                } else if let ct = attributes.colorTemperature {
+                    return LightColorPreset(lightLevel: level, colorTemperature: ct)
+                }
             }
-            return nil
         }
+        // Fall back to level-only preset.
+        if let level { return LightColorPreset(lightLevel: level) }
+        return nil
     }
 
     /// Merges env-sensor components that share a `relationId` into a single device.
@@ -337,20 +345,14 @@ struct DirigeraEvent: Decodable {
 /// A light's colour/temperature state, used for saving presets and for
 /// snapshot/restore in the notification flash.
 struct LightColorPreset: Codable {
+    /// Brightness level 1–100.
+    var lightLevel: Int? = nil
     /// Colour-temperature mode value in Kelvin (mutually exclusive with hue/saturation).
     var colorTemperature: Int? = nil
     /// Hue in degrees 0–360 (colour mode).
     var hue: Double? = nil
     /// Saturation 0–1 (colour mode).
     var saturation: Double? = nil
-
-    init(colorTemperature: Int) {
-        self.colorTemperature = colorTemperature
-    }
-    init(hue: Double, saturation: Double) {
-        self.hue = hue
-        self.saturation = saturation
-    }
 }
 
 // Used by patchAttributes — must live outside the generic function due to Swift restrictions.
@@ -480,6 +482,9 @@ final class DirigeraClient {
             try await setColor(id: id, hue: hue, saturation: sat)
         } else if let ct = preset.colorTemperature {
             try await setColorTemperature(id: id, colorTemperature: ct)
+        }
+        if let level = preset.lightLevel {
+            try await setLightLevel(id: id, lightLevel: level)
         }
     }
 

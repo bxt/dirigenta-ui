@@ -213,25 +213,16 @@ final class AppState: ObservableObject {
         await fetchDevices(ip: ip)
 
         // Step 4: Save colour/brightness from the now-on state.
-        struct SavedAppearance {
-            let id: String
-            let lightLevel: Int?
-            let colorPreset: LightColorPreset?
-        }
-        let savedColor = targetIds.compactMap { id -> SavedAppearance? in
+        let savedPresets = targetIds.compactMap { id -> (id: String, preset: LightColorPreset?)? in
             guard let light = lights.first(where: { $0.id == id }) else { return nil }
-            return SavedAppearance(
-                id: id,
-                lightLevel: light.attributes.lightLevel,
-                colorPreset: light.colorPreset
-            )
+            return (id: id, preset: light.colorPreset)
         }
 
-        // Step 5: Flash red / full brightness.
+        // Step 5: Flash red (colour lights only) / full brightness.
         await withTaskGroup(of: Void.self) { group in
             for light in lights where targetIds.contains(light.id) {
                 group.addTask {
-                    if light.supportsColorControls {
+                    if light.isColorLight {
                         try? await client.setColor(id: light.id, hue: 0, saturation: 1.0)
                     }
                     if light.attributes.lightLevel != nil {
@@ -243,15 +234,12 @@ final class AppState: ObservableObject {
 
         try? await Task.sleep(for: .seconds(1))
 
-        // Step 6: Restore colour/brightness.
+        // Step 6: Restore colour/brightness via preset (includes level).
         await withTaskGroup(of: Void.self) { group in
-            for s in savedColor {
+            for s in savedPresets {
                 group.addTask {
-                    if let preset = s.colorPreset {
+                    if let preset = s.preset {
                         try? await client.applyColorPreset(preset, to: s.id)
-                    }
-                    if let level = s.lightLevel {
-                        try? await client.setLightLevel(id: s.id, lightLevel: level)
                     }
                 }
             }

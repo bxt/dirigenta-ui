@@ -140,6 +140,9 @@ struct LightRowView: View {
         if light.isOn && colorPickerLightId == light.id {
             LightColorControls(
                 light: light,
+                onSetLightLevel: { level in
+                    Task { await setBrightness(to: level) }
+                },
                 onSetColorTemperature: { temp in
                     Task { await setColorTemperature(to: temp) }
                 },

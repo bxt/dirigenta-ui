@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LightColorControls: View {
     let light: DirigeraDevice
+    let onSetLightLevel: (Int) -> Void
     let onSetColorTemperature: (Int) -> Void
     let onSetColor: (Double, Double) -> Void  // hue (0–360), saturation (0–1)
 
@@ -12,10 +13,12 @@ struct LightColorControls: View {
 
     init(
         light: DirigeraDevice,
+        onSetLightLevel: @escaping (Int) -> Void,
         onSetColorTemperature: @escaping (Int) -> Void,
         onSetColor: @escaping (Double, Double) -> Void
     ) {
         self.light = light
+        self.onSetLightLevel = onSetLightLevel
         self.onSetColorTemperature = onSetColorTemperature
         self.onSetColor = onSetColor
 
@@ -155,6 +158,9 @@ struct LightColorControls: View {
         } else if let ct = preset.colorTemperature {
             colorTempValue = Double(ct)
             onSetColorTemperature(ct)
+        }
+        if let level = preset.lightLevel {
+            onSetLightLevel(level)
         }
     }
 
