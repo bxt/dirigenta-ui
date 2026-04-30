@@ -183,37 +183,13 @@ struct MenuContent: View {
         ) {
             guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
             else { return }
-            appState.wsConnectionState = .connecting
-            let maxRetries = 8
-            var attempt = 0
-            while attempt <= maxRetries {
-                if Task.isCancelled { break }
-                let client = appState.makeClient(ip: ip)
-                var receivedAnyEvent = false
-                for await event in client.eventStream() {
-                    appState.wsConnectionState = .connected
-                    receivedAnyEvent = true
-                    appState.applyEvent(event)
-                }
-                guard !Task.isCancelled else { break }
-                // A connection that delivered events was live — reset before
-                // checking the retry limit so a live-then-dropped attempt 8
-                // is not incorrectly treated as exhausting the budget.
-                if receivedAnyEvent { attempt = 0 }
-                if attempt >= maxRetries {
-                    appState.wsConnectionState = .disconnected
-                    break
-                }
-                appState.wsConnectionState = .connecting
-                let base = min(pow(2.0, Double(attempt)), 60.0)
-                let jitter = Double.random(in: -0.25 * base...0.25 * base)
-                let delay = max(1.0, base + jitter)
-                Logger.webSocket.info(
-                    "Reconnecting in \(String(format: "%.1f", delay))s (attempt \(attempt + 1)/\(maxRetries))…"
-                )
-                try? await Task.sleep(for: .seconds(delay))
-                attempt += 1
-            }
+            await wsReconnectLoop(
+                eventStream: { appState.makeClient(ip: ip).eventStream() },
+                onConnecting: { appState.wsConnectionState = .connecting },
+                onConnected: { appState.wsConnectionState = .connected },
+                onEvent: { appState.applyEvent($0) },
+                onDisconnected: { appState.wsConnectionState = .disconnected }
+            )
         }
         .task {
             while !Task.isCancelled {
