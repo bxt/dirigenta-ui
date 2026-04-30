@@ -29,10 +29,13 @@ final class MDNSResolver: ObservableObject {
             Logger.mdns.info(
                 "Found service: \(String(describing: result.endpoint), privacy: .public)"
             )
-            self.resolveEndpoint(result.endpoint)
+            // browser.start(queue: .main) guarantees this closure runs on the main
+            // queue, so MainActor.assumeIsolated is safe here.
+            MainActor.assumeIsolated { self.resolveEndpoint(result.endpoint) }
         }
 
         browser.stateUpdateHandler = { [weak self] state in
+            // Same queue guarantee as above.
             switch state {
             case .ready:
                 Logger.mdns.info("Browser ready")
@@ -40,9 +43,9 @@ final class MDNSResolver: ObservableObject {
                 Logger.mdns.error(
                     "Browser failed: \(error.localizedDescription, privacy: .public)"
                 )
-                self?.isResolving = false
+                MainActor.assumeIsolated { self?.isResolving = false }
             case .cancelled:
-                self?.isResolving = false
+                MainActor.assumeIsolated { self?.isResolving = false }
             default:
                 break
             }
@@ -68,6 +71,7 @@ final class MDNSResolver: ObservableObject {
         connection = conn
 
         conn.stateUpdateHandler = { [weak self] state in
+            // conn.start(queue: .main) guarantees this closure runs on the main queue.
             switch state {
             case .ready:
                 if let path = conn.currentPath,
@@ -76,8 +80,10 @@ final class MDNSResolver: ObservableObject {
                     let ip = MDNSResolver.ipString(from: host)
                     if !ip.isEmpty {
                         Logger.mdns.info("Resolved IP: \(ip, privacy: .public)")
-                        self?.currentIPAddress = ip
-                        self?.isResolving = false
+                        MainActor.assumeIsolated {
+                            self?.currentIPAddress = ip
+                            self?.isResolving = false
+                        }
                     }
                 }
                 conn.cancel()
