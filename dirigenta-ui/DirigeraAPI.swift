@@ -208,7 +208,7 @@ nonisolated extension DirigeraDevice {
         if let rh = attributes.currentRH {
             parts.append(
                 Reading(
-                    text: String(format: "%.0f%%", rh),
+                    text: String(format: "%.0f%% RH", rh),
                     outOfRange: !(30.0...60.0 ~= rh)
                 )
             )
@@ -216,7 +216,7 @@ nonisolated extension DirigeraDevice {
         if let co2 = attributes.currentCO2 {
             parts.append(
                 Reading(
-                    text: String(format: "%.0f CO₂", co2),
+                    text: String(format: "%.0f ppm CO₂", co2),
                     outOfRange: co2 > 1000
                 )
             )
@@ -224,7 +224,7 @@ nonisolated extension DirigeraDevice {
         if let pm = attributes.currentPM25 {
             parts.append(
                 Reading(
-                    text: String(format: "%.0f PM2.5", pm),
+                    text: String(format: "%.0f µg/m³ PM2.5", pm),
                     outOfRange: pm > 12
                 )
             )

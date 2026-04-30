@@ -291,7 +291,7 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 final class DirigeraDeviceMergingTests: XCTestCase {
 
     func testAttributesMerging_coalesces_nonNilFields() throws {
-        let base = try decode(
+        var merged = try decode(
             DirigeraDevice.Attributes.self,
             from: #"{"customName":"Old Name","lightLevel":50}"#
         )
@@ -299,23 +299,23 @@ final class DirigeraDeviceMergingTests: XCTestCase {
             DirigeraDevice.Attributes.self,
             from: #"{"lightLevel":80,"isOn":true}"#
         )
-        let merged = base.merging(update)
+        merged.merge(update)
         XCTAssertEqual(merged.customName, "Old Name")  // kept from base
         XCTAssertEqual(merged.lightLevel, 80)  // overwritten
         XCTAssertEqual(merged.isOn, true)  // added
     }
 
     func testAttributesMerging_withNil_returnsBase() throws {
-        let base = try decode(
+        var merged = try decode(
             DirigeraDevice.Attributes.self,
             from: #"{"customName":"Kept"}"#
         )
-        let merged = base.merging(nil)
+        merged.merge(nil as DirigeraDevice.Attributes?)
         XCTAssertEqual(merged.customName, "Kept")
     }
 
     func testDeviceMerging_withEventData_updatesState() throws {
-        let device = makeDevice(
+        var updated = makeDevice(
             id: "d1",
             type: "light",
             attributes: #"{"isOn": false, "lightLevel": 50}"#
@@ -331,7 +331,7 @@ final class DirigeraDeviceMergingTests: XCTestCase {
             }
             """
         let event = try decode(DirigeraEvent.self, from: eventJSON)
-        let updated = device.merging(event.data!)
+        updated.merge(event.data!)
 
         XCTAssertEqual(updated.id, "d1")
         XCTAssertEqual(updated.attributes.isOn, true)
