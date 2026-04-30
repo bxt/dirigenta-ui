@@ -366,6 +366,8 @@ final class DirigeraClient {
     }
 
     func eventStream() -> AsyncStream<DirigeraEvent> {
+        // Frame decoding is delegated to decodeDirigeraWebSocketFrame so
+        // the decode logic can be unit-tested independently of URLSession.
         AsyncStream { continuation in
             guard let url = URL(string: "wss://\(ip):8443/v1") else {
                 continuation.finish()
@@ -382,32 +384,13 @@ final class DirigeraClient {
                 task.receive { result in
                     switch result {
                     case .success(let message):
-                        switch message {
-                        case .string(let text):
-                            if let data = text.data(using: .utf8) {
-                                Task { @MainActor in
-                                    do {
-                                        let event = try JSONDecoder().decode(
-                                            DirigeraEvent.self,
-                                            from: data
-                                        )
-                                        Logger.webSocket.debug(
-                                            "\(event.type, privacy: .public) id=\(event.data?.id ?? "-", privacy: .public)"
-                                        )
-                                        continuation.yield(event)
-                                    } catch {
-                                        Logger.webSocket.warning(
-                                            "Decode error: \(error.localizedDescription, privacy: .public) — frame: \(text.prefix(200), privacy: .public)"
-                                        )
-                                    }
-                                }
+                        if let event = decodeDirigeraWebSocketFrame(message) {
+                            Task { @MainActor in
+                                Logger.webSocket.debug(
+                                    "\(event.type, privacy: .public) id=\(event.data?.id ?? "-", privacy: .public)"
+                                )
+                                continuation.yield(event)
                             }
-                        case .data(let data):
-                            Logger.webSocket.warning(
-                                "Unexpected binary frame (\(data.count) bytes), skipping"
-                            )
-                        @unknown default:
-                            break
                         }
                         receive()
                     case .failure(let error):
@@ -548,6 +531,36 @@ final class DirigeraClient {
 }
 
 extension DirigeraClient: DirigeraClientProtocol {}
+
+/// Decodes a single WebSocket message frame into a `DirigeraEvent`.
+/// Returns `nil` for binary frames, frames that aren't valid UTF-8, or frames
+/// whose JSON doesn't match the `DirigeraEvent` schema — none of these should
+/// terminate the stream.
+/// Extracted as a free function so the decode logic can be unit-tested
+/// independently of URLSessionWebSocketTask.
+nonisolated func decodeDirigeraWebSocketFrame(
+    _ message: URLSessionWebSocketTask.Message
+) -> DirigeraEvent? {
+    switch message {
+    case .string(let text):
+        guard let data = text.data(using: .utf8) else { return nil }
+        do {
+            return try JSONDecoder().decode(DirigeraEvent.self, from: data)
+        } catch {
+            Logger.webSocket.warning(
+                "Decode error: \(error.localizedDescription, privacy: .public) — frame: \(text.prefix(200), privacy: .public)"
+            )
+            return nil
+        }
+    case .data(let data):
+        Logger.webSocket.warning(
+            "Unexpected binary frame (\(data.count) bytes), skipping"
+        )
+        return nil
+    @unknown default:
+        return nil
+    }
+}
 
 // Validates the Dirigera hub's TLS certificate against the pinned IKEA Home smart Root CA.
 // Optionally enforces leaf-level pinning: if `requiredLeafFingerprint` is set, the connection
