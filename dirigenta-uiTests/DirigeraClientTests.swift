@@ -9,6 +9,9 @@ final class MockURLProtocol: URLProtocol {
         ((URLRequest) throws -> (HTTPURLResponse, Data?))?
     nonisolated(unsafe) static var capturedRequest: URLRequest?
     nonisolated(unsafe) static var capturedBody: Data?
+    /// All requests captured in order; useful when a single test triggers multiple network calls.
+    nonisolated(unsafe) static var capturedRequests: [URLRequest] = []
+    nonisolated(unsafe) static var capturedBodies: [Data?] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest
@@ -16,6 +19,7 @@ final class MockURLProtocol: URLProtocol {
 
     override func startLoading() {
         MockURLProtocol.capturedRequest = request
+        MockURLProtocol.capturedRequests.append(request)
         // URLSession converts httpBody → httpBodyStream before the protocol sees it.
         if let stream = request.httpBodyStream {
             stream.open()
@@ -28,8 +32,10 @@ final class MockURLProtocol: URLProtocol {
             buf.deallocate()
             stream.close()
             MockURLProtocol.capturedBody = data.isEmpty ? nil : data
+            MockURLProtocol.capturedBodies.append(data.isEmpty ? nil : data)
         } else {
             MockURLProtocol.capturedBody = request.httpBody
+            MockURLProtocol.capturedBodies.append(request.httpBody)
         }
         guard let handler = MockURLProtocol.handler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
@@ -95,6 +101,8 @@ final class DirigeraClientTests: XCTestCase {
         MockURLProtocol.handler = nil
         MockURLProtocol.capturedRequest = nil
         MockURLProtocol.capturedBody = nil
+        MockURLProtocol.capturedRequests = []
+        MockURLProtocol.capturedBodies = []
         client = DirigeraClient(
             ip: testIP,
             token: testToken,
@@ -269,5 +277,111 @@ final class DirigeraClientTests: XCTestCase {
             0.6,
             accuracy: 0.001
         )
+    }
+}
+
+// MARK: - #8  DirigeraClient.applyColorPreset request ordering
+
+@MainActor
+final class ApplyColorPresetTests: XCTestCase {
+
+    private var client: DirigeraClient!
+    private let anyURL = URL(string: "https://192.168.1.1:8443/v1/devices/l1")!
+
+    override func setUp() {
+        super.setUp()
+        MockURLProtocol.handler = nil
+        MockURLProtocol.capturedRequests = []
+        MockURLProtocol.capturedBodies = []
+        client = DirigeraClient(ip: "192.168.1.1", token: "tok", session: mockSession())
+    }
+
+    private func okHandler(_ request: URLRequest) throws -> (HTTPURLResponse, Data?) {
+        (httpResponse(status: 200, for: anyURL), nil)
+    }
+
+    private func attrs(from body: Data) throws -> [String: Any] {
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [[String: Any]]
+        )
+        return try XCTUnwrap(json.first?["attributes"] as? [String: Any])
+    }
+
+    // MARK: color preset → setColor first, then setLightLevel
+
+    func testApplyColorPreset_colorPreset_sendsColorThenLevel() async throws {
+        MockURLProtocol.handler = okHandler
+        let preset = LightColorPreset(lightLevel: 80, hue: 120.0, saturation: 1.0)
+        try await client.applyColorPreset(preset, to: "l1")
+
+        XCTAssertEqual(MockURLProtocol.capturedBodies.count, 2, "expect 2 PATCH requests")
+
+        let first = try XCTUnwrap(MockURLProtocol.capturedBodies[0])
+        let a1 = try attrs(from: first)
+        XCTAssertNotNil(a1["colorHue"], "first request must be setColor")
+
+        let second = try XCTUnwrap(MockURLProtocol.capturedBodies[1])
+        let a2 = try attrs(from: second)
+        XCTAssertNotNil(a2["lightLevel"], "second request must be setLightLevel")
+    }
+
+    // MARK: CT preset → setColorTemperature first, then setLightLevel
+
+    func testApplyColorPreset_ctPreset_sendsCTThenLevel() async throws {
+        MockURLProtocol.handler = okHandler
+        let preset = LightColorPreset(lightLevel: 60, colorTemperature: 3000)
+        try await client.applyColorPreset(preset, to: "l1")
+
+        XCTAssertEqual(MockURLProtocol.capturedBodies.count, 2)
+
+        let first = try XCTUnwrap(MockURLProtocol.capturedBodies[0])
+        let a1 = try attrs(from: first)
+        XCTAssertNotNil(a1["colorTemperature"], "first request must be setColorTemperature")
+
+        let second = try XCTUnwrap(MockURLProtocol.capturedBodies[1])
+        let a2 = try attrs(from: second)
+        XCTAssertNotNil(a2["lightLevel"], "second request must be setLightLevel")
+    }
+
+    // MARK: level-only preset → only one request
+
+    func testApplyColorPreset_levelOnlyPreset_sendsOnlyLevelRequest() async throws {
+        MockURLProtocol.handler = okHandler
+        let preset = LightColorPreset(lightLevel: 50)
+        try await client.applyColorPreset(preset, to: "l1")
+
+        XCTAssertEqual(MockURLProtocol.capturedBodies.count, 1)
+        let body = try XCTUnwrap(MockURLProtocol.capturedBodies[0])
+        let a = try attrs(from: body)
+        XCTAssertNotNil(a["lightLevel"])
+        XCTAssertNil(a["colorHue"])
+        XCTAssertNil(a["colorTemperature"])
+    }
+
+    // MARK: color-only preset (nil level) → only one request
+
+    func testApplyColorPreset_colorNoLevel_sendsOnlyColorRequest() async throws {
+        MockURLProtocol.handler = okHandler
+        let preset = LightColorPreset(lightLevel: nil, hue: 30.0, saturation: 0.5)
+        try await client.applyColorPreset(preset, to: "l1")
+
+        XCTAssertEqual(MockURLProtocol.capturedBodies.count, 1)
+        let body = try XCTUnwrap(MockURLProtocol.capturedBodies[0])
+        let a = try attrs(from: body)
+        XCTAssertNotNil(a["colorHue"])
+        XCTAssertNil(a["lightLevel"])
+    }
+
+    // MARK: color value correctness
+
+    func testApplyColorPreset_colorPreset_sendsCorrectHueAndSaturation() async throws {
+        MockURLProtocol.handler = okHandler
+        let preset = LightColorPreset(lightLevel: nil, hue: 200.5, saturation: 0.75)
+        try await client.applyColorPreset(preset, to: "l1")
+
+        let body = try XCTUnwrap(MockURLProtocol.capturedBodies[0])
+        let a = try attrs(from: body)
+        XCTAssertEqual(a["colorHue"] as? Double ?? 0, 200.5, accuracy: 0.001)
+        XCTAssertEqual(a["colorSaturation"] as? Double ?? 0, 0.75, accuracy: 0.001)
     }
 }
