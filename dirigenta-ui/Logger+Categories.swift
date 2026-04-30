@@ -1,16 +1,16 @@
 import OSLog
 
 extension Logger {
-    // Bundle.main is @MainActor-isolated in Swift 6, which would taint every
-    // Logger category and prevent use from Sendable closures (e.g. NWBrowser
-    // handlers). The statics are written once at load time and only ever read
-    // afterward, so nonisolated(unsafe) is correct here.
-    nonisolated(unsafe) private static let subsystem =
+    // The project sets SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor, which would
+    // otherwise make these statics @MainActor and unreachable from Sendable
+    // closures (e.g. NWBrowser handlers). Logger is Sendable and these are
+    // immutable, so plain `nonisolated` is correct.
+    nonisolated private static let subsystem =
         Bundle.main.bundleIdentifier ?? "dirigenta-ui"
 
-    nonisolated(unsafe) static let api = Logger(subsystem: subsystem, category: "api")
-    nonisolated(unsafe) static let webSocket = Logger(subsystem: subsystem, category: "websocket")
-    nonisolated(unsafe) static let mdns = Logger(subsystem: subsystem, category: "mdns")
-    nonisolated(unsafe) static let keychain = Logger(subsystem: subsystem, category: "keychain")
-    nonisolated(unsafe) static let statusBar = Logger(subsystem: subsystem, category: "statusbar")
+    nonisolated static let api = Logger(subsystem: subsystem, category: "api")
+    nonisolated static let webSocket = Logger(subsystem: subsystem, category: "websocket")
+    nonisolated static let mdns = Logger(subsystem: subsystem, category: "mdns")
+    nonisolated static let keychain = Logger(subsystem: subsystem, category: "keychain")
+    nonisolated static let statusBar = Logger(subsystem: subsystem, category: "statusbar")
 }

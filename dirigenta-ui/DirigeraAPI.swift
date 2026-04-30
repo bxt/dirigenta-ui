@@ -2,12 +2,12 @@ import CryptoKit
 @preconcurrency import Foundation
 import OSLog
 
-struct Room: Decodable {
+nonisolated struct Room: Decodable {
     let id: String
     let name: String
 }
 
-struct DirigeraDevice: Identifiable, Decodable {
+nonisolated struct DirigeraDevice: Identifiable, Decodable {
     let id: String
     var type: String
     var deviceType: String? = nil
@@ -95,7 +95,7 @@ struct DirigeraDevice: Identifiable, Decodable {
     }
 }
 
-extension DirigeraDevice {
+nonisolated extension DirigeraDevice {
     var isLight: Bool { type == "light" }
     var isGateway: Bool { type == "gateway" }
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
@@ -286,7 +286,7 @@ extension DirigeraDevice {
     }
 }
 
-struct DirigeraEvent: Decodable {
+nonisolated struct DirigeraEvent: Decodable {
     let type: String
     let data: DeviceData?
     var isDeviceStateChanged: Bool { type == "deviceStateChanged" }
@@ -305,7 +305,7 @@ struct DirigeraEvent: Decodable {
 
 /// A light's colour/temperature state, used for saving presets and for
 /// snapshot/restore in the notification flash.
-struct LightColorPreset: Codable {
+nonisolated struct LightColorPreset: Codable {
     /// Brightness level 1–100.
     var lightLevel: Int? = nil
     /// Colour-temperature mode value in Kelvin (mutually exclusive with hue/saturation).
