@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import OSLog
@@ -50,6 +51,10 @@ final class AppState: ObservableObject {
 
     enum WSConnectionState { case connecting, connected, disconnected }
     @Published var wsConnectionState: WSConnectionState = .connecting
+    /// Bumped to force consumers (the WebSocket task in MenuContent) to tear
+    /// down and re-establish their connection — used after wake-from-sleep,
+    /// where TCP connections may be silently wedged.
+    @Published var wsRestartToken: Int = 0
 
     @Published var gatewayName: String? = nil
     @Published var lights: [DirigeraDevice] = []
@@ -104,6 +109,33 @@ final class AppState: ObservableObject {
                     }
                 }
                 .store(in: &cancellables)
+            // Recover from system sleep: TCP sockets often hang silently across
+            // sleep/wake, mDNS state may be stale, and the WS retry budget may
+            // already be exhausted. Force a clean refresh + reconnect on wake.
+            NSWorkspace.shared.notificationCenter
+                .publisher(for: NSWorkspace.didWakeNotification)
+                .sink { [weak self] _ in
+                    Task { @MainActor [weak self] in self?.handleWake() }
+                }
+                .store(in: &cancellables)
+        }
+    }
+
+    private func handleWake() {
+        Logger.api.info("System woke from sleep — refreshing devices and reconnecting WebSocket")
+        // Tear down the cached URLSession; its TCP connections may be wedged.
+        evictCachedClient()
+        // Bump the WS restart token so MenuContent's keyed .task tears down
+        // and re-runs even when the IP hasn't changed.
+        wsRestartToken &+= 1
+        // Restart mDNS in case the laptop joined a different network or got
+        // a new DHCP lease.
+        mdns.stop()
+        mdns.start()
+        // mDNS only re-fires the auto-fetch sink when the IP changes
+        // (removeDuplicates), so explicitly fetch with whatever IP we know.
+        if let ip = mdns.currentIPAddress, !accessToken.isEmpty {
+            Task { await self.fetchDevices(ip: ip) }
         }
     }
 

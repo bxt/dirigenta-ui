@@ -179,7 +179,7 @@ struct MenuContent: View {
         .background(ScreenReader { currentScreen = $0 })
         .task(
             id:
-                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(!appState.accessToken.isEmpty)"
+                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(appState.wsRestartToken):\(!appState.accessToken.isEmpty)"
         ) {
             guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
             else { return }
