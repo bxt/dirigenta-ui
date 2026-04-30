@@ -35,6 +35,8 @@ private struct ScreenReader: NSViewRepresentable {
     }
 }
 
+private enum Tab { case devices, rooms }
+
 struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
@@ -43,11 +45,11 @@ struct MenuContent: View {
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
-    @State private var selectedTab: Int = 0
+    @State private var selectedTab: Tab = .devices
 
     init() {}
 
-    fileprivate init(initialTab: Int) {
+    fileprivate init(initialTab: Tab) {
         _selectedTab = State(initialValue: initialTab)
     }
 
@@ -83,8 +85,8 @@ struct MenuContent: View {
                         .foregroundStyle(.orange)
                 } else {
                     Picker("", selection: $selectedTab) {
-                        Text("Devices").tag(0)
-                        Text("Rooms").tag(1)
+                        Text("Devices").tag(Tab.devices)
+                        Text("Rooms").tag(Tab.rooms)
                     }
                     .pickerStyle(.segmented)
 
@@ -93,7 +95,7 @@ struct MenuContent: View {
                     let maxHeight = screenHeight - 200
                     ScrollView {
                         Group {
-                            if selectedTab == 0 {
+                            if selectedTab == .devices {
                                 DevicesView(now: now)
                             } else {
                                 RoomsView(now: now)
@@ -231,7 +233,7 @@ struct MenuContent: View {
 
 #Preview("Normal — rooms tab") {
     let state = AppState.preview()
-    return MenuContent(initialTab: 1)
+    return MenuContent(initialTab: .rooms)
         .environmentObject(state)
         .environmentObject(state.mdns)
 }
