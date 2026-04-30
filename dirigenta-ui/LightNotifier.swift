@@ -7,7 +7,7 @@ import Foundation
 /// sequence (step 3 to read on-state colour, and a final sync after restore),
 /// since those belong to AppState, not to the notifier.
 struct LightNotifier {
-    private let client: DirigeraClient
+    private let client: any DirigeraClientProtocol
     /// Lights selected for the flash: the pinned light if one is set, otherwise
     /// all lights that were on at the time the notifier was created.
     let targets: [DirigeraDevice]
@@ -16,7 +16,7 @@ struct LightNotifier {
     let wasOn: [String: Bool]
 
     /// Returns `nil` when there are no lights to flash.
-    init?(client: DirigeraClient, lights: [DirigeraDevice], pinnedId: String?) {
+    init?(client: any DirigeraClientProtocol, lights: [DirigeraDevice], pinnedId: String?) {
         let targetLights: [DirigeraDevice]
         if let pinnedId, let pinned = lights.first(where: { $0.id == pinnedId }) {
             targetLights = [pinned]

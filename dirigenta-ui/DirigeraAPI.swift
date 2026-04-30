@@ -321,6 +321,15 @@ private struct PatchBody<A: Encodable>: Encodable {
     let attributes: A
 }
 
+/// The subset of DirigeraClient used by LightNotifier and the flash sequence,
+/// extracted as a protocol so tests can substitute a recording mock.
+protocol DirigeraClientProtocol: Sendable {
+    func setLight(id: String, isOn: Bool) async throws
+    func setLightLevel(id: String, lightLevel: Int) async throws
+    func setColor(id: String, hue: Double, saturation: Double) async throws
+    func applyColorPreset(_ preset: LightColorPreset, to id: String) async throws
+}
+
 final class DirigeraClient {
     private let ip: String
     private let token: String
@@ -537,6 +546,8 @@ final class DirigeraClient {
         }
     }
 }
+
+extension DirigeraClient: DirigeraClientProtocol {}
 
 // Validates the Dirigera hub's TLS certificate against the pinned IKEA Home smart Root CA.
 // Optionally enforces leaf-level pinning: if `requiredLeafFingerprint` is set, the connection
