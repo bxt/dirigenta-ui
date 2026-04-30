@@ -18,6 +18,7 @@ jobs:
 
       - name: Build
         run: |
+          set -o pipefail
           xcodebuild build \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
@@ -25,10 +26,11 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
+            | xcpretty
 
       - name: Test
         run: |
+          set -o pipefail
           xcodebuild test \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
