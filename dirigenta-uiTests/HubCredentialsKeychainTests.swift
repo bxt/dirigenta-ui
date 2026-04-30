@@ -124,6 +124,9 @@ final class AppStateKeychainInitTests: XCTestCase {
     }
 
     func testInit_emptyToken_whenKeychainEmpty() {
+        // Delete the key right before constructing AppState in case another
+        // test class (e.g. AppStateMakeClientTests) wrote to it concurrently.
+        try? KeychainService.delete(keychainKey)
         // No Keychain entry → accessToken must be ""
         let state = AppState()
         XCTAssertEqual(state.accessToken, "")

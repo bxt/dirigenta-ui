@@ -11,10 +11,16 @@ final class AppStateMakeClientTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Use preview() because it provides a non-empty accessToken
-        // without touching Keychain. isPreview is false in the test runner
-        // (XCODE_RUNNING_FOR_PREVIEWS is not set), so all makeClient logic runs.
+        // Use preview() because it provides a non-empty accessToken.
+        // NOTE: Since isPreview is false in the test runner, accessToken's didSet
+        // calls saveCredentials() and writes to Keychain. We clean up in tearDown.
         state = AppState.preview()
+    }
+
+    override func tearDown() {
+        // Clean up any Keychain entries written by accessToken's didSet (saveCredentials).
+        try? KeychainService.delete("dirigeraHub")
+        super.tearDown()
     }
 
     // MARK: Identity / caching
