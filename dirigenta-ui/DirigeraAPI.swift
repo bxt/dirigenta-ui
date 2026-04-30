@@ -324,6 +324,7 @@ private struct PatchBody<A: Encodable>: Encodable {
 /// The subset of DirigeraClient used by LightNotifier and the flash sequence,
 /// extracted as a protocol so tests can substitute a recording mock.
 protocol DirigeraClientProtocol: Sendable {
+    func fetchAllDevices() async throws -> [DirigeraDevice]
     func setLight(id: String, isOn: Bool) async throws
     func setLightLevel(id: String, lightLevel: Int) async throws
     func setColor(id: String, hue: Double, saturation: Double) async throws

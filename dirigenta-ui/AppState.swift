@@ -182,10 +182,10 @@ final class AppState: ObservableObject {
 
     // MARK: - Device fetch & events
 
-    func fetchDevices(ip: String) async {
+    func fetchDevices(ip: String, client injectedClient: (any DirigeraClientProtocol)? = nil) async {
         isLoadingDevices = true
         devicesError = nil
-        let client = makeClient(ip: ip)
+        let client: any DirigeraClientProtocol = injectedClient ?? makeClient(ip: ip)
         do {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.isGateway }?.displayName

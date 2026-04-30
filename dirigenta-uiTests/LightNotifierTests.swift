@@ -17,6 +17,12 @@ final class MockLightClient: DirigeraClientProtocol {
 
     var calls: [Call] = []
     var shouldThrow = false
+    var deviceStub: [DirigeraDevice] = []
+
+    func fetchAllDevices() async throws -> [DirigeraDevice] {
+        if shouldThrow { throw URLError(.badServerResponse) }
+        return deviceStub
+    }
 
     func setLight(id: String, isOn: Bool) async throws {
         if shouldThrow { throw URLError(.badServerResponse) }
