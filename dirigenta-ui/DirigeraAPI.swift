@@ -698,15 +698,21 @@ final class DirigeraAuthClient {
     // avoiding a retain cycle without needing invalidate() to break one.
     private let fingerprintBox = FingerprintBox()
 
-    init(ip: String) {
+    init(ip: String, sessionConfiguration: URLSessionConfiguration? = nil) {
         self.ip = ip
         let box = fingerprintBox
-        let delegate = PinnedCertificateTLSDelegate(
-            requiredLeafFingerprint: nil,
-            onLeafFingerprint: { fp in box.data = fp }
-        )
+        let config = sessionConfiguration ?? .default
+        let delegate: URLSessionDelegate?
+        if sessionConfiguration == nil {
+            delegate = PinnedCertificateTLSDelegate(
+                requiredLeafFingerprint: nil,
+                onLeafFingerprint: { fp in box.data = fp }
+            )
+        } else {
+            delegate = nil
+        }
         session = URLSession(
-            configuration: .default,
+            configuration: config,
             delegate: delegate,
             delegateQueue: nil
         )
@@ -719,8 +725,8 @@ final class DirigeraAuthClient {
     }
 
     func requestPairing() async throws -> (code: String, verifier: String) {
-        let verifier = makeVerifier()
-        let challenge = makeChallenge(for: verifier)
+        let verifier = Self.makeVerifier()
+        let challenge = Self.makeChallenge(for: verifier)
 
         struct Body: Encodable {
             let audience = "homesmart.local"
@@ -795,14 +801,14 @@ final class DirigeraAuthClient {
         return data
     }
 
-    private func makeVerifier() -> String {
+    static func makeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         precondition(status == errSecSuccess, "SecRandomCopyBytes failed: \(status)")
         return Data(bytes).base64URLEncoded()
     }
 
-    private func makeChallenge(for verifier: String) -> String {
+    static func makeChallenge(for verifier: String) -> String {
         Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncoded()
     }
 }
@@ -812,7 +818,7 @@ private final class FingerprintBox {
 }
 
 extension Data {
-    fileprivate func base64URLEncoded() -> String {
+    func base64URLEncoded() -> String {
         base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
