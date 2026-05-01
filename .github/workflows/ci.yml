@@ -22,7 +22,7 @@ jobs:
           xcodebuild build \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
-            -destination 'platform=macOS' \
+            -destination 'platform=macOS,arch=arm64' \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -41,7 +41,7 @@ jobs:
           xcodebuild test \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
-            -destination 'platform=macOS' \
+            -destination 'platform=macOS,arch=arm64' \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
             -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_emptyToken_whenStoreEmpty \
             -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_gracefullyHandlesMalformedJSON \
