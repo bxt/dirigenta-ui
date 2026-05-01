@@ -240,7 +240,7 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 
     func testEnvReadings_rh_inRange() {
         let reading = sensor(rh: 50.0).envReadings[0]
-        XCTAssertEqual(reading.text, "50% RH")
+        XCTAssertEqual(reading.text, "50%")
         XCTAssertFalse(reading.outOfRange)
     }
 
@@ -254,7 +254,7 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 
     func testEnvReadings_co2_inRange() {
         let reading = sensor(co2: 900.0).envReadings[0]
-        XCTAssertEqual(reading.text, "900 ppm CO₂")
+        XCTAssertEqual(reading.text, "900 CO₂")
         XCTAssertFalse(reading.outOfRange)
     }
 
@@ -264,7 +264,7 @@ final class DirigeraDeviceEnvReadingsTests: XCTestCase {
 
     func testEnvReadings_pm25_inRange() {
         let reading = sensor(pm25: 10.0).envReadings[0]
-        XCTAssertEqual(reading.text, "10 µg/m³ PM2.5")
+        XCTAssertEqual(reading.text, "10 PM2.5")
         XCTAssertFalse(reading.outOfRange)
     }
 
