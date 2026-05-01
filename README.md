@@ -103,6 +103,10 @@ git tag v1.2.0 && git push --tags
 
 Everything stays on your local network. The app communicates only with your Dirigera hub over HTTPS/WebSocket. No data leaves your home. The access token is stored in the macOS Keychain.
 
+## Acknowledgements
+
+This was made possible by [Leggin's Python dirigera lib which has e.g. some auth code](https://github.com/Leggin/dirigera/blob/main/src/dirigera/hub/auth.py) and [lpgera's TypeScript dirigera lib where I e.g. found the public key](https://github.com/lpgera/dirigera/blob/main/src/certificate.ts) and other efforts made by the community.
+
 ## Disclaimer
 
 This application is an independent, unofficial project and is in no way affiliated with, endorsed by, sponsored by, or associated with IKEA Systems B.V., Inter IKEA Systems B.V., or any of their subsidiaries or affiliates. All IKEA trademarks, product names, and brand identifiers are the property of their respective owners.
