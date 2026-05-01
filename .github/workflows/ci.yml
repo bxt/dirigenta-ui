@@ -28,6 +28,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty
 
+      - name: Unlock keychain for tests
+        run: |
+          # Allow unsigned test binaries to access the login Keychain without
+          # prompting (headless CI runners block interactive auth dialogs).
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
+          security set-keychain-settings -t 3600 ~/Library/Keychains/login.keychain-db
+
       - name: Test
         run: |
           set -o pipefail
@@ -36,6 +43,7 @@ jobs:
             -scheme dirigenta-ui \
             -destination 'platform=macOS' \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
+            -parallel-testing-enabled NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \

@@ -14,6 +14,20 @@ final class KeychainServiceTests: XCTestCase {
     // Use a test-only key so we never touch the real app credential.
     private let key = "dirigenta.test.\(UUID().uuidString)"
 
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        // Skip the entire class if the Keychain is inaccessible (e.g. a headless
+        // CI environment where the login Keychain is locked and interactive auth
+        // dialogs are blocked). The CI workflow unlocks the Keychain before this
+        // step; this guard is a safety net for other environments.
+        do {
+            try KeychainService.set("canary", for: key)
+            try KeychainService.delete(key)
+        } catch {
+            throw XCTSkip("Keychain not accessible: \(error)")
+        }
+    }
+
     override func tearDown() {
         try? KeychainService.delete(key)
         super.tearDown()
@@ -94,8 +108,14 @@ final class AppStateKeychainInitTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        // Snapshot whatever is in Keychain so we can restore it after the test.
-        // In CI there is nothing there; locally the developer might have a real token.
+        // Skip if the Keychain is inaccessible (locked/headless environment).
+        do {
+            let canaryKey = "dirigenta.test.canary"
+            try KeychainService.set("canary", for: canaryKey)
+            try KeychainService.delete(canaryKey)
+        } catch {
+            throw XCTSkip("Keychain not accessible: \(error)")
+        }
         try? KeychainService.delete(keychainKey)
     }
 
