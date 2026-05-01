@@ -19,7 +19,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Strip the leading 'v' from the tag so MARKETING_VERSION is "1.2.0".
       - name: Derive version from tag
