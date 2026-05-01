@@ -13,4 +13,5 @@ extension Logger {
     nonisolated static let mdns = Logger(subsystem: subsystem, category: "mdns")
     nonisolated static let keychain = Logger(subsystem: subsystem, category: "keychain")
     nonisolated static let statusBar = Logger(subsystem: subsystem, category: "statusbar")
+    nonisolated static let notifications = Logger(subsystem: subsystem, category: "notifications")
 }

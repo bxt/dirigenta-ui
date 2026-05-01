@@ -67,6 +67,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Infrastructure
 
+    let windowNotifier = WindowNotifier()
     let mdns = MDNSResolver()
     private var cancellables: Set<AnyCancellable> = []
 
@@ -212,6 +213,7 @@ final class AppState: ObservableObject {
                 "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)"
             )
             syncPinnedState()
+            windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
         } catch {
             devicesError = "Hub unreachable"
             Logger.api.error(
@@ -230,10 +232,12 @@ final class AppState: ObservableObject {
             syncPinnedState()
         } else if let i = sensors.firstIndex(where: { $0.id == id }) {
             sensors[i].merge(data)
+            windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
         } else {
             let primaryId = envSensorIdMap[id] ?? id
             if let i = envSensors.firstIndex(where: { $0.id == primaryId }) {
                 envSensors[i].merge(data)
+                windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
             }
         }
     }
@@ -350,8 +354,9 @@ final class AppState: ObservableObject {
                 type: "sensor",
                 deviceType: "openCloseSensor",
                 room: Room(id: "r1", name: "Living Room"),
+                customIcon: "placement_window",
                 attributes: .init(
-                    customName: "Window",
+                    customName: "Living Room Window",
                     isOpen: true,
                     batteryPercentage: 20
                 )
@@ -361,8 +366,9 @@ final class AppState: ObservableObject {
                 type: "sensor",
                 deviceType: "openCloseSensor",
                 room: Room(id: "r2", name: "Kitchen"),
+                customIcon: "placement_window",
                 attributes: .init(
-                    customName: "Window",
+                    customName: "Kitchen Window",
                     isOpen: false,
                     batteryPercentage: 85
                 )

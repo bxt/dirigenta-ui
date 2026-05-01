@@ -102,9 +102,9 @@ struct OpenCloseSensorRow: View {
                 )
             }
         } icon: {
-            Image(
-                systemName: sensor.isOpen
-                    ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill"
+            Image(systemName: sensor.isWindowSensor
+                ? (sensor.isOpen ? "window.vertical.open" : "window.vertical.closed")
+                : (sensor.isOpen ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill")
             )
             .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
         }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 extension Notification.Name {
     /// Distributed notification posted by `--notify` invocations to trigger a light flash.
@@ -43,6 +44,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         appState.mdns.start()
         _ = statusBarController  // trigger lazy init
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         // Listen for notifications from --notify invocations.
         DistributedNotificationCenter.default().addObserver(

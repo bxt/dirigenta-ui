@@ -106,6 +106,7 @@ nonisolated extension DirigeraDevice {
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
     var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
     var isGenericSwitch: Bool { type == "controller" && deviceType == "genericSwitch" }
+    var isWindowSensor: Bool { customIcon == "placement_window" }
 
     /// True if the light supports a white-spectrum (colour-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }
