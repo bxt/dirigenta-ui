@@ -22,12 +22,17 @@ struct DirigentaApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private let appState = AppState()
-    // lazy so it can reference appState and defer NSStatusBar access until
-    // applicationDidFinishLaunching, when the app environment is fully ready.
+    // Tests run inside this app as the test host. Without this guard the
+    // stored-property default would build a real AppState (hitting Keychain)
+    // and applicationDidFinishLaunching would spin up NWBrowser /
+    // NWPathMonitor — both crash an unsigned CI binary.
+    private static let isRunningTests = NSClassFromString("XCTestCase") != nil
+
+    private lazy var appState = AppState()
     private lazy var statusBarController = StatusBarController(appState: appState)
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningTests else { return }
         // When invoked with --notify, post the distributed notification to the
         // already-running instance and exit — no UI needed.
         guard !CommandLine.arguments.contains("--notify") else {
@@ -41,6 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningTests else { return }
         NSApp.setActivationPolicy(.accessory)
         appState.mdns.start()
         _ = statusBarController  // trigger lazy init
