@@ -2,24 +2,154 @@ import XCTest
 
 @testable import dirigenta_ui
 
-// MARK: - #12  HubCredentials Keychain round-trip
+// MARK: - #12  HubCredentials storage round-trip
+//
+// Most coverage runs against an in-memory CredentialStore so we don't depend
+// on the real Keychain (which fails on unsigned CI binaries due to ACL bound
+// to code-signing identity). One integration class still hits the real
+// Keychain — it's skipped on CI and runs locally to verify the wrapper.
 
-// Tests exercise KeychainService directly (the storage layer) and verify that
-// AppState correctly reads credentials back from Keychain on init.
+// MARK: - In-memory store CRUD
 
-// MARK: - KeychainService CRUD tests
+final class CredentialStoreTests: XCTestCase {
 
-final class KeychainServiceTests: XCTestCase {
+    private var store: InMemoryCredentialStore!
+    private let key = "dirigenta.test.key"
 
-    // Use a test-only key so we never touch the real app credential.
+    override func setUp() {
+        super.setUp()
+        store = InMemoryCredentialStore()
+    }
+
+    func testSet_thenGet_returnsOriginalValue() throws {
+        try store.set("hello-store", for: key)
+        let retrieved = try XCTUnwrap(store.get(key))
+        XCTAssertEqual(retrieved, "hello-store")
+    }
+
+    func testGet_missingKey_returnsNil() throws {
+        XCTAssertNil(try store.get(key))
+    }
+
+    func testSet_updatesExistingValue() throws {
+        try store.set("first", for: key)
+        try store.set("second", for: key)
+        XCTAssertEqual(try store.get(key), "second")
+    }
+
+    func testDelete_removesValue() throws {
+        try store.set("to-be-deleted", for: key)
+        try store.delete(key)
+        XCTAssertNil(try store.get(key))
+    }
+
+    func testDelete_missingKey_doesNotThrow() {
+        XCTAssertNoThrow(try store.delete(key))
+    }
+
+    func testSet_preservesUTF8SpecialCharacters() throws {
+        let value = "tøken-123 🔑 <&>"
+        try store.set(value, for: key)
+        XCTAssertEqual(try store.get(key), value)
+    }
+
+    // MARK: JSON credential blob round-trip (HubCredentials format)
+
+    func testRoundTrip_credentialJSON_tokenOnly() throws {
+        let json = #"{"accessToken":"my-bearer-token"}"#
+        try store.set(json, for: key)
+        let raw = try XCTUnwrap(store.get(key))
+        let dict = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
+        )
+        XCTAssertEqual(dict["accessToken"], "my-bearer-token")
+        XCTAssertNil(dict["hubFingerprint"])
+    }
+
+    func testRoundTrip_credentialJSON_withFingerprint() throws {
+        let fp = Data(repeating: 0xAB, count: 32).base64EncodedString()
+        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
+        try store.set(json, for: key)
+        let raw = try XCTUnwrap(store.get(key))
+        let dict = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
+        )
+        XCTAssertEqual(dict["accessToken"], "tok")
+        XCTAssertEqual(dict["hubFingerprint"], fp)
+    }
+}
+
+// MARK: - AppState reads CredentialStore on init
+
+@MainActor
+final class AppStateCredentialInitTests: XCTestCase {
+
+    private let key = "dirigeraHub"
+    private var store: InMemoryCredentialStore!
+
+    override func setUp() {
+        super.setUp()
+        store = InMemoryCredentialStore()
+    }
+
+    private func makeState() -> AppState {
+        AppState(
+            credentialStore: store,
+            mdns: MDNSResolver(networkingEnabled: false)
+        )
+    }
+
+    func testInit_readsAccessTokenFromStore() throws {
+        let json = #"{"accessToken":"keychain-token-123"}"#
+        try store.set(json, for: key)
+
+        let state = makeState()
+        XCTAssertEqual(state.accessToken, "keychain-token-123")
+    }
+
+    func testInit_readsFingerprintFromStore() throws {
+        let fingerprint = Data(repeating: 0xBC, count: 32)
+        let fp = fingerprint.base64EncodedString()
+        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
+        try store.set(json, for: key)
+
+        let state = makeState()
+        XCTAssertEqual(state.hubCertFingerprint, fingerprint)
+    }
+
+    func testInit_emptyToken_whenStoreEmpty() {
+        let state = makeState()
+        XCTAssertEqual(state.accessToken, "")
+        XCTAssertNil(state.hubCertFingerprint)
+    }
+
+    func testInit_gracefullyHandlesMalformedJSON() throws {
+        try store.set("not-valid-json", for: key)
+        let state = makeState()
+        XCTAssertEqual(state.accessToken, "")
+    }
+}
+
+// MARK: - Real Keychain integration (local-only)
+//
+// Verifies the KeychainService wrapper actually talks to SecItem* correctly.
+// Skipped on CI because:
+//  • CI builds with CODE_SIGNING_ALLOWED=NO → no stable code-signing identity
+//  • Keychain item ACLs are bound to that identity → reads/updates/deletes
+//    against an item the unsigned binary itself created can return
+//    errSecAuthFailed or trigger a UI prompt that hangs the runner.
+
+final class KeychainServiceIntegrationTests: XCTestCase {
+
     private let key = "dirigenta.test.\(UUID().uuidString)"
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        // Skip the entire class if the Keychain is inaccessible (e.g. a headless
-        // CI environment where the login Keychain is locked and interactive auth
-        // dialogs are blocked). The CI workflow unlocks the Keychain before this
-        // step; this guard is a safety net for other environments.
+        try XCTSkipIf(
+            ProcessInfo.processInfo.environment["CI"] != nil,
+            "Skipped on CI: real Keychain access is unreliable for unsigned binaries"
+        )
+        // Best-effort canary so we still skip if the local Keychain is locked.
         do {
             try KeychainService.set("canary", for: key)
             try KeychainService.delete(key)
@@ -33,130 +163,18 @@ final class KeychainServiceTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: Basic round-trip
-
-    func testSet_thenGet_returnsOriginalValue() throws {
+    func testRealKeychain_setGetDelete_roundTrip() throws {
         try KeychainService.set("hello-keychain", for: key)
-        let retrieved = try XCTUnwrap(KeychainService.get(key))
-        XCTAssertEqual(retrieved, "hello-keychain")
-    }
+        XCTAssertEqual(try KeychainService.get(key), "hello-keychain")
 
-    func testGet_missingKey_returnsNil() throws {
-        let result = try KeychainService.get(key)
-        XCTAssertNil(result)
-    }
+        try KeychainService.set("updated", for: key)
+        XCTAssertEqual(try KeychainService.get(key), "updated")
 
-    func testSet_updatesExistingValue() throws {
-        try KeychainService.set("first", for: key)
-        try KeychainService.set("second", for: key)
-        let result = try XCTUnwrap(KeychainService.get(key))
-        XCTAssertEqual(result, "second")
-    }
-
-    func testDelete_removesValue() throws {
-        try KeychainService.set("to-be-deleted", for: key)
         try KeychainService.delete(key)
-        let result = try KeychainService.get(key)
-        XCTAssertNil(result)
+        XCTAssertNil(try KeychainService.get(key))
     }
 
-    func testDelete_missingKey_doesNotThrow() {
-        // Deleting a key that doesn't exist must be silent (errSecItemNotFound handled).
+    func testRealKeychain_deleteMissingKey_doesNotThrow() {
         XCTAssertNoThrow(try KeychainService.delete(key))
-    }
-
-    func testSet_preservesUTF8SpecialCharacters() throws {
-        let value = "tøken-123 🔑 <&>"
-        try KeychainService.set(value, for: key)
-        let retrieved = try XCTUnwrap(KeychainService.get(key))
-        XCTAssertEqual(retrieved, value)
-    }
-
-    // MARK: JSON credential blob round-trip (HubCredentials format)
-
-    func testRoundTrip_credentialJSON_tokenOnly() throws {
-        // Replicate what AppState.saveCredentials encodes (without the private type).
-        let json = #"{"accessToken":"my-bearer-token"}"#
-        try KeychainService.set(json, for: key)
-        let raw = try XCTUnwrap(KeychainService.get(key))
-        let dict = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
-        )
-        XCTAssertEqual(dict["accessToken"], "my-bearer-token")
-        XCTAssertNil(dict["hubFingerprint"])
-    }
-
-    func testRoundTrip_credentialJSON_withFingerprint() throws {
-        let fp = Data(repeating: 0xAB, count: 32).base64EncodedString()
-        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
-        try KeychainService.set(json, for: key)
-        let raw = try XCTUnwrap(KeychainService.get(key))
-        let dict = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
-        )
-        XCTAssertEqual(dict["accessToken"], "tok")
-        XCTAssertEqual(dict["hubFingerprint"], fp)
-    }
-}
-
-// MARK: - AppState reads Keychain on init
-
-@MainActor
-final class AppStateKeychainInitTests: XCTestCase {
-
-    private let keychainKey = "dirigeraHub"
-
-    override func setUp() async throws {
-        try await super.setUp()
-        // Skip if the Keychain is inaccessible (locked/headless environment).
-        do {
-            let canaryKey = "dirigenta.test.canary"
-            try KeychainService.set("canary", for: canaryKey)
-            try KeychainService.delete(canaryKey)
-        } catch {
-            throw XCTSkip("Keychain not accessible: \(error)")
-        }
-        try? KeychainService.delete(keychainKey)
-    }
-
-    override func tearDown() {
-        try? KeychainService.delete(keychainKey)
-        super.tearDown()
-    }
-
-    func testInit_readsAccessTokenFromKeychain() throws {
-        // Store a credential blob the same way AppState.saveCredentials would.
-        let json = #"{"accessToken":"keychain-token-123"}"#
-        try KeychainService.set(json, for: keychainKey)
-
-        let state = AppState()
-        XCTAssertEqual(state.accessToken, "keychain-token-123")
-    }
-
-    func testInit_readsFingerprintFromKeychain() throws {
-        let fingerprint = Data(repeating: 0xBC, count: 32)
-        let fp = fingerprint.base64EncodedString()
-        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
-        try KeychainService.set(json, for: keychainKey)
-
-        let state = AppState()
-        XCTAssertEqual(state.hubCertFingerprint, fingerprint)
-    }
-
-    func testInit_emptyToken_whenKeychainEmpty() {
-        // Delete the key right before constructing AppState in case another
-        // test class (e.g. AppStateMakeClientTests) wrote to it concurrently.
-        try? KeychainService.delete(keychainKey)
-        // No Keychain entry → accessToken must be ""
-        let state = AppState()
-        XCTAssertEqual(state.accessToken, "")
-        XCTAssertNil(state.hubCertFingerprint)
-    }
-
-    func testInit_gracefullyHandlesMalformedJSON() throws {
-        // Corrupt Keychain entry → falls back to empty token (no crash)
-        try KeychainService.set("not-valid-json", for: keychainKey)
-        let state = AppState()
-        XCTAssertEqual(state.accessToken, "")
     }
 }

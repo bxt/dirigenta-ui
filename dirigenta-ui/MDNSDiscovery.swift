@@ -13,11 +13,22 @@ final class MDNSResolver: ObservableObject {
     private var pathMonitor: NWPathMonitor?
     private var retryTask: Task<Void, Never>?
     private var hasStarted = false
+    private let networkingEnabled: Bool
+
+    /// - Parameter networkingEnabled: When `false`, `start()` only flips the
+    ///   state machine (`isResolving`, `hasStarted`) without instantiating
+    ///   `NWBrowser` / `NWPathMonitor`. Used in tests so an unsigned CI binary
+    ///   never touches the Network framework (which can crash without the
+    ///   right entitlements).
+    init(networkingEnabled: Bool = true) {
+        self.networkingEnabled = networkingEnabled
+    }
 
     func start() {
         guard !hasStarted else { return }
         hasStarted = true
         isResolving = true
+        guard networkingEnabled else { return }
         startPathMonitor()
     }
 

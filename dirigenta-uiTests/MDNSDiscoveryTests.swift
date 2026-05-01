@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class MDNSDiscoveryTests: XCTestCase {
 
-    // MARK: - Unit tests for IP address formatting (no network required)
+    // MARK: - IP address formatting (pure)
 
     func testIPv4StringRepresentation() {
         let addr = IPv4Address("192.168.1.100")!
@@ -33,8 +33,15 @@ final class MDNSDiscoveryTests: XCTestCase {
         )
     }
 
+    // MARK: - State machine (no real networking)
+
+    // Tests below use `networkingEnabled: false` so we exercise the start/stop
+    // contract without instantiating NWBrowser / NWPathMonitor — those require
+    // entitlements and a stable code-signing identity that an unsigned CI test
+    // binary doesn't have.
+
     func testStartSetsIsResolving() {
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         XCTAssertFalse(resolver.isResolving)
         resolver.start()
         XCTAssertTrue(resolver.isResolving)
@@ -42,7 +49,7 @@ final class MDNSDiscoveryTests: XCTestCase {
     }
 
     func testStartIsIdempotent() {
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         resolver.start()
         resolver.start()  // second call should be a no-op
         XCTAssertTrue(resolver.isResolving)
@@ -50,16 +57,20 @@ final class MDNSDiscoveryTests: XCTestCase {
     }
 
     func testStopClearsState() {
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         resolver.start()
         resolver.stop()
         XCTAssertFalse(resolver.isResolving)
     }
 
-    // MARK: - Integration test: requires a Dirigera hub on the local network.
-    // Run this test manually to verify mDNS discovery works end-to-end.
-    // It will fail in CI or environments without a hub — that is expected.
+    // MARK: - Integration: requires a Dirigera hub on the local network.
+    // Skipped on CI; run manually with the hub powered on.
     func testDiscoverHubOnLocalNetwork() async throws {
+        try XCTSkipIf(
+            ProcessInfo.processInfo.environment["CI"] != nil,
+            "Skipped on CI: requires a Dirigera hub on the local network and Network framework entitlements"
+        )
+
         let resolver = MDNSResolver()
         resolver.start()
         defer { resolver.stop() }

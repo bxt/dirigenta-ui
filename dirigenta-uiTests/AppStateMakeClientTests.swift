@@ -11,16 +11,14 @@ final class AppStateMakeClientTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Use preview() because it provides a non-empty accessToken.
-        // NOTE: Since isPreview is false in the test runner, accessToken's didSet
-        // calls saveCredentials() and writes to Keychain. We clean up in tearDown.
-        state = AppState.preview()
-    }
-
-    override func tearDown() {
-        // Clean up any Keychain entries written by accessToken's didSet (saveCredentials).
-        try? KeychainService.delete("dirigeraHub")
-        super.tearDown()
+        // Inject in-memory credential store and a network-disabled MDNS so
+        // mutating accessToken doesn't write to the real Keychain and starting
+        // the resolver doesn't touch NWBrowser.
+        state = AppState(
+            credentialStore: InMemoryCredentialStore(),
+            mdns: MDNSResolver(networkingEnabled: false)
+        )
+        state.accessToken = "test-token"
     }
 
     // MARK: Identity / caching
@@ -60,7 +58,6 @@ final class AppStateMakeClientTests: XCTestCase {
         state.accessToken = "token-A"
         let c1 = state.makeClient(ip: "10.0.0.1")
 
-        // Evict the cache so we get a fresh client with the new token
         state.accessToken = "token-B"
         // accessToken's didSet evicts the cache, so next call creates a new client
         let c2 = state.makeClient(ip: "10.0.0.1")

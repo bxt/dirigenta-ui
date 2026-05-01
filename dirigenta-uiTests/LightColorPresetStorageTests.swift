@@ -102,9 +102,12 @@ final class LightColorPresetStorageTests: XCTestCase {
 @MainActor
 final class MDNSResolverStopGuardTests: XCTestCase {
 
+    // All resolvers below use networkingEnabled: false so the tests don't
+    // touch NWBrowser / NWPathMonitor — see MDNSDiscoveryTests for the why.
+
     func testStopThenStart_allowsSecondStart() {
         // After stop(), hasStarted is reset so start() runs again
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         resolver.start()
         XCTAssertTrue(resolver.isResolving)
         resolver.stop()
@@ -116,14 +119,14 @@ final class MDNSResolverStopGuardTests: XCTestCase {
 
     func testStop_withoutStart_doesNotCrash() {
         // stop() on a fresh resolver must be harmless
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         resolver.stop()  // should not crash or assert
         XCTAssertFalse(resolver.isResolving)
     }
 
     func testStop_isIdempotent() {
         // Calling stop() twice in a row must be harmless
-        let resolver = MDNSResolver()
+        let resolver = MDNSResolver(networkingEnabled: false)
         resolver.start()
         resolver.stop()
         resolver.stop()  // second stop — should not crash

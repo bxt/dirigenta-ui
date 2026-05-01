@@ -24,7 +24,7 @@ final class AppState: ObservableObject {
             guard !Self.isPreview, accessToken != oldValue else { return }
             if accessToken.isEmpty {
                 evictCachedClient()
-                try? KeychainService.delete("dirigeraHub")
+                try? credentialStore.delete("dirigeraHub")
                 hubCertFingerprint = nil
                 clearDevices()
             } else {
@@ -68,7 +68,8 @@ final class AppState: ObservableObject {
     // MARK: - Infrastructure
 
     let windowNotifier = WindowNotifier()
-    let mdns = MDNSResolver()
+    let mdns: MDNSResolver
+    private let credentialStore: CredentialStore
     private var cancellables: Set<AnyCancellable> = []
 
     // Cached client — reused across all requests as long as IP and token are stable.
@@ -77,13 +78,20 @@ final class AppState: ObservableObject {
 
     // MARK: - Init
 
-    init() {
+    init(
+        credentialStore: CredentialStore? = nil,
+        mdns: MDNSResolver? = nil
+    ) {
+        // Defaults can't appear as default-arg expressions because they need
+        // to run in the @MainActor context this init runs in; build them here.
+        self.credentialStore = credentialStore ?? KeychainCredentialStore()
+        self.mdns = mdns ?? MDNSResolver()
         if Self.isPreview {
             accessToken = ""
             pinnedLightId = nil
         } else {
             // Read token and hub fingerprint from the combined key (one Keychain prompt).
-            if let raw = try? KeychainService.get("dirigeraHub"),
+            if let raw = try? self.credentialStore.get("dirigeraHub"),
                 let data = raw.data(using: .utf8),
                 let creds = try? JSONDecoder().decode(
                     HubCredentials.self,
@@ -101,7 +109,7 @@ final class AppState: ObservableObject {
                 forKey: "pinnedLightId"
             )
             // Auto-fetch whenever mDNS resolves a new IP and we have a token.
-            mdns.$currentIPAddress
+            self.mdns.$currentIPAddress
                 .compactMap { $0 }
                 .removeDuplicates()
                 .sink { [weak self] ip in
@@ -287,7 +295,7 @@ final class AppState: ObservableObject {
         guard let data = try? JSONEncoder().encode(creds),
             let str = String(data: data, encoding: .utf8)
         else { return }
-        try? KeychainService.set(str, for: "dirigeraHub")
+        try? credentialStore.set(str, for: "dirigeraHub")
     }
 
     private func clearDevices() {
@@ -307,7 +315,13 @@ final class AppState: ObservableObject {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 
     static func preview() -> AppState {
-        let state = AppState()
+        // Use in-memory credentials and a network-disabled mDNS resolver so
+        // SwiftUI previews and unit tests never touch the real Keychain or
+        // start a real Bonjour browser.
+        let state = AppState(
+            credentialStore: InMemoryCredentialStore(),
+            mdns: MDNSResolver(networkingEnabled: false)
+        )
         state.gatewayName = "My Smart Home"
         state.accessToken = "preview-token"
         state.lights = [
