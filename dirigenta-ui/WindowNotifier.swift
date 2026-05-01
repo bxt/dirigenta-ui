@@ -65,11 +65,14 @@ final class WindowNotifier {
             }
         }
 
-        // Track newly opened windows; schedule fallback for those without an env sensor
+        // Track newly opened windows; schedule fallback for those without an env sensor.
+        // Prefer the sensor's lastSeen timestamp so a window already open at app start
+        // is treated as having been open since then, not since launch.
         for window in openWindows where openedAt[window.id] == nil {
-            openedAt[window.id] = now
+            let openTime = window.lastSeenDate.map { min($0, now) } ?? now
+            openedAt[window.id] = openTime
             if !hasEnvSensor(for: window, in: envSensors) {
-                scheduleNoSensorNotification(for: window)
+                scheduleNoSensorNotification(for: window, openedAt: openTime, now: now)
             }
         }
 
@@ -158,12 +161,15 @@ final class WindowNotifier {
         })
     }
 
-    private func scheduleNoSensorNotification(for window: DirigeraDevice) {
+    private func scheduleNoSensorNotification(for window: DirigeraDevice, openedAt: Date, now: Date) {
+        let remaining = noSensorDelay - now.timeIntervalSince(openedAt)
         let content = UNMutableNotificationContent()
         content.title = "Close window?"
         content.body = "\(window.displayName) has been open for 15 minutes"
         content.sound = .default
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: noSensorDelay, repeats: false)
+        let trigger: UNNotificationTrigger? = remaining > 0
+            ? UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
+            : nil
         schedule(UNNotificationRequest(identifier: window.id, content: content, trigger: trigger))
         notified.insert(window.id)
         Logger.notifications.info(

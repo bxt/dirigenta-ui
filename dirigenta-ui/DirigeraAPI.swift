@@ -319,11 +319,13 @@ nonisolated extension DirigeraDevice {
         return f
     }()
 
-    func openSeconds(now: Date) -> Int? {
+    var lastSeenDate: Date? {
         guard let raw = lastSeen else { return nil }
-        let date =
-            Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
-        guard let date else { return nil }
+        return Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
+    }
+
+    func openSeconds(now: Date) -> Int? {
+        guard let date = lastSeenDate else { return nil }
         let s = Int(now.timeIntervalSince(date))
         return s > 0 ? s : nil
     }
