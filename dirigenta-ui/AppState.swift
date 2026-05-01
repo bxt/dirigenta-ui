@@ -388,7 +388,7 @@ final class AppState: ObservableObject {
                 attributes: .init(
                     customName: "Living Room Remote",
                     batteryPercentage: 88,
-                    switchGroups: ["1", "2", "3", "4"]
+                    switchGroups: [1, 2, 3, 4]
                 )
             ),
         ]

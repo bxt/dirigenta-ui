@@ -35,9 +35,9 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
         var colorMode: String? = nil // "color" | "temperature"
-        var switchGroup: String? = nil
+        var switchGroup: Int? = nil
         /// Populated by mergeGenericSwitches; not present in JSON (optional → decodeIfPresent → nil).
-        var switchGroups: [String]? = nil
+        var switchGroups: [Int]? = nil
 
         /// Overwrites each field with the corresponding non-nil value from `other`.
         /// Add new fields here whenever Attributes gains a new property.

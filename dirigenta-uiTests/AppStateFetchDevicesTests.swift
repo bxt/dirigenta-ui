@@ -31,7 +31,7 @@ private func device(
     deviceType: String? = nil,
     relationId: String? = nil,
     name: String = "Device",
-    switchGroup: String? = nil
+    switchGroup: Int? = nil
 ) -> DirigeraDevice {
     var attrs = DirigeraDevice.Attributes()
     attrs.customName = name
@@ -165,9 +165,9 @@ final class AppStateFetchDevicesTests: XCTestCase {
     func testFetchDevices_mergesGenericSwitchesByRelationId() async {
         client.devicesToReturn = [
             device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "1"),
+                   relationId: "rel-sw", switchGroup: 1),
             device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "2"),
+                   relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertEqual(state.otherDevices.count, 1)
@@ -176,19 +176,19 @@ final class AppStateFetchDevicesTests: XCTestCase {
     func testFetchDevices_mergedSwitch_collectsSwitchGroups() async {
         client.devicesToReturn = [
             device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "1"),
+                   relationId: "rel-sw", switchGroup: 1),
             device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "2"),
+                   relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
         let groups = state.otherDevices.first?.attributes.switchGroups ?? []
-        XCTAssertEqual(groups.sorted(), ["1", "2"])
+        XCTAssertEqual(groups.sorted(), [1, 2])
     }
 
     func testFetchDevices_doesNotPutGenericSwitchesInLightsOrSensors() async {
         client.devicesToReturn = [
             device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "1"),
+                   relationId: "rel-sw", switchGroup: 1),
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertTrue(state.lights.isEmpty)
@@ -205,9 +205,9 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "env1", type: "sensor", deviceType: "environmentSensor"),
             device(id: "gw1", type: "gateway", name: "Hub"),
             device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "1"),
+                   relationId: "rel-sw", switchGroup: 1),
             device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: "2"),
+                   relationId: "rel-sw", switchGroup: 2),
             device(id: "other1", type: "blinds"),
         ]
         await state.fetchDevices(ip: "x", client: client)
