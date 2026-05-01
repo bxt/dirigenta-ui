@@ -82,15 +82,17 @@ final class AppState: ObservableObject {
         credentialStore: CredentialStore? = nil,
         mdns: MDNSResolver? = nil
     ) {
-        // When both dependencies are supplied the caller owns the environment
-        // (tests / previews) — skip system subscriptions (NSWorkspace, UserDefaults)
-        // that can crash on a headless CI runner.
-        let injected = credentialStore != nil && mdns != nil
-
         // Defaults can't appear as default-arg expressions because they need
         // to run in the @MainActor context this init runs in; build them here.
         self.credentialStore = credentialStore ?? KeychainCredentialStore()
         self.mdns = mdns ?? MDNSResolver()
+
+        // When both dependencies are supplied the caller owns the environment
+        // (tests / previews). Read stored credentials so init-behaviour tests
+        // work, but skip every system subscription (Combine, NSWorkspace,
+        // UserDefaults) — those can crash on a headless CI runner.
+        let injected = credentialStore != nil && mdns != nil
+
         if Self.isPreview {
             accessToken = ""
             pinnedLightId = nil
@@ -113,30 +115,28 @@ final class AppState: ObservableObject {
             pinnedLightId = injected
                 ? nil
                 : UserDefaults.standard.string(forKey: "pinnedLightId")
-            // Auto-fetch whenever mDNS resolves a new IP and we have a token.
-            self.mdns.$currentIPAddress
-                .compactMap { $0 }
-                .removeDuplicates()
-                .sink { [weak self] ip in
-                    Task { @MainActor [weak self] in
-                        guard let self, !self.accessToken.isEmpty else { return }
-                        await self.fetchDevices(ip: ip)
-                    }
-                }
-                .store(in: &cancellables)
-            if !injected {
-                // Recover from system sleep: TCP sockets often hang silently
-                // across sleep/wake, mDNS state may be stale, and the WS retry
-                // budget may already be exhausted. Force a clean refresh +
-                // reconnect on wake.
-                NSWorkspace.shared.notificationCenter
-                    .publisher(for: NSWorkspace.didWakeNotification)
-                    .sink { [weak self] _ in
-                        Task { @MainActor [weak self] in self?.handleWake() }
-                    }
-                    .store(in: &cancellables)
-            }
         }
+        guard !Self.isPreview, !injected else { return }
+        // Auto-fetch whenever mDNS resolves a new IP and we have a token.
+        self.mdns.$currentIPAddress
+            .compactMap { $0 }
+            .removeDuplicates()
+            .sink { [weak self] ip in
+                Task { @MainActor [weak self] in
+                    guard let self, !self.accessToken.isEmpty else { return }
+                    await self.fetchDevices(ip: ip)
+                }
+            }
+            .store(in: &cancellables)
+        // Recover from system sleep: TCP sockets often hang silently across
+        // sleep/wake, mDNS state may be stale, and the WS retry budget may
+        // already be exhausted. Force a clean refresh + reconnect on wake.
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didWakeNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.handleWake() }
+            }
+            .store(in: &cancellables)
     }
 
     private func handleWake() {
