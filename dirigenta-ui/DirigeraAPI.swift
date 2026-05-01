@@ -35,6 +35,9 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
         var colorMode: String? = nil // "color" | "temperature"
+        var switchGroup: String? = nil
+        /// Populated by mergeGenericSwitches; not present in JSON (optional → decodeIfPresent → nil).
+        var switchGroups: [String]? = nil
 
         /// Overwrites each field with the corresponding non-nil value from `other`.
         /// Add new fields here whenever Attributes gains a new property.
@@ -56,6 +59,8 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
             if let v = other.colorHue { colorHue = v }
             if let v = other.colorSaturation { colorSaturation = v }
             if let v = other.colorMode { colorMode = v }
+            if let v = other.switchGroup { switchGroup = v }
+            // switchGroups is accumulated by mergeGenericSwitches, not merged field-by-field
         }
     }
 
@@ -100,6 +105,7 @@ nonisolated extension DirigeraDevice {
     var isGateway: Bool { type == "gateway" }
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
     var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
+    var isGenericSwitch: Bool { type == "controller" && deviceType == "genericSwitch" }
 
     /// True if the light supports a white-spectrum (colour-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }
@@ -188,6 +194,47 @@ nonisolated extension DirigeraDevice {
         }
 
         return (result, idMap)
+    }
+
+    /// Merges genericSwitch controller components that share a `relationId` into a single device.
+    /// The merged device's `attributes.switchGroups` lists every component's `switchGroup` value.
+    static func mergeGenericSwitches(_ devices: [DirigeraDevice]) -> [DirigeraDevice] {
+        var byRelation: [String: [DirigeraDevice]] = [:]
+        var result: [DirigeraDevice] = []
+
+        for device in devices {
+            if let rel = device.relationId {
+                byRelation[rel, default: []].append(device)
+            } else {
+                result.append(device)
+            }
+        }
+
+        for (_, group) in byRelation {
+            let sorted = group.sorted { a, _ in
+                a.attributes.customName == a.attributes.model
+            }
+            guard let first = sorted.first else { continue }
+            var mergedAttrs = first.attributes
+            for device in sorted.dropFirst() { mergedAttrs.merge(device.attributes) }
+            mergedAttrs.switchGroups = sorted.compactMap { $0.attributes.switchGroup }
+            let room = sorted.first(where: { $0.room != nil })?.room
+            result.append(
+                DirigeraDevice(
+                    id: first.id,
+                    type: first.type,
+                    deviceType: first.deviceType,
+                    relationId: first.relationId,
+                    isReachable: first.isReachable,
+                    lastSeen: first.lastSeen,
+                    room: room,
+                    customIcon: first.customIcon,
+                    attributes: mergedAttrs
+                )
+            )
+        }
+
+        return result
     }
 
     struct Reading {

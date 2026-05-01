@@ -30,10 +30,12 @@ private func device(
     type: String,
     deviceType: String? = nil,
     relationId: String? = nil,
-    name: String = "Device"
+    name: String = "Device",
+    switchGroup: String? = nil
 ) -> DirigeraDevice {
     var attrs = DirigeraDevice.Attributes()
     attrs.customName = name
+    attrs.switchGroup = switchGroup
     return DirigeraDevice(
         id: id, type: type, deviceType: deviceType,
         relationId: relationId, attributes: attrs
@@ -55,6 +57,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
         state.sensors = []
         state.envSensors = []
         state.envSensorIdMap = [:]
+        state.otherDevices = []
         client = MockFetchClient()
     }
 
@@ -157,6 +160,42 @@ final class AppStateFetchDevicesTests: XCTestCase {
         XCTAssertNil(state.devicesError)
     }
 
+    // MARK: Generic switch merging
+
+    func testFetchDevices_mergesGenericSwitchesByRelationId() async {
+        client.devicesToReturn = [
+            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "1"),
+            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "2"),
+        ]
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertEqual(state.otherDevices.count, 1)
+    }
+
+    func testFetchDevices_mergedSwitch_collectsSwitchGroups() async {
+        client.devicesToReturn = [
+            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "1"),
+            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "2"),
+        ]
+        await state.fetchDevices(ip: "x", client: client)
+        let groups = state.otherDevices.first?.attributes.switchGroups ?? []
+        XCTAssertEqual(groups.sorted(), ["1", "2"])
+    }
+
+    func testFetchDevices_doesNotPutGenericSwitchesInLightsOrSensors() async {
+        client.devicesToReturn = [
+            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "1"),
+        ]
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertTrue(state.lights.isEmpty)
+        XCTAssertTrue(state.sensors.isEmpty)
+        XCTAssertTrue(state.envSensors.isEmpty)
+    }
+
     // MARK: Mixed bag
 
     func testFetchDevices_classifiesAllTypesSimultaneously() async {
@@ -165,11 +204,18 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "s1", type: "sensor", deviceType: "openCloseSensor"),
             device(id: "env1", type: "sensor", deviceType: "environmentSensor"),
             device(id: "gw1", type: "gateway", name: "Hub"),
+            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "1"),
+            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                   relationId: "rel-sw", switchGroup: "2"),
+            device(id: "other1", type: "blinds"),
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertEqual(state.lights.count, 1)
         XCTAssertEqual(state.sensors.count, 1)
         XCTAssertEqual(state.envSensors.count, 1)
         XCTAssertEqual(state.gatewayName, "Hub")
+        // Two genericSwitch components → 1 merged entry + 1 blinds = 2 otherDevices
+        XCTAssertEqual(state.otherDevices.count, 2)
     }
 }

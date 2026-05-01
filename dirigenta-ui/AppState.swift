@@ -197,9 +197,13 @@ final class AppState: ObservableObject {
             )
             envSensors = merged
             envSensorIdMap = idMap
+            let mergedSwitches = DirigeraDevice.mergeGenericSwitches(
+                all.filter { $0.isGenericSwitch }
+            )
             otherDevices = all.filter {
-                !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor && !$0.isEnvironmentSensor
-            }
+                !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
+                    && !$0.isEnvironmentSensor && !$0.isGenericSwitch
+            } + mergedSwitches
             let lc = lights.count
             let sc = sensors.count
             let ec = envSensors.count
@@ -375,6 +379,17 @@ final class AppState: ObservableObject {
                 id: "o2",
                 type: "speaker",
                 attributes: .init(customName: "Kitchen Speaker")
+            ),
+            DirigeraDevice(
+                id: "sw1",
+                type: "controller",
+                deviceType: "genericSwitch",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Living Room Remote",
+                    batteryPercentage: 88,
+                    switchGroups: ["1", "2", "3", "4"]
+                )
             ),
         ]
         state.envSensors = [
