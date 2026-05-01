@@ -120,7 +120,10 @@ struct OtherDeviceRow: View {
         Label {
             VStack(alignment: .leading, spacing: 1) {
                 Text(device.displayName)
-                Text(device.type)
+                Text(device.type + {
+                    guard let deviceType = device.deviceType, !deviceType.isEmpty else { return "" }
+                    return " · " + deviceType
+                }())
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 SensorFooter(
@@ -308,3 +311,4 @@ struct OpenCloseSensorsSectionView: View {
         }
     }
 }
+
