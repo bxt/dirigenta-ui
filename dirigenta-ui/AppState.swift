@@ -82,6 +82,11 @@ final class AppState: ObservableObject {
         credentialStore: CredentialStore? = nil,
         mdns: MDNSResolver? = nil
     ) {
+        // When both dependencies are supplied the caller owns the environment
+        // (tests / previews) — skip system subscriptions (NSWorkspace, UserDefaults)
+        // that can crash on a headless CI runner.
+        let injected = credentialStore != nil && mdns != nil
+
         // Defaults can't appear as default-arg expressions because they need
         // to run in the @MainActor context this init runs in; build them here.
         self.credentialStore = credentialStore ?? KeychainCredentialStore()
@@ -105,9 +110,9 @@ final class AppState: ObservableObject {
             } else {
                 accessToken = ""
             }
-            pinnedLightId = UserDefaults.standard.string(
-                forKey: "pinnedLightId"
-            )
+            pinnedLightId = injected
+                ? nil
+                : UserDefaults.standard.string(forKey: "pinnedLightId")
             // Auto-fetch whenever mDNS resolves a new IP and we have a token.
             self.mdns.$currentIPAddress
                 .compactMap { $0 }
@@ -119,15 +124,18 @@ final class AppState: ObservableObject {
                     }
                 }
                 .store(in: &cancellables)
-            // Recover from system sleep: TCP sockets often hang silently across
-            // sleep/wake, mDNS state may be stale, and the WS retry budget may
-            // already be exhausted. Force a clean refresh + reconnect on wake.
-            NSWorkspace.shared.notificationCenter
-                .publisher(for: NSWorkspace.didWakeNotification)
-                .sink { [weak self] _ in
-                    Task { @MainActor [weak self] in self?.handleWake() }
-                }
-                .store(in: &cancellables)
+            if !injected {
+                // Recover from system sleep: TCP sockets often hang silently
+                // across sleep/wake, mDNS state may be stale, and the WS retry
+                // budget may already be exhausted. Force a clean refresh +
+                // reconnect on wake.
+                NSWorkspace.shared.notificationCenter
+                    .publisher(for: NSWorkspace.didWakeNotification)
+                    .sink { [weak self] _ in
+                        Task { @MainActor [weak self] in self?.handleWake() }
+                    }
+                    .store(in: &cancellables)
+            }
         }
     }
 
