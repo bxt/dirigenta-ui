@@ -9,6 +9,7 @@ struct DevicesView: View {
     @State private var lightsExpanded: Bool = true
     @State private var envExpanded: Bool = true
     @State private var sensorsExpanded: Bool = true
+    @State private var othersExpanded: Bool = true
     @State private var actionError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
@@ -39,6 +40,13 @@ struct DevicesView: View {
                     now: now,
                     isExpanded: $sensorsExpanded,
                     showRoom: true
+                )
+            }
+            if !appState.otherDevices.isEmpty {
+                Divider()
+                OtherDevicesSectionView(
+                    devices: appState.otherDevices,
+                    isExpanded: $othersExpanded
                 )
             }
         }

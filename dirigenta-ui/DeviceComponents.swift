@@ -112,6 +112,30 @@ struct OpenCloseSensorRow: View {
     }
 }
 
+// Individual row for a device of unknown/unhandled type.
+struct OtherDeviceRow: View {
+    let device: DirigeraDevice
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(device.displayName)
+                Text(device.type)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                SensorFooter(
+                    battery: device.attributes.batteryPercentage,
+                    room: device.room?.name
+                )
+            }
+        } icon: {
+            Image(systemName: "cpu")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Section components
 
 // Collapsible lights section with a toggle-all button in the header.
@@ -202,6 +226,36 @@ struct EnvSensorsSectionView: View {
                     EnvReadingsLine(readings: avgReadings, isHeadline: true)
                 }
                 .padding(.leading, 4)
+            }
+        }
+    }
+}
+
+// Collapsible section for devices of unknown/unhandled types.
+// Header shows total count; rows show displayName, deviceType, and SensorFooter.
+// Renders nothing when devices is empty.
+struct OtherDevicesSectionView: View {
+    let devices: [DirigeraDevice]
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        if !devices.isEmpty {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 8) {
+                    ForEach(devices) { device in
+                        OtherDeviceRow(device: device)
+                            .padding(.leading, 4)
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 8)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "cpu")
+                        .foregroundStyle(.primary)
+                    Text("\(devices.count) other device\(devices.count == 1 ? "" : "s")")
+                        .foregroundStyle(.primary)
+                }
             }
         }
     }

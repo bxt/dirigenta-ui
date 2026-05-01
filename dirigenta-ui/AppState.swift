@@ -61,6 +61,7 @@ final class AppState: ObservableObject {
     @Published var sensors: [DirigeraDevice] = []
     @Published var envSensors: [DirigeraDevice] = []
     @Published var envSensorIdMap: [String: String] = [:]
+    @Published var otherDevices: [DirigeraDevice] = []
     @Published var isLoadingDevices: Bool = false
     @Published var devicesError: String? = nil
 
@@ -196,6 +197,9 @@ final class AppState: ObservableObject {
             )
             envSensors = merged
             envSensorIdMap = idMap
+            otherDevices = all.filter {
+                !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor && !$0.isEnvironmentSensor
+            }
             let lc = lights.count
             let sc = sensors.count
             let ec = envSensors.count
@@ -283,6 +287,7 @@ final class AppState: ObservableObject {
         sensors = []
         envSensors = []
         envSensorIdMap = [:]
+        otherDevices = []
         gatewayName = nil
         devicesError = nil
     }
@@ -357,6 +362,19 @@ final class AppState: ObservableObject {
                     isOpen: false,
                     batteryPercentage: 85
                 )
+            ),
+        ]
+        state.otherDevices = [
+            DirigeraDevice(
+                id: "o1",
+                type: "blinds",
+                room: Room(id: "r2", name: "Bedroom"),
+                attributes: .init(customName: "Bedroom Blinds", batteryPercentage: 72)
+            ),
+            DirigeraDevice(
+                id: "o2",
+                type: "speaker",
+                attributes: .init(customName: "Kitchen Speaker")
             ),
         ]
         state.envSensors = [
