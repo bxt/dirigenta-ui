@@ -21,18 +21,17 @@ final class AppState: ObservableObject {
 
     @Published var accessToken: String {
         didSet {
-            guard !Self.isPreview, accessToken != oldValue else { return }
+            guard accessToken != oldValue else { return }
             if accessToken.isEmpty {
                 evictCachedClient()
+                guard !skipSideEffects else { return }
                 try? credentialStore.delete("dirigeraHub")
                 hubCertFingerprint = nil
                 clearDevices()
             } else {
                 evictCachedClient()
+                guard !skipSideEffects else { return }
                 saveCredentials()
-                // The Combine pipeline only fires when the IP changes, so if mDNS
-                // already has a result (hub was found before the token was entered),
-                // kick off a fetch manually.
                 if let ip = mdns.currentIPAddress {
                     Task { await self.fetchDevices(ip: ip) }
                 }
@@ -41,7 +40,7 @@ final class AppState: ObservableObject {
     }
     @Published var pinnedLightId: String? {
         didSet {
-            guard !Self.isPreview else { return }
+            guard !skipSideEffects else { return }
             UserDefaults.standard.set(pinnedLightId, forKey: "pinnedLightId")
         }
     }
@@ -70,6 +69,7 @@ final class AppState: ObservableObject {
     let windowNotifier = WindowNotifier()
     let mdns: MDNSResolver
     private let credentialStore: CredentialStore
+    private let skipSideEffects: Bool
     private var cancellables: Set<AnyCancellable> = []
 
     // Cached client — reused across all requests as long as IP and token are stable.
@@ -89,9 +89,11 @@ final class AppState: ObservableObject {
 
         // When both dependencies are supplied the caller owns the environment
         // (tests / previews). Read stored credentials so init-behaviour tests
-        // work, but skip every system subscription (Combine, NSWorkspace,
-        // UserDefaults) — those can crash on a headless CI runner.
+        // work, but skip every system subscription and didSet side effect
+        // (Combine, NSWorkspace, UserDefaults, Keychain writes) — those can
+        // crash on a headless CI runner.
         let injected = credentialStore != nil && mdns != nil
+        self.skipSideEffects = Self.isPreview || injected
 
         if Self.isPreview {
             accessToken = ""
@@ -282,7 +284,7 @@ final class AppState: ObservableObject {
     /// Storing the fingerprint before the token ensures a single Keychain write
     /// includes both, and that makeClient immediately builds a pinned session.
     func completePairing(token: String, hubFingerprint: Data?) {
-        guard !Self.isPreview else { return }
+        guard !skipSideEffects else { return }
         if let fp = hubFingerprint {
             hubCertFingerprint = fp
         }
@@ -295,7 +297,7 @@ final class AppState: ObservableObject {
     }
 
     private func saveCredentials() {
-        guard !Self.isPreview else { return }
+        guard !skipSideEffects else { return }
         let creds = HubCredentials(
             accessToken: accessToken,
             hubFingerprint: hubCertFingerprint?.base64EncodedString()
