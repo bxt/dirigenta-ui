@@ -22,7 +22,7 @@ final class WindowNotifier {
     // MARK: - Thresholds (var so tests can override)
 
     var minElapsed: TimeInterval = 5 * 60        // wait before "can close" check
-    var noSensorDelay: TimeInterval = 15 * 60    // fallback when no env sensor
+    var noSensorDelay: TimeInterval = 15 * 60    // fallback when no CO2 readings arrive
     var historyWindow: TimeInterval = 10 * 60    // how long to keep readings
     var plateauWindow: TimeInterval = 60         // trend-comparison window
     var plateauThreshold: Double = 10            // ppm change still counted as decreasing
@@ -65,20 +65,20 @@ final class WindowNotifier {
             }
         }
 
-        // Track newly opened windows; schedule fallback for those without an env sensor.
+        // Track newly opened windows and schedule a timed fallback for each.
         // Prefer the sensor's lastSeen timestamp so a window already open at app start
         // is treated as having been open since then, not since launch.
+        // If env-sensor readings arrive before noSensorDelay, evaluate() will post an
+        // earlier immediate notification (same identifier) that replaces the timed one.
         for window in openWindows where openedAt[window.id] == nil {
             let openTime = window.lastSeenDate.map { min($0, now) } ?? now
             openedAt[window.id] = openTime
-            if !hasEnvSensor(for: window, in: envSensors) {
-                scheduleNoSensorNotification(for: window, openedAt: openTime, now: now)
-            }
+            scheduleFallbackNotification(for: window, openedAt: openTime, now: now)
         }
 
-        // Evaluate windows that have an env sensor and haven't been notified yet
+        // Evaluate open windows that haven't been notified yet.
         for window in openWindows where !notified.contains(window.id) {
-            evaluate(window: window, envSensors: envSensors, now: now)
+            evaluate(window: window, now: now)
         }
     }
 
@@ -100,15 +100,14 @@ final class WindowNotifier {
         }
     }
 
-    private func evaluate(window: DirigeraDevice, envSensors: [DirigeraDevice], now: Date) {
-        guard hasEnvSensor(for: window, in: envSensors),
-              let openTime = openedAt[window.id]
-        else { return }
+    private func evaluate(window: DirigeraDevice, now: Date) {
+        guard let openTime = openedAt[window.id] else { return }
 
         let readings = roomReadings(for: window)
-        let latestTemp = readings.last?.temperature
-        let latestHumidity = readings.last?.humidity
-        let latestCO2 = readings.last?.co2
+
+        // Average recent values across all sensors and readings to reduce noise
+        let latestTemp = recentAverage(in: readings, keyPath: \.temperature, now: now)
+        let latestHumidity = recentAverage(in: readings, keyPath: \.humidity, now: now)
 
         // Immediate: temperature falling below threshold
         if let temp = latestTemp, temp < coldThreshold {
@@ -120,7 +119,7 @@ final class WindowNotifier {
 
         // Immediate: humidity high and actively rising
         if let humidity = latestHumidity, humidity > humidityHighThreshold {
-            let olderHumidity = closestReading(in: readings, ago: plateauWindow, now: now)?.humidity
+            let olderHumidity = olderAverage(in: readings, keyPath: \.humidity, now: now)
             if let old = olderHumidity, humidity > old {
                 post(for: window,
                      title: "Close window",
@@ -132,21 +131,22 @@ final class WindowNotifier {
         // Wait for minimum elapsed time before "can close" check
         guard now.timeIntervalSince(openTime) >= minElapsed else { return }
 
-        // CO2-based skip conditions
-        if let co2 = latestCO2 {
-            if co2 > co2HighThreshold { return }
-            let olderCO2 = closestReading(in: readings, ago: plateauWindow, now: now)?.co2
-            if let old = olderCO2, co2 < old - plateauThreshold { return }
-        }
+        // After noSensorDelay the fallback notification has already fired; stop evaluating
+        // to avoid a second notification if a sensor comes back online later.
+        guard now.timeIntervalSince(openTime) < noSensorDelay else { return }
+
+        // Average recent CO2 across all sensors in the room.
+        // If no CO2 readings have arrived (sensor absent, offline, or measures only
+        // temperature/humidity), return and let the timed fallback handle notification.
+        guard let co2 = recentAverage(in: readings, keyPath: \.co2, now: now) else { return }
+
+        if co2 > co2HighThreshold { return }
+        let olderCO2 = olderAverage(in: readings, keyPath: \.co2, now: now)
+        if let old = olderCO2, co2 < old - plateauThreshold { return }
 
         post(for: window,
              title: "Window can be closed",
              body: "Air quality is good — \(window.displayName)")
-    }
-
-    private func hasEnvSensor(for window: DirigeraDevice, in sensors: [DirigeraDevice]) -> Bool {
-        guard let roomId = window.room?.id else { return false }
-        return sensors.contains { $0.room?.id == roomId }
     }
 
     private func roomReadings(for window: DirigeraDevice) -> [EnvReading] {
@@ -154,14 +154,35 @@ final class WindowNotifier {
         return history[roomId] ?? []
     }
 
-    private func closestReading(in readings: [EnvReading], ago seconds: TimeInterval, now: Date) -> EnvReading? {
-        let target = now - seconds
-        return readings.min(by: {
-            abs($0.timestamp.timeIntervalSince(target)) < abs($1.timestamp.timeIntervalSince(target))
-        })
+    /// Average of non-nil values within the last `plateauWindow` seconds (exclusive boundary
+    /// so this window does not overlap with olderAverage).
+    private func recentAverage(
+        in readings: [EnvReading],
+        keyPath: KeyPath<EnvReading, Double?>,
+        now: Date
+    ) -> Double? {
+        let cutoff = now - plateauWindow
+        let values = readings.filter { $0.timestamp > cutoff }.compactMap { $0[keyPath: keyPath] }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
-    private func scheduleNoSensorNotification(for window: DirigeraDevice, openedAt: Date, now: Date) {
+    /// Average of non-nil values centred on `plateauWindow` seconds ago (±50 % tolerance).
+    private func olderAverage(
+        in readings: [EnvReading],
+        keyPath: KeyPath<EnvReading, Double?>,
+        now: Date
+    ) -> Double? {
+        let target = now - plateauWindow
+        let tolerance = plateauWindow / 2
+        let values = readings
+            .filter { abs($0.timestamp.timeIntervalSince(target)) <= tolerance }
+            .compactMap { $0[keyPath: keyPath] }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    private func scheduleFallbackNotification(for window: DirigeraDevice, openedAt: Date, now: Date) {
         let remaining = noSensorDelay - now.timeIntervalSince(openedAt)
         let content = UNMutableNotificationContent()
         content.title = "Close window?"
@@ -171,9 +192,8 @@ final class WindowNotifier {
             ? UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
             : nil
         schedule(UNNotificationRequest(identifier: window.id, content: content, trigger: trigger))
-        notified.insert(window.id)
         Logger.notifications.info(
-            "Scheduled 15-min notification for \(window.id, privacy: .public)"
+            "Scheduled fallback notification for \(window.id, privacy: .public)"
         )
     }
 
