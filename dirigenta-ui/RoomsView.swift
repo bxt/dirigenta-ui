@@ -79,6 +79,14 @@ struct RoomsView: View {
                     .font(.caption)
             }
             .buttonStyle(.plain)
+            .foregroundStyle(
+                pinnedRoomId == room.id
+                    ? Color.accentColor : Color.secondary
+            )
+            .help(
+                pinnedRoomId == room.id
+                    ? "Remove tab for this room" : "Add a tab for this room"
+            )
             .padding(.top, 8)
         }
 
