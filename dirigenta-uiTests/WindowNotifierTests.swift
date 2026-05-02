@@ -8,17 +8,19 @@ import UserNotifications
 private func window(
     id: String,
     roomId: String? = "room1",
+    roomName: String? = "Living Room",
     name: String = "Window",
     isOpen: Bool = true
 ) -> DirigeraDevice {
     var attrs = DirigeraDevice.Attributes()
     attrs.customName = name
     attrs.isOpen = isOpen
+    let room = roomId.flatMap { id in roomName.map { Room(id: id, name: $0) } }
     return DirigeraDevice(
         id: id,
         type: "sensor",
         deviceType: "openCloseSensor",
-        room: roomId.map { Room(id: $0, name: $0) },
+        room: room,
         customIcon: "placement_window",
         attributes: attrs
     )
@@ -94,23 +96,67 @@ final class WindowNotifierTests: XCTestCase {
     func testWindowOpen_alwaysSchedulesFallback() {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [], now: t0)
-        XCTAssertEqual(postedRequests.count, 1)
-        let trigger = postedRequests.first?.trigger as? UNTimeIntervalNotificationTrigger
+        XCTAssertEqual(timedRequests.count, 1)
+        let trigger = timedRequests.first?.trigger as? UNTimeIntervalNotificationTrigger
         XCTAssertEqual(trigger?.timeInterval, 15 * 60)
     }
 
     func testFallback_identifierIsWindowId() {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [], now: t0)
-        XCTAssertEqual(postedRequests.first?.identifier, "w1")
+        XCTAssertEqual(timedRequests.first?.identifier, "w1")
     }
 
     func testEnvSensorInDifferentRoom_fallbackStillScheduled() {
         let w = window(id: "w1", roomId: "room1")
         let sensor = envSensor(id: "e1", roomId: "room2", co2: 500)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        let trigger = postedRequests.first?.trigger as? UNTimeIntervalNotificationTrigger
-        XCTAssertNotNil(trigger, "Should schedule timed fallback when no sensor in same room")
+        XCTAssertFalse(timedRequests.isEmpty, "Should schedule timed fallback when no sensor in same room")
+    }
+
+    // MARK: - Fallback includes room name in subtitle and readings in body
+
+    func testFallback_subtitleIsRoomName() {
+        let w = window(id: "w1", roomId: "r1", roomName: "Living Room")
+        notifier.update(windows: [w], envSensors: [], now: t0)
+        XCTAssertEqual(timedRequests.last?.content.subtitle, "Living Room")
+    }
+
+    func testFallback_bodyContainsWindowName() {
+        let w = window(id: "w1", name: "South Window")
+        notifier.update(windows: [w], envSensors: [], now: t0)
+        let body = timedRequests.last?.content.body ?? ""
+        XCTAssertTrue(body.contains("South Window"), "Body should contain window name; got: \(body)")
+    }
+
+    func testFallback_bodyContainsReadingsWhenAvailable() {
+        let w = window(id: "w1")
+        let sensor = envSensor(id: "e1", co2: 820, temperature: 21, humidity: 55)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        let body = timedRequests.last?.content.body ?? ""
+        XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
+        XCTAssertTrue(body.contains("%"), "Body should contain humidity; got: \(body)")
+        XCTAssertTrue(body.contains("ppm"), "Body should contain CO2; got: \(body)")
+    }
+
+    func testFallback_bodyHasNoReadingsWhenNoneAvailable() {
+        let w = window(id: "w1")
+        notifier.update(windows: [w], envSensors: [], now: t0)
+        let body = timedRequests.last?.content.body ?? ""
+        XCTAssertFalse(body.contains("ppm"), "Body should not contain CO2 when no sensor")
+        XCTAssertFalse(body.contains("°C"), "Body should not contain temperature when no sensor")
+    }
+
+    func testFallback_readingsUpdateOnEachReschedule() {
+        let w = window(id: "w1")
+        // First update: no readings
+        notifier.update(windows: [w], envSensors: [], now: t0)
+        let bodyAtT0 = timedRequests.last?.content.body ?? ""
+        XCTAssertFalse(bodyAtT0.contains("ppm"))
+        // Second update: readings arrive
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 820)], now: t0 + 60)
+        let bodyAtT1 = timedRequests.last?.content.body ?? ""
+        XCTAssertTrue(bodyAtT1.contains("ppm"), "Body should include CO2 after readings arrive")
     }
 
     // MARK: - Window closing cancels notification
@@ -128,7 +174,7 @@ final class WindowNotifierTests: XCTestCase {
         notifier.update(windows: [], envSensors: [], now: t0 + 60)     // closed
         postedRequests.removeAll()
         notifier.update(windows: [w], envSensors: [], now: t0 + 120)   // reopened
-        XCTAssertEqual(postedRequests.count, 1)
+        XCTAssertEqual(timedRequests.count, 1)
     }
 
     // MARK: - Immediate: cold temperature
@@ -137,18 +183,31 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1")
         let sensor = envSensor(id: "e1", temperature: 14.5)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        // Two requests: fallback (timed) and cold-temp (immediate, replaces fallback in real UNC)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertEqual(immediateRequests.count, 1)
         XCTAssertEqual(immediateRequests.first?.content.title, "Close window")
+    }
+
+    func testColdTemperature_bodyContainsReadings() {
+        let w = window(id: "w1", name: "South Window")
+        let sensor = envSensor(id: "e1", temperature: 13, humidity: 60)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        let body = immediateRequests.first?.content.body ?? ""
+        XCTAssertTrue(body.contains("South Window"), "Body should contain window name; got: \(body)")
+        XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
+        XCTAssertTrue(body.contains("%"), "Body should contain humidity; got: \(body)")
+    }
+
+    func testColdTemperature_subtitleIsRoomName() {
+        let w = window(id: "w1", roomId: "r1", roomName: "Bedroom")
+        let sensor = envSensor(id: "e1", roomId: "r1", temperature: 12)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertEqual(immediateRequests.first?.content.subtitle, "Bedroom")
     }
 
     func testTemperatureAboveThreshold_doesNotNotifyImmediately() {
         let w = window(id: "w1")
         let sensor = envSensor(id: "e1", temperature: 18.0)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        // Only the timed fallback; no immediate notification
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -156,21 +215,26 @@ final class WindowNotifierTests: XCTestCase {
 
     func testHumidityHighAndRising_notifiesImmediately() {
         let w = window(id: "w1")
-        // First reading at t0: humidity 66 %
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 66)], now: t0)
-        // One minute later: humidity 70 % (rising)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 70)], now: t0 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertEqual(immediateRequests.count, 1)
         XCTAssertEqual(immediateRequests.first?.content.title, "Close window")
+    }
+
+    func testHumidityNotification_bodyContainsReadings() {
+        let w = window(id: "w1", name: "Bathroom Window")
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", temperature: 22, humidity: 66)], now: t0)
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", temperature: 22, humidity: 70)], now: t0 + 60)
+        let body = immediateRequests.first?.content.body ?? ""
+        XCTAssertTrue(body.contains("Bathroom Window"), "Body should contain window name; got: \(body)")
+        XCTAssertTrue(body.contains("%"), "Body should contain humidity; got: \(body)")
+        XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
     }
 
     func testHumidityHighButFalling_doesNotNotify() {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 70)], now: t0)
-        // Falling: 70 → 66
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 66)], now: t0 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -178,7 +242,6 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 60)], now: t0)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", humidity: 62)], now: t0 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -186,12 +249,9 @@ final class WindowNotifierTests: XCTestCase {
 
     func testBefore5min_co2Plateaued_noNotification() {
         let w = window(id: "w1")
-        // Record two readings 1 min apart showing plateau (< 10 ppm change)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 820)], now: t0)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 60)
-        // Check at 4 minutes — below minElapsed
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 4 * 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -202,7 +262,6 @@ final class WindowNotifierTests: XCTestCase {
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 1200)], now: t0)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 1150)], now: t0 + 60)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 1100)], now: t0 + 5 * 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -210,13 +269,9 @@ final class WindowNotifierTests: XCTestCase {
 
     func testCO2StillDecreasing_skipsNotification() {
         let w = window(id: "w1")
-        // t=0: CO2=900
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 900)], now: t0)
-        // t=4min: CO2=800 (reference ~1 min ago will be the t=0 entry, change = -100 > threshold)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 800)], now: t0 + 4 * 60)
-        // t=5min: CO2=780, oldest reading ~60s ago ≈ t=4min entry (800), change=-20 > threshold
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 780)], now: t0 + 5 * 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -226,11 +281,32 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 820)], now: t0)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 60)
-        // At 5+ min, reading ~1 min ago is 815, current is 815 (change = 0, below threshold)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 5 * 60 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertEqual(immediateRequests.count, 1)
         XCTAssertEqual(immediateRequests.first?.content.title, "Window can be closed")
+        XCTAssertNil(immediateRequests.first?.trigger, "Can-close notification must fire immediately")
+    }
+
+    func testCO2Notification_subtitleIsRoomName() {
+        let w = window(id: "w1", roomId: "r1", roomName: "Office")
+        let sensor = envSensor(id: "e1", roomId: "r1", co2: 820)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", roomId: "r1", co2: 815)], now: t0 + 60)
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", roomId: "r1", co2: 815)], now: t0 + 5 * 60 + 60)
+        XCTAssertEqual(immediateRequests.first?.content.subtitle, "Office")
+    }
+
+    func testCO2Notification_bodyContainsReadings() {
+        let w = window(id: "w1", name: "South Window")
+        let sensor = envSensor(id: "e1", co2: 820, temperature: 21, humidity: 55)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)], now: t0 + 60)
+        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)], now: t0 + 5 * 60 + 60)
+        let body = immediateRequests.first?.content.body ?? ""
+        XCTAssertTrue(body.contains("South Window"), "Body should contain window name; got: \(body)")
+        XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
+        XCTAssertTrue(body.contains("%"), "Body should contain humidity; got: \(body)")
+        XCTAssertTrue(body.contains("ppm"), "Body should contain CO2; got: \(body)")
     }
 
     // MARK: - No double notification
@@ -241,7 +317,6 @@ final class WindowNotifierTests: XCTestCase {
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 60)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 5 * 60 + 60)
         let countAfterFirst = postedRequests.count
-        // Additional updates should not fire more notifications
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 10 * 60)
         XCTAssertEqual(postedRequests.count, countAfterFirst)
     }
@@ -250,14 +325,10 @@ final class WindowNotifierTests: XCTestCase {
 
     func testSensorWithNoCO2_fallsBackToTimer() {
         let w = window(id: "w1")
-        let sensor = envSensor(id: "e1", temperature: 21.0, humidity: 50.0) // no CO2
+        let sensor = envSensor(id: "e1", temperature: 21.0, humidity: 50.0)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        // After minElapsed — no CO2 readings, so no "can close" notification
         notifier.update(windows: [w], envSensors: [sensor], now: t0 + 6 * 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty, "Should not post without CO2 data; fallback timer handles it")
-        // The timed fallback should be scheduled
-        let timedRequests = postedRequests.filter { $0.trigger is UNTimeIntervalNotificationTrigger }
         XCTAssertFalse(timedRequests.isEmpty)
     }
 
@@ -265,13 +336,9 @@ final class WindowNotifierTests: XCTestCase {
 
     func testSensorGoesOffline_noDoubleNotificationAfterDelay() {
         let w = window(id: "w1")
-        // Sensor online initially with high CO2
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 1100)], now: t0)
-        // Sensor disappears; no more readings from here on
         notifier.update(windows: [w], envSensors: [], now: t0 + 8 * 60)
-        // Past noSensorDelay (15 min): fallback has fired; evaluate should not post again
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 700)], now: t0 + 16 * 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty, "Evaluate must not fire after noSensorDelay has passed")
     }
 
@@ -279,7 +346,6 @@ final class WindowNotifierTests: XCTestCase {
 
     func testMultipleSensors_averagesCO2ForNotification() {
         let w = window(id: "w1")
-        // Two sensors: one plateaued high (1050), one low (750); average = 900 < threshold
         notifier.update(windows: [w], envSensors: [
             envSensor(id: "e1", co2: 1050),
             envSensor(id: "e2", co2: 750)
@@ -288,19 +354,16 @@ final class WindowNotifierTests: XCTestCase {
             envSensor(id: "e1", co2: 1045),
             envSensor(id: "e2", co2: 745)
         ], now: t0 + 60)
-        // At 5+min: averages are ~1047 and ~747 ≈ 897 overall — below threshold, plateaued
         notifier.update(windows: [w], envSensors: [
             envSensor(id: "e1", co2: 1045),
             envSensor(id: "e2", co2: 745)
         ], now: t0 + 5 * 60 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertEqual(immediateRequests.count, 1)
         XCTAssertEqual(immediateRequests.first?.content.title, "Window can be closed")
     }
 
     func testMultipleSensors_highAverageCO2_skipsNotification() {
         let w = window(id: "w1")
-        // Both sensors above threshold; average > 1000
         notifier.update(windows: [w], envSensors: [
             envSensor(id: "e1", co2: 1200),
             envSensor(id: "e2", co2: 1100)
@@ -309,7 +372,6 @@ final class WindowNotifierTests: XCTestCase {
             envSensor(id: "e1", co2: 1200),
             envSensor(id: "e2", co2: 1100)
         ], now: t0 + 5 * 60 + 60)
-        let immediateRequests = postedRequests.filter { $0.trigger == nil }
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -320,9 +382,16 @@ final class WindowNotifierTests: XCTestCase {
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 820)], now: t0)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 60)
         notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815)], now: t0 + 5 * 60 + 60)
-        // All posted requests for this window share the same identifier so the immediate
-        // one supersedes the pending timed one in UNUserNotificationCenter.
-        let ids = postedRequests.map(\.identifier)
-        XCTAssertTrue(ids.allSatisfy { $0 == "w1" })
+        XCTAssertTrue(postedRequests.map(\.identifier).allSatisfy { $0 == "w1" })
+    }
+
+    // MARK: - Helpers
+
+    private var immediateRequests: [UNNotificationRequest] {
+        postedRequests.filter { $0.trigger == nil }
+    }
+
+    private var timedRequests: [UNNotificationRequest] {
+        postedRequests.filter { $0.trigger is UNTimeIntervalNotificationTrigger }
     }
 }

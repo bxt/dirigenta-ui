@@ -65,15 +65,22 @@ final class WindowNotifier {
             }
         }
 
-        // Track newly opened windows and schedule a timed fallback for each.
-        // Prefer the sensor's lastSeen timestamp so a window already open at app start
-        // is treated as having been open since then, not since launch.
-        // If env-sensor readings arrive before noSensorDelay, evaluate() will post an
-        // earlier immediate notification (same identifier) that replaces the timed one.
+        // Track newly opened windows. Prefer the sensor's lastSeen timestamp so a window
+        // already open at app start is treated as having been open since then, not since launch.
         for window in openWindows where openedAt[window.id] == nil {
             let openTime = window.lastSeenDate.map { min($0, now) } ?? now
             openedAt[window.id] = openTime
-            scheduleFallbackNotification(for: window, openedAt: openTime, now: now)
+        }
+
+        // Reschedule the timed fallback on every update for all pending windows, baking in
+        // the latest readings so the notification shows current sensor state when it fires.
+        // If an env-sensor reading arrives in time, evaluate() posts an immediate notification
+        // with the same identifier, replacing the pending timed one.
+        for window in openWindows where !notified.contains(window.id) {
+            guard let openTime = openedAt[window.id] else { continue }
+            guard now.timeIntervalSince(openTime) < noSensorDelay else { continue }
+            let readings = roomReadings(for: window)
+            scheduleFallbackNotification(for: window, openedAt: openTime, readings: readings, now: now)
         }
 
         // Evaluate open windows that haven't been notified yet.
@@ -111,9 +118,8 @@ final class WindowNotifier {
 
         // Immediate: temperature falling below threshold
         if let temp = latestTemp, temp < coldThreshold {
-            post(for: window,
-                 title: "Close window",
-                 body: String(format: "Temperature is %.0f°C — getting cold", temp))
+            post(for: window, title: "Close window", reason: "getting cold",
+                 readings: readings, now: now)
             return
         }
 
@@ -121,9 +127,8 @@ final class WindowNotifier {
         if let humidity = latestHumidity, humidity > humidityHighThreshold {
             let olderHumidity = olderAverage(in: readings, keyPath: \.humidity, now: now)
             if let old = olderHumidity, humidity > old {
-                post(for: window,
-                     title: "Close window",
-                     body: String(format: "Humidity rising (%.0f%%)", humidity))
+                post(for: window, title: "Close window", reason: "humidity rising",
+                     readings: readings, now: now)
                 return
             }
         }
@@ -144,9 +149,8 @@ final class WindowNotifier {
         let olderCO2 = olderAverage(in: readings, keyPath: \.co2, now: now)
         if let old = olderCO2, co2 < old - plateauThreshold { return }
 
-        post(for: window,
-             title: "Window can be closed",
-             body: "Air quality is good — \(window.displayName)")
+        post(for: window, title: "Window can be closed", reason: "air quality good",
+             readings: readings, now: now)
     }
 
     private func roomReadings(for window: DirigeraDevice) -> [EnvReading] {
@@ -182,11 +186,35 @@ final class WindowNotifier {
         return values.reduce(0, +) / Double(values.count)
     }
 
-    private func scheduleFallbackNotification(for window: DirigeraDevice, openedAt: Date, now: Date) {
+    /// Compact summary of available sensor readings, e.g. "20°C · 63% · 820 ppm".
+    private func readingsSummary(readings: [EnvReading], now: Date) -> String {
+        var parts: [String] = []
+        if let temp = recentAverage(in: readings, keyPath: \.temperature, now: now) {
+            parts.append(String(format: "%.0f°C", temp))
+        }
+        if let humidity = recentAverage(in: readings, keyPath: \.humidity, now: now) {
+            parts.append(String(format: "%.0f%%", humidity))
+        }
+        if let co2 = recentAverage(in: readings, keyPath: \.co2, now: now) {
+            parts.append(String(format: "%.0f ppm", co2))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func scheduleFallbackNotification(
+        for window: DirigeraDevice,
+        openedAt: Date,
+        readings: [EnvReading],
+        now: Date
+    ) {
         let remaining = noSensorDelay - now.timeIntervalSince(openedAt)
         let content = UNMutableNotificationContent()
         content.title = "Close window?"
-        content.body = "\(window.displayName) has been open for 15 minutes"
+        content.subtitle = window.room?.name ?? ""
+        let minutes = Int(noSensorDelay / 60)
+        let baseBody = "\(window.displayName) has been open for \(minutes) minutes"
+        let summary = readingsSummary(readings: readings, now: now)
+        content.body = summary.isEmpty ? baseBody : baseBody + " · " + summary
         content.sound = .default
         let trigger: UNNotificationTrigger? = remaining > 0
             ? UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
@@ -197,10 +225,19 @@ final class WindowNotifier {
         )
     }
 
-    private func post(for window: DirigeraDevice, title: String, body: String) {
+    private func post(
+        for window: DirigeraDevice,
+        title: String,
+        reason: String,
+        readings: [EnvReading],
+        now: Date
+    ) {
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = body
+        content.subtitle = window.room?.name ?? ""
+        let baseBody = "\(window.displayName) \(reason)"
+        let summary = readingsSummary(readings: readings, now: now)
+        content.body = summary.isEmpty ? baseBody : baseBody + " · " + summary
         content.sound = .default
         schedule(UNNotificationRequest(identifier: window.id, content: content, trigger: nil))
         notified.insert(window.id)
