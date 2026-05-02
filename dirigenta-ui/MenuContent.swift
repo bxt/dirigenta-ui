@@ -132,51 +132,49 @@ struct MenuContent: View {
                     .scrollDisabled(contentHeight < maxHeight)
                 }
             }
-            VStack(spacing: 8) {
-                Divider()
-                HStack(spacing: 8) {
-                    Text("v\(appVersion)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    if !appState.accessToken.isEmpty {
-                        if appState.isLoadingDevices {
-                            Label("Refreshing…", systemImage: "arrow.clockwise")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else if let error = appState.devicesError {
+            Divider()
+            HStack(spacing: 8) {
+                Text("v\(appVersion)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                if !appState.accessToken.isEmpty {
+                    if appState.isLoadingDevices {
+                        Label("Refreshing…", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let error = appState.devicesError {
+                        Label(
+                            error,
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    } else {
+                        switch appState.wsConnectionState {
+                        case .connecting:
                             Label(
-                                error,
-                                systemImage: "exclamationmark.triangle"
+                                "Connecting…",
+                                systemImage: "arrow.clockwise"
                             )
                             .font(.caption)
-                            .foregroundStyle(.orange)
-                        } else {
-                            switch appState.wsConnectionState {
-                            case .connecting:
-                                Label(
-                                    "Connecting…",
-                                    systemImage: "arrow.clockwise"
-                                )
+                            .foregroundStyle(.secondary)
+                        case .disconnected:
+                            Label("Disconnected", systemImage: "wifi.slash")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-                            case .disconnected:
-                                Label("Disconnected", systemImage: "wifi.slash")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                                Button("Retry") { wsRetry += 1 }
-                                    .font(.caption)
-                            case .connected:
-                                EmptyView()
-                            }
+                                .foregroundStyle(.orange)
+                            Button("Retry") { wsRetry += 1 }
+                                .font(.caption)
+                        case .connected:
+                            EmptyView()
                         }
                     }
-                    Spacer(minLength: 0)
-                    SettingsLink {
-                        Label("Settings", systemImage: "gearshape")
-                            .labelStyle(.iconOnly)
-                    }
-                    Button("Quit") { NSApplication.shared.terminate(nil) }
                 }
+                Spacer(minLength: 0)
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                        .labelStyle(.iconOnly)
+                }
+                Button("Quit") { NSApplication.shared.terminate(nil) }
             }
         }
         .padding(12)
