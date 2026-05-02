@@ -4,7 +4,9 @@ import Security
 enum KeychainService {
     private static let service: String = {
         guard let id = Bundle.main.bundleIdentifier else {
-            preconditionFailure("Bundle identifier is missing — cannot scope Keychain items safely")
+            preconditionFailure(
+                "Bundle identifier is missing — cannot scope Keychain items safely"
+            )
         }
         return id
     }()

@@ -7,7 +7,7 @@ import OSLog
 /// the full reconnect loop.
 nonisolated func wsBackoffDelay(attempt: Int) -> Double {
     let base = min(pow(2.0, Double(attempt)), 60.0)
-    let jitter = Double.random(in: -0.25 * base ... 0.25 * base)
+    let jitter = Double.random(in: -0.25 * base...0.25 * base)
     return max(1.0, base + jitter)
 }
 

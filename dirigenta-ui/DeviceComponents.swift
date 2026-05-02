@@ -13,7 +13,9 @@ private struct SensorFooter: View {
             HStack(spacing: 0) {
                 if let battery {
                     Text("\(battery)% battery")
-                        .foregroundStyle(battery < 10 ? Color.orange : Color.secondary)
+                        .foregroundStyle(
+                            battery < 10 ? Color.orange : Color.secondary
+                        )
                     if room != nil {
                         Text(" · ").foregroundStyle(.secondary)
                     }
@@ -102,9 +104,12 @@ struct OpenCloseSensorRow: View {
                 )
             }
         } icon: {
-            Image(systemName: sensor.isWindowSensor
-                ? (sensor.isOpen ? "window.vertical.open" : "window.vertical.closed")
-                : (sensor.isOpen ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill")
+            Image(
+                systemName: sensor.isWindowSensor
+                    ? (sensor.isOpen
+                        ? "window.vertical.open" : "window.vertical.closed")
+                    : (sensor.isOpen
+                        ? "sensor.tag.radiowaves.forward.fill" : "sensor.fill")
             )
             .foregroundStyle(sensor.isOpen ? Color.orange : Color.secondary)
         }
@@ -120,12 +125,17 @@ struct OtherDeviceRow: View {
         Label {
             VStack(alignment: .leading, spacing: 1) {
                 Text(device.displayName)
-                Text(device.type + {
-                    guard let deviceType = device.deviceType, !deviceType.isEmpty else { return "" }
-                    return " · " + deviceType
-                }())
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(
+                    device.type
+                        + {
+                            guard let deviceType = device.deviceType,
+                                !deviceType.isEmpty
+                            else { return "" }
+                            return " · " + deviceType
+                        }()
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
                 SensorFooter(
                     battery: device.attributes.batteryPercentage,
                     room: device.room?.name
@@ -254,7 +264,9 @@ struct OtherDevicesSectionView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "cpu")
-                    Text("\(devices.count) other device\(devices.count == 1 ? "" : "s")")
+                    Text(
+                        "\(devices.count) other device\(devices.count == 1 ? "" : "s")"
+                    )
                 }
             }
         }
@@ -308,4 +320,3 @@ struct OpenCloseSensorsSectionView: View {
         }
     }
 }
-

@@ -16,9 +16,14 @@ struct LightNotifier {
     let wasOn: [String: Bool]
 
     /// Returns `nil` when there are no lights to flash.
-    init?(client: any DirigeraClientProtocol, lights: [DirigeraDevice], pinnedId: String?) {
+    init?(
+        client: any DirigeraClientProtocol,
+        lights: [DirigeraDevice],
+        pinnedId: String?
+    ) {
         let targetLights: [DirigeraDevice]
-        if let pinnedId, let pinned = lights.first(where: { $0.id == pinnedId }) {
+        if let pinnedId, let pinned = lights.first(where: { $0.id == pinnedId })
+        {
             targetLights = [pinned]
         } else {
             targetLights = lights.filter { $0.isOn }
@@ -26,7 +31,9 @@ struct LightNotifier {
         guard !targetLights.isEmpty else { return nil }
         self.client = client
         self.targets = targetLights
-        self.wasOn = Dictionary(uniqueKeysWithValues: targetLights.map { ($0.id, $0.isOn) })
+        self.wasOn = Dictionary(
+            uniqueKeysWithValues: targetLights.map { ($0.id, $0.isOn) }
+        )
     }
 
     /// Step 2 — turns on any targets that were off so their colour state can be read.
@@ -40,9 +47,13 @@ struct LightNotifier {
 
     /// Step 4 — reads each target's current colour/brightness from a freshly-fetched
     /// device list (call after `fetchDevices` so values reflect the on state).
-    func capturePresets(from lights: [DirigeraDevice]) -> [(id: String, preset: LightColorPreset?)] {
+    func capturePresets(from lights: [DirigeraDevice]) -> [(
+        id: String, preset: LightColorPreset?
+    )] {
         targets.compactMap { target in
-            lights.first(where: { $0.id == target.id }).map { ($0.id, $0.colorPreset) }
+            lights.first(where: { $0.id == target.id }).map {
+                ($0.id, $0.colorPreset)
+            }
         }
     }
 
@@ -52,10 +63,17 @@ struct LightNotifier {
             for t in targets {
                 group.addTask {
                     if t.isColorLight {
-                        try? await client.setColor(id: t.id, hue: 0, saturation: 1)
+                        try? await client.setColor(
+                            id: t.id,
+                            hue: 0,
+                            saturation: 1
+                        )
                     }
                     if t.attributes.lightLevel != nil {
-                        try? await client.setLightLevel(id: t.id, lightLevel: 100)
+                        try? await client.setLightLevel(
+                            id: t.id,
+                            lightLevel: 100
+                        )
                     }
                 }
             }
@@ -67,7 +85,9 @@ struct LightNotifier {
         await withTaskGroup(of: Void.self) { group in
             for (id, preset) in presets {
                 if let preset {
-                    group.addTask { try? await client.applyColorPreset(preset, to: id) }
+                    group.addTask {
+                        try? await client.applyColorPreset(preset, to: id)
+                    }
                 }
             }
         }
@@ -77,7 +97,9 @@ struct LightNotifier {
     func turnOffDimmed() async {
         await withTaskGroup(of: Void.self) { group in
             for (id, on) in wasOn where !on {
-                group.addTask { try? await client.setLight(id: id, isOn: false) }
+                group.addTask {
+                    try? await client.setLight(id: id, isOn: false)
+                }
             }
         }
     }

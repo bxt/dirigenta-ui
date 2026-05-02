@@ -7,9 +7,11 @@ struct DevicesView: View {
     @EnvironmentObject private var mdns: MDNSResolver
 
     @AppStorage("settings.devices.showLights") private var showLights = true
-    @AppStorage("settings.devices.showEnvSensors") private var showEnvSensors = true
+    @AppStorage("settings.devices.showEnvSensors") private var showEnvSensors =
+        true
     @AppStorage("settings.devices.showSensors") private var showSensors = true
-    @AppStorage("settings.devices.showOtherDevices") private var showOtherDevices = true
+    @AppStorage("settings.devices.showOtherDevices") private
+        var showOtherDevices = true
 
     @State private var lightsExpanded: Bool = true
     @State private var envExpanded: Bool = true
@@ -66,7 +68,9 @@ struct DevicesView: View {
         actionError = nil
         let anyOn = appState.lights.contains { $0.isOn }
         let newState = !anyOn
-        for i in appState.lights.indices { appState.lights[i].attributes.isOn = newState }
+        for i in appState.lights.indices {
+            appState.lights[i].attributes.isOn = newState
+        }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in

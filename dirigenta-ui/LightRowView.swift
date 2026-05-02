@@ -59,7 +59,9 @@ struct LightRowView: View {
                     Image(systemName: "sparkles").font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isDiscoActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(
+                    isDiscoActive ? Color.accentColor : Color.secondary
+                )
                 .help(isDiscoActive ? "Stop disco mode" : "Start disco mode")
             }
 
@@ -174,7 +176,10 @@ struct LightRowView: View {
         discoTask = nil
         let key = light.colorDefaultsKey
         guard let data = UserDefaults.standard.data(forKey: key),
-            let preset = try? JSONDecoder().decode(LightColorPreset.self, from: data)
+            let preset = try? JSONDecoder().decode(
+                LightColorPreset.self,
+                from: data
+            )
         else { return }
         Task {
             guard let ip = mdns.currentIPAddress else { return }
@@ -198,7 +203,8 @@ struct LightRowView: View {
             try await client.setLight(id: light.id, isOn: newState)
             await appState.fetchDevices(ip: ip)
         } catch {
-            if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            if let i = appState.lights.firstIndex(where: { $0.id == light.id })
+            {
                 appState.lights[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(light.displayName)"
@@ -220,7 +226,9 @@ struct LightRowView: View {
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
-            if let oldLevel, let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            if let oldLevel,
+                let i = appState.lights.firstIndex(where: { $0.id == light.id })
+            {
                 appState.lights[i].attributes.lightLevel = oldLevel
             }
             actionError = "Failed to set brightness for \(light.displayName)"
@@ -244,7 +252,9 @@ struct LightRowView: View {
                 colorTemperature: value
             )
         } catch {
-            if let oldValue, let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
+            if let oldValue,
+                let i = appState.lights.firstIndex(where: { $0.id == light.id })
+            {
                 appState.lights[i].attributes.colorTemperature = oldValue
             }
             actionError = "Failed to set colour for \(light.displayName)"

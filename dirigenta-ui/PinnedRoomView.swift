@@ -8,7 +8,8 @@ struct PinnedRoomView: View {
     @EnvironmentObject private var mdns: MDNSResolver
 
     @AppStorage("settings.rooms.showLights") private var showLights = true
-    @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors = true
+    @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors =
+        true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
 
     @State private var pendingLightLevels: [String: Double] = [:]
@@ -18,9 +19,15 @@ struct PinnedRoomView: View {
     @State private var envExpanded = true
     @State private var sensorsExpanded = true
 
-    private var lights: [DirigeraDevice] { appState.lights.filter { $0.room?.id == roomId } }
-    private var envSensors: [DirigeraDevice] { appState.envSensors.filter { $0.room?.id == roomId } }
-    private var sensors: [DirigeraDevice] { appState.sensors.filter { $0.room?.id == roomId } }
+    private var lights: [DirigeraDevice] {
+        appState.lights.filter { $0.room?.id == roomId }
+    }
+    private var envSensors: [DirigeraDevice] {
+        appState.envSensors.filter { $0.room?.id == roomId }
+    }
+    private var sensors: [DirigeraDevice] {
+        appState.sensors.filter { $0.room?.id == roomId }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -54,14 +61,17 @@ struct PinnedRoomView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !lights.contains { $0.isOn }
         let ids = Set(lights.map { $0.id })
-        for i in appState.lights.indices where ids.contains(appState.lights[i].id) {
+        for i in appState.lights.indices
+        where ids.contains(appState.lights[i].id) {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in lights {
-                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
+                group.addTask {
+                    try? await client.setLight(id: light.id, isOn: newState)
+                }
             }
         }
         await appState.fetchDevices(ip: ip)

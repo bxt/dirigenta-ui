@@ -21,7 +21,9 @@ final class StatusBarController: NSObject {
             .environmentObject(appState.mdns)
         let popover = NSPopover()
         popover.behavior = .applicationDefined
-        popover.contentViewController = NSHostingController(rootView: contentView)
+        popover.contentViewController = NSHostingController(
+            rootView: contentView
+        )
         self.popover = popover
 
         super.init()

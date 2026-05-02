@@ -20,7 +20,8 @@ struct RoomsView: View {
     @EnvironmentObject private var mdns: MDNSResolver
 
     @AppStorage("settings.rooms.showLights") private var showLights = true
-    @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors = true
+    @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors =
+        true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
     @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
@@ -161,7 +162,8 @@ struct RoomsView: View {
         guard let ip = mdns.currentIPAddress else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        for i in appState.lights.indices where ids.contains(appState.lights[i].id) {
+        for i in appState.lights.indices
+        where ids.contains(appState.lights[i].id) {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()

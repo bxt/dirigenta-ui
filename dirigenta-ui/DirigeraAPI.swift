@@ -34,7 +34,7 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var colorTemperatureMax: Int? = nil
         var colorHue: Double? = nil
         var colorSaturation: Double? = nil
-        var colorMode: String? = nil // "color" | "temperature"
+        var colorMode: String? = nil  // "color" | "temperature"
         var switchGroup: Int? = nil
         /// Populated by mergeGenericSwitches; not present in JSON (optional → decodeIfPresent → nil).
         var switchGroups: [Int]? = nil
@@ -105,7 +105,9 @@ nonisolated extension DirigeraDevice {
     var isGateway: Bool { type == "gateway" }
     var isOpenCloseSensor: Bool { deviceType == "openCloseSensor" }
     var isEnvironmentSensor: Bool { deviceType == "environmentSensor" }
-    var isGenericSwitch: Bool { type == "controller" && deviceType == "genericSwitch" }
+    var isGenericSwitch: Bool {
+        type == "controller" && deviceType == "genericSwitch"
+    }
     var isWindowSensor: Bool { customIcon == "placement_window" }
 
     /// True if the light supports a white-spectrum (colour-temperature) slider.
@@ -126,19 +128,37 @@ nonisolated extension DirigeraDevice {
         if supportsColorControls {
             switch attributes.colorMode {
             case "color":
-                if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
-                    return LightColorPreset(lightLevel: level, hue: hue, saturation: sat)
+                if let hue = attributes.colorHue,
+                    let sat = attributes.colorSaturation
+                {
+                    return LightColorPreset(
+                        lightLevel: level,
+                        hue: hue,
+                        saturation: sat
+                    )
                 }
             case "temperature":
                 if let ct = attributes.colorTemperature {
-                    return LightColorPreset(lightLevel: level, colorTemperature: ct)
+                    return LightColorPreset(
+                        lightLevel: level,
+                        colorTemperature: ct
+                    )
                 }
             default:
                 // colorMode not reported — use whichever values are present.
-                if let hue = attributes.colorHue, let sat = attributes.colorSaturation {
-                    return LightColorPreset(lightLevel: level, hue: hue, saturation: sat)
+                if let hue = attributes.colorHue,
+                    let sat = attributes.colorSaturation
+                {
+                    return LightColorPreset(
+                        lightLevel: level,
+                        hue: hue,
+                        saturation: sat
+                    )
                 } else if let ct = attributes.colorTemperature {
-                    return LightColorPreset(lightLevel: level, colorTemperature: ct)
+                    return LightColorPreset(
+                        lightLevel: level,
+                        colorTemperature: ct
+                    )
                 }
             }
         }
@@ -176,7 +196,9 @@ nonisolated extension DirigeraDevice {
             }
             guard let first = sorted.first else { continue }
             var mergedAttrs = first.attributes
-            for device in sorted.dropFirst() { mergedAttrs.merge(device.attributes) }
+            for device in sorted.dropFirst() {
+                mergedAttrs.merge(device.attributes)
+            }
             let room = sorted.first(where: { $0.room != nil })?.room
             result.append(
                 DirigeraDevice(
@@ -199,7 +221,9 @@ nonisolated extension DirigeraDevice {
 
     /// Merges genericSwitch controller components that share a `relationId` into a single device.
     /// The merged device's `attributes.switchGroups` lists every component's `switchGroup` value.
-    static func mergeGenericSwitches(_ devices: [DirigeraDevice]) -> [DirigeraDevice] {
+    static func mergeGenericSwitches(_ devices: [DirigeraDevice])
+        -> [DirigeraDevice]
+    {
         var byRelation: [String: [DirigeraDevice]] = [:]
         var result: [DirigeraDevice] = []
 
@@ -217,8 +241,12 @@ nonisolated extension DirigeraDevice {
             }
             guard let first = sorted.first else { continue }
             var mergedAttrs = first.attributes
-            for device in sorted.dropFirst() { mergedAttrs.merge(device.attributes) }
-            mergedAttrs.switchGroups = sorted.compactMap { $0.attributes.switchGroup }
+            for device in sorted.dropFirst() {
+                mergedAttrs.merge(device.attributes)
+            }
+            mergedAttrs.switchGroups = sorted.compactMap {
+                $0.attributes.switchGroup
+            }
             let room = sorted.first(where: { $0.room != nil })?.room
             result.append(
                 DirigeraDevice(
@@ -321,7 +349,8 @@ nonisolated extension DirigeraDevice {
 
     var lastSeenDate: Date? {
         guard let raw = lastSeen else { return nil }
-        return Self.isoFractional.date(from: raw) ?? Self.isoPlain.date(from: raw)
+        return Self.isoFractional.date(from: raw)
+            ?? Self.isoPlain.date(from: raw)
     }
 
     func openSeconds(now: Date) -> Int? {
@@ -378,7 +407,8 @@ protocol DirigeraClientProtocol: Sendable {
     func setLight(id: String, isOn: Bool) async throws
     func setLightLevel(id: String, lightLevel: Int) async throws
     func setColor(id: String, hue: Double, saturation: Double) async throws
-    func applyColorPreset(_ preset: LightColorPreset, to id: String) async throws
+    func applyColorPreset(_ preset: LightColorPreset, to id: String)
+        async throws
 }
 
 final class DirigeraClient {
@@ -487,7 +517,9 @@ final class DirigeraClient {
         )
     }
 
-    func applyColorPreset(_ preset: LightColorPreset, to id: String) async throws {
+    func applyColorPreset(_ preset: LightColorPreset, to id: String)
+        async throws
+    {
         if let hue = preset.hue, let sat = preset.saturation {
             try await setColor(id: id, hue: hue, saturation: sat)
         } else if let ct = preset.colorTemperature {
@@ -855,7 +887,10 @@ final class DirigeraAuthClient {
     static func makeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        precondition(status == errSecSuccess, "SecRandomCopyBytes failed: \(status)")
+        precondition(
+            status == errSecSuccess,
+            "SecRandomCopyBytes failed: \(status)"
+        )
         return Data(bytes).base64URLEncoded()
     }
 

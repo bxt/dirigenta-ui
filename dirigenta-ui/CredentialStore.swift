@@ -11,7 +11,9 @@ protocol CredentialStore: AnyObject {
 
 final class KeychainCredentialStore: CredentialStore {
     func get(_ key: String) throws -> String? { try KeychainService.get(key) }
-    func set(_ value: String, for key: String) throws { try KeychainService.set(value, for: key) }
+    func set(_ value: String, for key: String) throws {
+        try KeychainService.set(value, for: key)
+    }
     func delete(_ key: String) throws { try KeychainService.delete(key) }
 }
 

@@ -4,19 +4,27 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
 
     // MARK: - Devices tab visibility
-    @AppStorage("settings.devices.showLights") private var devicesShowLights = true
-    @AppStorage("settings.devices.showEnvSensors") private var devicesShowEnvSensors = true
-    @AppStorage("settings.devices.showSensors") private var devicesShowSensors = true
-    @AppStorage("settings.devices.showOtherDevices") private var devicesShowOtherDevices = true
+    @AppStorage("settings.devices.showLights") private var devicesShowLights =
+        true
+    @AppStorage("settings.devices.showEnvSensors") private
+        var devicesShowEnvSensors = true
+    @AppStorage("settings.devices.showSensors") private var devicesShowSensors =
+        true
+    @AppStorage("settings.devices.showOtherDevices") private
+        var devicesShowOtherDevices = true
 
     // MARK: - Rooms tab visibility
     @AppStorage("settings.rooms.showLights") private var roomsShowLights = true
-    @AppStorage("settings.rooms.showEnvSensors") private var roomsShowEnvSensors = true
-    @AppStorage("settings.rooms.showSensors") private var roomsShowSensors = true
+    @AppStorage("settings.rooms.showEnvSensors") private
+        var roomsShowEnvSensors = true
+    @AppStorage("settings.rooms.showSensors") private var roomsShowSensors =
+        true
 
     // MARK: - Notifications
-    @AppStorage("settings.notifications.openWindow") private var notifyOpenWindow = true
-    @AppStorage("settings.notifications.closeWindow") private var notifyCloseWindow = true
+    @AppStorage("settings.notifications.openWindow") private
+        var notifyOpenWindow = true
+    @AppStorage("settings.notifications.closeWindow") private
+        var notifyCloseWindow = true
     @AppStorage("settings.notifications.ipc") private var notifyIPC = true
 
     var body: some View {
@@ -36,13 +44,18 @@ struct SettingsView: View {
 
             Section("Notifications") {
                 Toggle("Notify when to open a window", isOn: $notifyOpenWindow)
-                Toggle("Notify when to close a window", isOn: $notifyCloseWindow)
+                Toggle(
+                    "Notify when to close a window",
+                    isOn: $notifyCloseWindow
+                )
                 Toggle(isOn: $notifyIPC) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Allow –notify IPC")
-                        Text("Lets any local process trigger a light flash via the command line")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            "Lets any local process trigger a light flash via the command line"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }

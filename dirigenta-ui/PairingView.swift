@@ -63,10 +63,10 @@ struct PairingView: View {
             .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("Cancel") {
-                authClient?.invalidate()
-                authClient = nil
-                pairingStep = .idle
-            }
+                    authClient?.invalidate()
+                    authClient = nil
+                    pairingStep = .idle
+                }
                 Spacer()
                 Button("I pressed it") {
                     Task {
@@ -149,7 +149,10 @@ struct PairingView: View {
         do {
             // Reuse the client from startPairing: same session, same pinned leaf cert.
             let client = authClient ?? DirigeraAuthClient(ip: ip)
-            let token = try await client.exchangeToken(code: code, verifier: verifier)
+            let token = try await client.exchangeToken(
+                code: code,
+                verifier: verifier
+            )
             let fingerprint = client.capturedFingerprint
             client.invalidate()
             authClient = nil

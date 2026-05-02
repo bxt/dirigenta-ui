@@ -114,7 +114,8 @@ final class AppState: ObservableObject {
             } else {
                 accessToken = ""
             }
-            pinnedLightId = injected
+            pinnedLightId =
+                injected
                 ? nil
                 : UserDefaults.standard.string(forKey: "pinnedLightId")
         }
@@ -142,7 +143,9 @@ final class AppState: ObservableObject {
     }
 
     private func handleWake() {
-        Logger.api.info("System woke from sleep — refreshing devices and reconnecting WebSocket")
+        Logger.api.info(
+            "System woke from sleep — refreshing devices and reconnecting WebSocket"
+        )
         // Tear down the cached URLSession; its TCP connections may be wedged.
         evictCachedClient()
         // Bump the WS restart token so MenuContent's keyed .task tears down
@@ -202,10 +205,14 @@ final class AppState: ObservableObject {
 
     // MARK: - Device fetch & events
 
-    func fetchDevices(ip: String, client injectedClient: (any DirigeraClientProtocol)? = nil) async {
+    func fetchDevices(
+        ip: String,
+        client injectedClient: (any DirigeraClientProtocol)? = nil
+    ) async {
         isLoadingDevices = true
         devicesError = nil
-        let client: any DirigeraClientProtocol = injectedClient ?? makeClient(ip: ip)
+        let client: any DirigeraClientProtocol =
+            injectedClient ?? makeClient(ip: ip)
         do {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.isGateway }?.displayName
@@ -219,10 +226,11 @@ final class AppState: ObservableObject {
             let mergedSwitches = DirigeraDevice.mergeGenericSwitches(
                 all.filter { $0.isGenericSwitch }
             )
-            otherDevices = all.filter {
-                !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
-                    && !$0.isEnvironmentSensor && !$0.isGenericSwitch
-            } + mergedSwitches
+            otherDevices =
+                all.filter {
+                    !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
+                        && !$0.isEnvironmentSensor && !$0.isGenericSwitch
+                } + mergedSwitches
             let lc = lights.count
             let sc = sensors.count
             let ec = envSensors.count
@@ -231,7 +239,11 @@ final class AppState: ObservableObject {
                 "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)"
             )
             syncPinnedState()
-            windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
+            windowNotifier.update(
+                windows: sensors,
+                envSensors: envSensors,
+                now: Date()
+            )
         } catch {
             devicesError = "Hub unreachable"
             Logger.api.error(
@@ -250,12 +262,20 @@ final class AppState: ObservableObject {
             syncPinnedState()
         } else if let i = sensors.firstIndex(where: { $0.id == id }) {
             sensors[i].merge(data)
-            windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
+            windowNotifier.update(
+                windows: sensors,
+                envSensors: envSensors,
+                now: Date()
+            )
         } else {
             let primaryId = envSensorIdMap[id] ?? id
             if let i = envSensors.firstIndex(where: { $0.id == primaryId }) {
                 envSensors[i].merge(data)
-                windowNotifier.update(windows: sensors, envSensors: envSensors, now: Date())
+                windowNotifier.update(
+                    windows: sensors,
+                    envSensors: envSensors,
+                    now: Date()
+                )
             }
         }
     }
@@ -265,18 +285,25 @@ final class AppState: ObservableObject {
     /// Flashes the pinned light (or all lights that are currently on) red for 1 second,
     /// then restores their previous state. Triggered by a --notify IPC invocation.
     func triggerNotification() async {
-        guard let ip = mdns.currentIPAddress, !accessToken.isEmpty else { return }
+        guard let ip = mdns.currentIPAddress, !accessToken.isEmpty else {
+            return
+        }
         let client = makeClient(ip: ip)
-        guard let notifier = LightNotifier(client: client, lights: lights, pinnedId: pinnedLightId)
+        guard
+            let notifier = LightNotifier(
+                client: client,
+                lights: lights,
+                pinnedId: pinnedLightId
+            )
         else { return }
 
-        await notifier.turnOnDimmed()           // Step 2
-        await fetchDevices(ip: ip)              // Step 3
+        await notifier.turnOnDimmed()  // Step 2
+        await fetchDevices(ip: ip)  // Step 3
         let presets = notifier.capturePresets(from: lights)  // Step 4
-        await notifier.flash()                  // Step 5
+        await notifier.flash()  // Step 5
         try? await Task.sleep(for: .seconds(1))
-        await notifier.restore(presets)         // Step 6
-        await notifier.turnOffDimmed()          // Step 7
+        await notifier.restore(presets)  // Step 6
+        await notifier.turnOffDimmed()  // Step 7
         await fetchDevices(ip: ip)
     }
 
@@ -403,7 +430,10 @@ final class AppState: ObservableObject {
                 id: "o1",
                 type: "blinds",
                 room: Room(id: "r2", name: "Bedroom"),
-                attributes: .init(customName: "Bedroom Blinds", batteryPercentage: 72)
+                attributes: .init(
+                    customName: "Bedroom Blinds",
+                    batteryPercentage: 72
+                )
             ),
             DirigeraDevice(
                 id: "o2",

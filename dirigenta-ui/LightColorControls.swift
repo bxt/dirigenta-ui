@@ -150,10 +150,17 @@ struct LightColorControls: View {
 
     private func loadDefault() {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-            let preset = try? JSONDecoder().decode(LightColorPreset.self, from: data)
+            let preset = try? JSONDecoder().decode(
+                LightColorPreset.self,
+                from: data
+            )
         else { return }
         if let hue = preset.hue, let sat = preset.saturation {
-            selectedColor = Color(hue: hue / 360.0, saturation: sat, brightness: 1.0)
+            selectedColor = Color(
+                hue: hue / 360.0,
+                saturation: sat,
+                brightness: 1.0
+            )
             onSetColor(hue, sat)
         } else if let ct = preset.colorTemperature {
             colorTempValue = Double(ct)

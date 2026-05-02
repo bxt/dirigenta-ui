@@ -9,9 +9,21 @@ extension Logger {
         Bundle.main.bundleIdentifier ?? "dirigenta-ui"
 
     nonisolated static let api = Logger(subsystem: subsystem, category: "api")
-    nonisolated static let webSocket = Logger(subsystem: subsystem, category: "websocket")
+    nonisolated static let webSocket = Logger(
+        subsystem: subsystem,
+        category: "websocket"
+    )
     nonisolated static let mdns = Logger(subsystem: subsystem, category: "mdns")
-    nonisolated static let keychain = Logger(subsystem: subsystem, category: "keychain")
-    nonisolated static let statusBar = Logger(subsystem: subsystem, category: "statusbar")
-    nonisolated static let notifications = Logger(subsystem: subsystem, category: "notifications")
+    nonisolated static let keychain = Logger(
+        subsystem: subsystem,
+        category: "keychain"
+    )
+    nonisolated static let statusBar = Logger(
+        subsystem: subsystem,
+        category: "statusbar"
+    )
+    nonisolated static let notifications = Logger(
+        subsystem: subsystem,
+        category: "notifications"
+    )
 }

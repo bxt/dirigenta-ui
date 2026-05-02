@@ -45,7 +45,8 @@ struct MenuContent: View {
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
-    @AppStorage("settings.defaultTab") private var selectedTab: MenuTab = .devices
+    @AppStorage("settings.defaultTab") private var selectedTab: MenuTab =
+        .devices
     @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
     init() {}
@@ -218,7 +219,10 @@ struct MenuContent: View {
 
 #Preview("Normal — rooms tab") {
     let state = AppState.preview()
-    UserDefaults.standard.set(MenuTab.rooms.rawValue, forKey: "settings.defaultTab")
+    UserDefaults.standard.set(
+        MenuTab.rooms.rawValue,
+        forKey: "settings.defaultTab"
+    )
     return MenuContent()
         .environmentObject(state)
         .environmentObject(state.mdns)

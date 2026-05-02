@@ -6,7 +6,9 @@ extension Notification.Name {
     /// Derived from the bundle identifier so it stays in sync if the app is renamed.
     static let dirigentaUINotify: Notification.Name = {
         guard let id = Bundle.main.bundleIdentifier else {
-            preconditionFailure("Bundle identifier is missing — cannot construct IPC notification name")
+            preconditionFailure(
+                "Bundle identifier is missing — cannot construct IPC notification name"
+            )
         }
         return Notification.Name("\(id).notify")
     }()
@@ -32,7 +34,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private static let isRunningTests = NSClassFromString("XCTestCase") != nil
 
     lazy var appState = AppState()
-    private lazy var statusBarController = StatusBarController(appState: appState)
+    private lazy var statusBarController = StatusBarController(
+        appState: appState
+    )
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard !Self.isRunningTests else { return }
@@ -40,7 +44,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // already-running instance and exit — no UI needed.
         guard !CommandLine.arguments.contains("--notify") else {
             DistributedNotificationCenter.default().postNotificationName(
-                .dirigentaUINotify, object: nil, deliverImmediately: true
+                .dirigentaUINotify,
+                object: nil,
+                deliverImmediately: true
             )
             // Brief run-loop spin so the notification is dispatched before exit.
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
@@ -68,7 +74,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         appState.mdns.start()
         _ = statusBarController  // trigger lazy init
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [
+            .alert, .sound,
+        ]) { _, _ in }
 
         // Listen for notifications from --notify invocations.
         DistributedNotificationCenter.default().addObserver(
@@ -77,7 +85,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
-            guard UserDefaults.standard.bool(forKey: "settings.notifications.ipc") else { return }
+            guard
+                UserDefaults.standard.bool(forKey: "settings.notifications.ipc")
+            else { return }
             Task { await self.appState.triggerNotification() }
         }
     }
