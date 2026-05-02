@@ -46,7 +46,7 @@ struct EnvReadingsLine: View {
 
     var body: some View {
         if isHeadline {
-            Text(attributed).foregroundStyle(.primary)
+            Text(attributed)
         } else {
             Text(attributed).font(.caption2).foregroundStyle(.secondary)
         }
@@ -189,7 +189,6 @@ struct LightsSectionView: View {
                 Text(
                     onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off"
                 )
-                .foregroundStyle(.primary)
             }
             if let error = actionError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -255,9 +254,7 @@ struct OtherDevicesSectionView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "cpu")
-                        .foregroundStyle(.primary)
                     Text("\(devices.count) other device\(devices.count == 1 ? "" : "s")")
-                        .foregroundStyle(.primary)
                 }
             }
         }
