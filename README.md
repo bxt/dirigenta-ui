@@ -18,15 +18,17 @@ Toggle lights, adjust brightness and colour, and glance at environment sensor re
 
 ## Features
 
-- **Toggle lights** on and off from the menu bar
-- **Brightness slider** for dimmable lights
-- **Colour temperature** control for white-spectrum lights
-- **Full RGB colour** picker for colour lights
-- **Environment sensors** — temperature, humidity, CO₂, and PM2.5 readings with out-of-range highlights
+- **Toggle lights** on and off from the menu bar, control brightness and color
 - **Pin a light** to the status bar icon for one-click toggling
+- **Environment sensors** — temperature, humidity, CO₂, and PM2.5 readings with out-of-range highlights
+- **Open/close sensors** — see if and how long e.g. windows have been open
+- **Window notifications** – notifications when windows have been open a while or should be opened, factoring in CO₂, temperature, and humidity from nearby sensors
 - **Terminal notifications** — flash lights red at the end of a CLI command (see below)
+- **Room pinning** – you can now pin a room to a persistent third tab
+- Disco mode to make lights switch colors in a groovy fashion
 - Automatic hub discovery via mDNS (no manual IP entry needed)
 - Real-time updates over WebSocket
+- Devices other than lights and sensors listed as well
 
 ## Light notifications from the terminal
 
@@ -41,7 +43,7 @@ Pass `--notify` to the app binary. It posts an IPC message to the already-runnin
 3. Colour lights turn **red** at full brightness for 1 second, then restore their previous colour, temperature, and brightness
 4. White-spectrum and dimmable lights flash at **full brightness** for 1 second, then restore their previous level
 
-The app must be running and connected to the hub for the notification to have any effect.
+The app must be running and connected to the hub for the notification to have any effect. You have to turn on the feature in the app's settings first.
 
 ### Usage
 
