@@ -43,19 +43,6 @@ jobs:
             -scheme dirigenta-ui \
             -destination 'platform=macOS,arch=arm64' \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_emptyToken_whenStoreEmpty \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_gracefullyHandlesMalformedJSON \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsAccessTokenFromStore \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsFingerprintFromStore \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_afterIPChange_newCallWithOldIPCreatesNewInstance \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_differentIP_returnsDifferentInstance \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_usesCurrentAccessToken \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartIsIdempotent \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartSetsIsResolving \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStopClearsState \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStopThenStart_allowsSecondStart \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_isIdempotent \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_withoutStart_doesNotCrash \
             -parallel-testing-enabled NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
