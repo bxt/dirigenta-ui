@@ -11,52 +11,71 @@ struct DevicesView: View {
     @AppStorage("settings.devices.showSensors") private var showSensors = true
     @AppStorage("settings.devices.showOtherDevices") private var showOtherDevices = true
 
-    @State private var lightsExpanded: Bool = true
-    @State private var envExpanded: Bool = true
-    @State private var sensorsExpanded: Bool = true
-    @State private var othersExpanded: Bool = true
-    @State private var actionError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
+    @State private var actionError: String? = nil
+
+    private var anyLightOn: Bool { appState.lights.contains { $0.isOn } }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        List {
             if showLights {
-                LightsSectionView(
-                    lights: appState.lights,
-                    isExpanded: $lightsExpanded,
-                    pendingLightLevels: $pendingLightLevels,
-                    colorPickerLightId: $colorPickerLightId,
-                    actionError: $actionError,
-                    showRoom: true,
-                    onToggleAll: { await toggleAllLights() }
-                )
+                Section {
+                    if appState.lights.isEmpty {
+                        Label("No lights found", systemImage: "lightbulb.slash")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(appState.lights) { light in
+                            LightRowView(
+                                light: light,
+                                pendingLightLevels: $pendingLightLevels,
+                                colorPickerLightId: $colorPickerLightId,
+                                actionError: $actionError,
+                                showRoom: true
+                            )
+                        }
+                        if let error = actionError {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Lights")
+                        Spacer()
+                        Button {
+                            Task { await toggleAllLights() }
+                        } label: {
+                            Image(systemName: anyLightOn ? "lightbulb.fill" : "lightbulb")
+                                .foregroundStyle(anyLightOn ? Color.orange : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             if showEnvSensors && !appState.envSensors.isEmpty {
-                Divider()
-                EnvSensorsSectionView(
-                    sensors: appState.envSensors,
-                    isExpanded: $envExpanded,
-                    showRoom: true
-                )
+                Section("Environment") {
+                    ForEach(appState.envSensors) { sensor in
+                        EnvSensorRow(sensor: sensor, showRoom: true)
+                    }
+                }
             }
             if showSensors && !appState.sensors.isEmpty {
-                Divider()
-                OpenCloseSensorsSectionView(
-                    sensors: appState.sensors,
-                    now: now,
-                    isExpanded: $sensorsExpanded,
-                    showRoom: true
-                )
+                Section("Sensors") {
+                    ForEach(appState.sensors) { sensor in
+                        OpenCloseSensorRow(sensor: sensor, now: now, showRoom: true)
+                    }
+                }
             }
             if showOtherDevices && !appState.otherDevices.isEmpty {
-                Divider()
-                OtherDevicesSectionView(
-                    devices: appState.otherDevices,
-                    isExpanded: $othersExpanded
-                )
+                Section("Other Devices") {
+                    ForEach(appState.otherDevices) { device in
+                        OtherDeviceRow(device: device)
+                    }
+                }
             }
         }
+        .listStyle(.inset)
     }
 
     // MARK: - Actions
@@ -64,16 +83,13 @@ struct DevicesView: View {
     private func toggleAllLights() async {
         guard let ip = mdns.currentIPAddress else { return }
         actionError = nil
-        let anyOn = appState.lights.contains { $0.isOn }
-        let newState = !anyOn
+        let newState = !anyLightOn
         for i in appState.lights.indices { appState.lights[i].attributes.isOn = newState }
         appState.syncPinnedState()
         let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in appState.lights {
-                group.addTask {
-                    try? await client.setLight(id: light.id, isOn: newState)
-                }
+                group.addTask { try? await client.setLight(id: light.id, isOn: newState) }
             }
         }
         await appState.fetchDevices(ip: ip)
@@ -82,11 +98,8 @@ struct DevicesView: View {
 
 #Preview("Devices tab") {
     let state = AppState.preview()
-    return VStack(alignment: .leading, spacing: 8) {
-        DevicesView(now: Date())
-    }
-    .padding(12)
-    .frame(width: 300)
-    .environmentObject(state)
-    .environmentObject(state.mdns)
+    return DevicesView(now: Date())
+        .frame(width: 300)
+        .environmentObject(state)
+        .environmentObject(state.mdns)
 }

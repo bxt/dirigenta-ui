@@ -22,7 +22,7 @@ private struct SensorFooter: View {
                     Text(room).foregroundStyle(.secondary)
                 }
             }
-            .font(.caption2)
+            .font(.caption)
         }
     }
 }
@@ -48,7 +48,7 @@ struct EnvReadingsLine: View {
         if isHeadline {
             Text(attributed).foregroundStyle(.primary)
         } else {
-            Text(attributed).font(.caption2).foregroundStyle(.secondary)
+            Text(attributed).font(.caption).foregroundStyle(.secondary)
         }
     }
 }
@@ -93,7 +93,7 @@ struct OpenCloseSensorRow: View {
                 if sensor.isOpen, let duration = sensor.openDuration(now: now) {
                     let overdue = (sensor.openSeconds(now: now) ?? 0) >= 15 * 60
                     Text("open for \(duration)")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(overdue ? Color.orange : .secondary)
                 }
                 SensorFooter(
@@ -124,7 +124,7 @@ struct OtherDeviceRow: View {
                     guard let deviceType = device.deviceType, !deviceType.isEmpty else { return "" }
                     return " · " + deviceType
                 }())
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 SensorFooter(
                     battery: device.attributes.batteryPercentage,
@@ -189,6 +189,7 @@ struct LightsSectionView: View {
                 Text(
                     onCount > 0 ? "\(onCount) of \(lights.count) on" : "All off"
                 )
+                .font(.subheadline)
                 .foregroundStyle(.primary)
             }
             if let error = actionError {
@@ -227,6 +228,7 @@ struct EnvSensorsSectionView: View {
                                 ? Color.primary : Color.orange
                         )
                     EnvReadingsLine(readings: avgReadings, isHeadline: true)
+                        .font(.subheadline)
                 }
                 .padding(.leading, 4)
             }
@@ -257,6 +259,7 @@ struct OtherDevicesSectionView: View {
                     Image(systemName: "cpu")
                         .foregroundStyle(.primary)
                     Text("\(devices.count) other device\(devices.count == 1 ? "" : "s")")
+                        .font(.subheadline)
                         .foregroundStyle(.primary)
                 }
             }
@@ -303,6 +306,7 @@ struct OpenCloseSensorsSectionView: View {
                             ? "\(openCount) of \(sensors.count) open"
                             : "All closed"
                     )
+                    .font(.subheadline)
                     .foregroundStyle(
                         openCount > 0 ? Color.orange : Color.primary
                     )

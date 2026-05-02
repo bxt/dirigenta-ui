@@ -18,24 +18,25 @@ struct LightRowView: View {
     private var isDiscoActive: Bool { discoTask != nil }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Button {
-                Task { await toggleLight() }
-            } label: {
-                Label {
-                    Text(light.displayName)
-                } icon: {
-                    Image(systemName: light.lightIcon(isOn: light.isOn))
-                        .foregroundStyle(
-                            light.isOn ? Color.orange : Color.primary
-                        )
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Button {
+                    Task { await toggleLight() }
+                } label: {
+                    Label {
+                        Text(light.displayName)
+                    } icon: {
+                        Image(systemName: light.lightIcon(isOn: light.isOn))
+                            .foregroundStyle(
+                                light.isOn ? Color.orange : Color.primary
+                            )
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            if showRoom, let roomName = light.room?.name {
-                Text(roomName).font(.caption2).foregroundStyle(.secondary)
-            }
+                if showRoom, let roomName = light.room?.name {
+                    Text(roomName).font(.caption).foregroundStyle(.secondary)
+                }
 
             if light.isOn && light.supportsColorControls {
                 Button {
@@ -52,104 +53,101 @@ struct LightRowView: View {
                 .help("Color settings")
             }
 
-            if light.isOn && light.isColorLight {
+                if light.isOn && light.isColorLight {
+                    Button {
+                        isDiscoActive ? stopDisco() : startDisco()
+                    } label: {
+                        Image(systemName: "sparkles").font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(isDiscoActive ? Color.accentColor : Color.secondary)
+                    .help(isDiscoActive ? "Stop disco mode" : "Start disco mode")
+                }
+
                 Button {
-                    isDiscoActive ? stopDisco() : startDisco()
+                    if appState.pinnedLightId == light.id {
+                        appState.pinnedLightId = nil
+                    } else {
+                        appState.pinnedLightId = light.id
+                        appState.pinnedLightIsOn = light.isOn
+                    }
                 } label: {
-                    Image(systemName: "sparkles").font(.caption)
+                    Image(
+                        systemName: appState.pinnedLightId == light.id
+                            ? "pin.fill" : "pin"
+                    )
+                    .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isDiscoActive ? Color.accentColor : Color.secondary)
-                .help(isDiscoActive ? "Stop disco mode" : "Start disco mode")
-            }
-
-            Button {
-                if appState.pinnedLightId == light.id {
-                    appState.pinnedLightId = nil
-                } else {
-                    appState.pinnedLightId = light.id
-                    appState.pinnedLightIsOn = light.isOn
-                }
-            } label: {
-                Image(
-                    systemName: appState.pinnedLightId == light.id
-                        ? "pin.fill" : "pin"
+                .foregroundStyle(
+                    appState.pinnedLightId == light.id
+                        ? Color.accentColor : Color.secondary
                 )
-                .font(.caption)
+                .help(
+                    appState.pinnedLightId == light.id
+                        ? "Unpin light" : "Pin to menu bar"
+                )
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(
-                appState.pinnedLightId == light.id
-                    ? Color.accentColor : Color.secondary
-            )
-            .help(
-                appState.pinnedLightId == light.id
-                    ? "Unpin light" : "Pin to menu bar"
-            )
-        }
-        .onDisappear { stopDisco() }
-        .onChange(of: light.isOn) { _, isOn in if !isOn { stopDisco() } }
+            .onDisappear { stopDisco() }
+            .onChange(of: light.isOn) { _, isOn in if !isOn { stopDisco() } }
 
-        if light.isOn, let level = light.attributes.lightLevel {
-            let displayValue = pendingLightLevels[light.id] ?? Double(level)
-            HStack(spacing: 4) {
-                Slider(
-                    value: Binding(
-                        get: { displayValue },
-                        set: { pendingLightLevels[light.id] = $0 }
-                    ),
-                    in: 1...100
-                ) { editing in
-                    if !editing, let pending = pendingLightLevels[light.id] {
-                        Task { await setBrightness(to: Int(pending)) }
-                    }
-                }
-                TextField("", text: $levelText)
-                    .frame(width: 40)
-                    .multilineTextAlignment(.trailing)
-                    .textFieldStyle(.squareBorder)
-                    .focused($levelFieldFocused)
-                    .onChange(of: levelText) { _, newValue in
-                        // Strip any non-digit characters
-                        let digits = newValue.filter(\.isNumber)
-                        if digits != newValue {
-                            levelText = digits
-                            return
+            if light.isOn, let level = light.attributes.lightLevel {
+                let displayValue = pendingLightLevels[light.id] ?? Double(level)
+                HStack(spacing: 4) {
+                    Slider(
+                        value: Binding(
+                            get: { displayValue },
+                            set: { pendingLightLevels[light.id] = $0 }
+                        ),
+                        in: 1...100
+                    ) { editing in
+                        if !editing, let pending = pendingLightLevels[light.id] {
+                            Task { await setBrightness(to: Int(pending)) }
                         }
-                        // Only apply when the user is actively editing the field,
-                        // not when levelText is updated programmatically from the slider.
-                        guard levelFieldFocused else { return }
-                        guard let value = Int(digits), (1...100).contains(value)
-                        else { return }
-                        pendingLightLevels[light.id] = Double(value)
-                        Task { await setBrightness(to: value) }
                     }
-                    .onChange(of: levelFieldFocused) { _, isFocused in
-                        // Reset display if field was left empty or out of range
-                        if !isFocused { levelText = "\(Int(displayValue))" }
-                    }
-            }
-            .padding(.leading, 22)
-            .padding(.trailing, 4)
-            .onAppear { levelText = "\(Int(displayValue))" }
-            .onChange(of: displayValue) { _, newValue in
-                if !levelFieldFocused { levelText = "\(Int(newValue))" }
-            }
-        }
-
-        if light.isOn && colorPickerLightId == light.id {
-            LightColorControls(
-                light: light,
-                onSetLightLevel: { level in
-                    Task { await setBrightness(to: level) }
-                },
-                onSetColorTemperature: { temp in
-                    Task { await setColorTemperature(to: temp) }
-                },
-                onSetColor: { hue, sat in
-                    Task { await setColor(hue: hue, saturation: sat) }
+                    TextField("", text: $levelText)
+                        .frame(width: 40)
+                        .multilineTextAlignment(.trailing)
+                        .textFieldStyle(.squareBorder)
+                        .focused($levelFieldFocused)
+                        .onChange(of: levelText) { _, newValue in
+                            let digits = newValue.filter(\.isNumber)
+                            if digits != newValue {
+                                levelText = digits
+                                return
+                            }
+                            guard levelFieldFocused else { return }
+                            guard let value = Int(digits), (1...100).contains(value)
+                            else { return }
+                            pendingLightLevels[light.id] = Double(value)
+                            Task { await setBrightness(to: value) }
+                        }
+                        .onChange(of: levelFieldFocused) { _, isFocused in
+                            if !isFocused { levelText = "\(Int(displayValue))" }
+                        }
                 }
-            )
+                .padding(.leading, 22)
+                .padding(.trailing, 4)
+                .onAppear { levelText = "\(Int(displayValue))" }
+                .onChange(of: displayValue) { _, newValue in
+                    if !levelFieldFocused { levelText = "\(Int(newValue))" }
+                }
+            }
+
+            if light.isOn && colorPickerLightId == light.id {
+                LightColorControls(
+                    light: light,
+                    onSetLightLevel: { level in
+                        Task { await setBrightness(to: level) }
+                    },
+                    onSetColorTemperature: { temp in
+                        Task { await setColorTemperature(to: temp) }
+                    },
+                    onSetColor: { hue, sat in
+                        Task { await setColor(hue: hue, saturation: sat) }
+                    }
+                )
+            }
         }
     }
 
