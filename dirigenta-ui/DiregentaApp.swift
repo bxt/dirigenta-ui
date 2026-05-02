@@ -50,6 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Register defaults so UserDefaults.bool(forKey:) returns the right value
         // even before the user has opened Settings for the first time.
         UserDefaults.standard.register(defaults: [
+            "settings.defaultTab": MenuTab.devices.rawValue,
             "settings.devices.showLights": true,
             "settings.devices.showEnvSensors": true,
             "settings.devices.showSensors": true,

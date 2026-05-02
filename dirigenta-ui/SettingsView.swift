@@ -3,6 +3,9 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
 
+    // MARK: - Default tab
+    @AppStorage("settings.defaultTab") private var defaultTab: MenuTab = .devices
+
     // MARK: - Devices tab visibility
     @AppStorage("settings.devices.showLights") private var devicesShowLights = true
     @AppStorage("settings.devices.showEnvSensors") private var devicesShowEnvSensors = true
@@ -21,6 +24,13 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("General") {
+                Picker("Default tab", selection: $defaultTab) {
+                    Text("Devices").tag(MenuTab.devices)
+                    Text("Rooms").tag(MenuTab.rooms)
+                }
+            }
+
             Section("Devices") {
                 Toggle("Lights", isOn: $devicesShowLights)
                 Toggle("Environment Sensors", isOn: $devicesShowEnvSensors)

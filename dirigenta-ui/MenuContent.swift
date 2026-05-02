@@ -35,7 +35,7 @@ private struct ScreenReader: NSViewRepresentable {
     }
 }
 
-private enum Tab { case devices, rooms }
+enum MenuTab: String { case devices, rooms }
 
 struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
@@ -45,13 +45,9 @@ struct MenuContent: View {
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
-    @State private var selectedTab: Tab = .devices
+    @AppStorage("settings.defaultTab") private var selectedTab: MenuTab = .devices
 
     init() {}
-
-    fileprivate init(initialTab: Tab) {
-        _selectedTab = State(initialValue: initialTab)
-    }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
@@ -85,8 +81,8 @@ struct MenuContent: View {
                         .foregroundStyle(.orange)
                 } else {
                     Picker("", selection: $selectedTab) {
-                        Text("Devices").tag(Tab.devices)
-                        Text("Rooms").tag(Tab.rooms)
+                        Text("Devices").tag(MenuTab.devices)
+                        Text("Rooms").tag(MenuTab.rooms)
                     }
                     .pickerStyle(.segmented)
 
@@ -207,7 +203,8 @@ struct MenuContent: View {
 
 #Preview("Normal — rooms tab") {
     let state = AppState.preview()
-    return MenuContent(initialTab: .rooms)
+    UserDefaults.standard.set(MenuTab.rooms.rawValue, forKey: "settings.defaultTab")
+    return MenuContent()
         .environmentObject(state)
         .environmentObject(state.mdns)
 }
