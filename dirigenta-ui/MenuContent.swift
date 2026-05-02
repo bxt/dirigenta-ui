@@ -35,7 +35,7 @@ private struct ScreenReader: NSViewRepresentable {
     }
 }
 
-enum MenuTab: String { case devices, rooms }
+enum MenuTab: String { case devices, rooms, pinnedRoom }
 
 struct MenuContent: View {
     @EnvironmentObject private var appState: AppState
@@ -46,8 +46,15 @@ struct MenuContent: View {
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
     @AppStorage("settings.defaultTab") private var selectedTab: MenuTab = .devices
+    @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
     init() {}
+
+    private var pinnedRoomName: String? {
+        guard !pinnedRoomId.isEmpty else { return nil }
+        return (appState.lights + appState.sensors + appState.envSensors)
+            .first { $0.room?.id == pinnedRoomId }?.room?.name
+    }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
@@ -83,6 +90,9 @@ struct MenuContent: View {
                     Picker("", selection: $selectedTab) {
                         Text("Devices").tag(MenuTab.devices)
                         Text("Rooms").tag(MenuTab.rooms)
+                        if let name = pinnedRoomName {
+                            Text(name).tag(MenuTab.pinnedRoom)
+                        }
                     }
                     .pickerStyle(.segmented)
 
@@ -93,8 +103,10 @@ struct MenuContent: View {
                         Group {
                             if selectedTab == .devices {
                                 DevicesView(now: now)
-                            } else {
+                            } else if selectedTab == .rooms {
                                 RoomsView(now: now)
+                            } else {
+                                PinnedRoomView(roomId: pinnedRoomId, now: now)
                             }
                         }
                         .frame(width: 276)
@@ -189,6 +201,11 @@ struct MenuContent: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 now = Date()
+            }
+        }
+        .onChange(of: pinnedRoomId) { _, newValue in
+            if newValue.isEmpty && selectedTab == .pinnedRoom {
+                selectedTab = .rooms
             }
         }
     }

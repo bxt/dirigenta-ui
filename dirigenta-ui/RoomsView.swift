@@ -22,6 +22,7 @@ struct RoomsView: View {
     @AppStorage("settings.rooms.showLights") private var showLights = true
     @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors = true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
+    @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
@@ -67,8 +68,19 @@ struct RoomsView: View {
 
     @ViewBuilder
     private func roomSection(_ room: RoomSummary) -> some View {
-        Text(room.name)
-            .fontWeight(.semibold).padding(.top, 8)
+        HStack(alignment: .firstTextBaseline) {
+            Text(room.name)
+                .fontWeight(.semibold).padding(.top, 8)
+            Spacer()
+            Button {
+                pinnedRoomId = pinnedRoomId == room.id ? "" : room.id
+            } label: {
+                Image(systemName: pinnedRoomId == room.id ? "pin.fill" : "pin")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+        }
 
         if showLights && !room.lights.isEmpty {
             LightsSectionView(
