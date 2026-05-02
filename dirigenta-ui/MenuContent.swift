@@ -44,6 +44,7 @@ struct MenuContent: View {
     @State private var now = Date()
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
+    @State private var contentHeight: CGFloat = 0
     @AppStorage("settings.defaultTab") private var selectedTab: MenuTab = .devices
     @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
@@ -95,17 +96,40 @@ struct MenuContent: View {
                     }
                     .pickerStyle(.segmented)
 
-                    let maxHeight = (currentScreen?.visibleFrame.height ?? 800) - 200
-                    Group {
-                        if selectedTab == .devices {
-                            DevicesView(now: now)
-                        } else if selectedTab == .rooms {
-                            RoomsView(now: now)
-                        } else {
-                            PinnedRoomView(roomId: pinnedRoomId, now: now)
+                    let screenHeight =
+                        currentScreen?.visibleFrame.height ?? 8000
+                    let maxHeight = screenHeight - 200
+                    ScrollView {
+                        Group {
+                            if selectedTab == .devices {
+                                DevicesView(now: now)
+                            } else if selectedTab == .rooms {
+                                RoomsView(now: now)
+                            } else {
+                                PinnedRoomView(roomId: pinnedRoomId, now: now)
+                            }
                         }
+                        .frame(width: 276)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear {
+                                        DispatchQueue.main.async {
+                                            contentHeight = geo.size.height
+                                        }
+                                    }
+                                    .onChange(of: geo.size.height) {
+                                        _,
+                                        newValue in
+                                        DispatchQueue.main.async {
+                                            contentHeight = newValue
+                                        }
+                                    }
+                            }
+                        )
                     }
-                    .frame(maxHeight: maxHeight)
+                    .frame(height: min(contentHeight, maxHeight))
+                    .scrollDisabled(contentHeight < maxHeight)
                 }
             }
             VStack(spacing: 8) {

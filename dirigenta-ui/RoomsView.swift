@@ -27,80 +27,85 @@ struct RoomsView: View {
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
     @State private var actionError: String? = nil
+    @State private var expandedLightsRoomIds: Set<String> = []
+    @State private var expandedEnvRoomIds: Set<String> = []
+    @State private var expandedSensorsRoomIds: Set<String> = []
+
+    // Creates a Bool Binding from a Set<String>, toggling membership of `id`.
+    private func membership(_ id: String, in set: Binding<Set<String>>)
+        -> Binding<Bool>
+    {
+        Binding(
+            get: { set.wrappedValue.contains(id) },
+            set: {
+                if $0 {
+                    set.wrappedValue.insert(id)
+                } else {
+                    set.wrappedValue.remove(id)
+                }
+            }
+        )
+    }
 
     var body: some View {
-        let rooms = roomSummaries
-        List {
+        VStack(alignment: .leading, spacing: 4) {
+            let rooms = roomSummaries
             if rooms.isEmpty {
                 Label("No rooms found", systemImage: "house.slash")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
-                ForEach(rooms) { room in roomSection(room) }
+                ForEach(rooms) { room in
+                    roomSection(room)
+                    if room.id != rooms.last?.id {
+                        Divider()
+                    }
+                }
             }
         }
-        .listStyle(.inset)
     }
 
     // MARK: - Room section
 
     @ViewBuilder
     private func roomSection(_ room: RoomSummary) -> some View {
-        let isPinned = pinnedRoomId == room.id
-        Section {
-            if showEnvSensors {
-                let avgReadings = DirigeraDevice.averagedEnvReadings(from: room.envSensors)
-                if !avgReadings.isEmpty {
-                    Label {
-                        EnvReadingsLine(readings: avgReadings, isHeadline: true)
-                            .font(.subheadline)
-                    } icon: {
-                        Image(systemName: "thermometer.medium")
-                            .foregroundStyle(
-                                avgReadings.allSatisfy { !$0.outOfRange }
-                                    ? Color.secondary : Color.orange
-                            )
-                    }
-                }
+        HStack(alignment: .firstTextBaseline) {
+            Text(room.name)
+                .fontWeight(.semibold).padding(.top, 8)
+            Spacer()
+            Button {
+                pinnedRoomId = pinnedRoomId == room.id ? "" : room.id
+            } label: {
+                Image(systemName: pinnedRoomId == room.id ? "pin.fill" : "pin")
+                    .font(.caption)
             }
-            if showLights {
-                ForEach(room.lights) { light in
-                    LightRowView(
-                        light: light,
-                        pendingLightLevels: $pendingLightLevels,
-                        colorPickerLightId: $colorPickerLightId,
-                        actionError: $actionError
-                    )
-                }
-            }
-            if showSensors {
-                ForEach(room.sensors) { sensor in
-                    OpenCloseSensorRow(sensor: sensor, now: now)
-                }
-            }
-        } header: {
-            HStack {
-                Text(room.name)
-                    .font(.title3.weight(.semibold))
-                    .textCase(nil)
-                    .foregroundStyle(.primary)
-                Spacer()
-                if showLights && !room.lights.isEmpty {
-                    Button {
-                        Task { await toggleRoomLights(room) }
-                    } label: {
-                        Image(systemName: room.anyLightOn ? "lightbulb.fill" : "lightbulb")
-                            .foregroundStyle(room.anyLightOn ? Color.orange : Color.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Button {
-                    pinnedRoomId = isPinned ? "" : room.id
-                } label: {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-                }
-                .buttonStyle(.plain)
-            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+        }
+
+        if showLights && !room.lights.isEmpty {
+            LightsSectionView(
+                lights: room.lights,
+                isExpanded: membership(room.id, in: $expandedLightsRoomIds),
+                pendingLightLevels: $pendingLightLevels,
+                colorPickerLightId: $colorPickerLightId,
+                actionError: $actionError,
+                onToggleAll: { await toggleRoomLights(room) }
+            )
+        }
+
+        if showEnvSensors {
+            EnvSensorsSectionView(
+                sensors: room.envSensors,
+                isExpanded: membership(room.id, in: $expandedEnvRoomIds)
+            )
+        }
+
+        if showSensors {
+            OpenCloseSensorsSectionView(
+                sensors: room.sensors,
+                now: now,
+                isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
+            )
         }
     }
 

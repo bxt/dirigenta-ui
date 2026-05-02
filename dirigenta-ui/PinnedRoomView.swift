@@ -14,70 +14,45 @@ struct PinnedRoomView: View {
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
     @State private var actionError: String? = nil
+    @State private var lightsExpanded = true
+    @State private var envExpanded = true
+    @State private var sensorsExpanded = true
 
     private var lights: [DirigeraDevice] { appState.lights.filter { $0.room?.id == roomId } }
     private var envSensors: [DirigeraDevice] { appState.envSensors.filter { $0.room?.id == roomId } }
     private var sensors: [DirigeraDevice] { appState.sensors.filter { $0.room?.id == roomId } }
-    private var anyLightOn: Bool { lights.contains { $0.isOn } }
 
     var body: some View {
-        List {
-            Section {
-                if showEnvSensors {
-                    let avgReadings = DirigeraDevice.averagedEnvReadings(from: envSensors)
-                    if !avgReadings.isEmpty {
-                        Label {
-                            EnvReadingsLine(readings: avgReadings, isHeadline: true)
-                                .font(.subheadline)
-                        } icon: {
-                            Image(systemName: "thermometer.medium")
-                                .foregroundStyle(
-                                    avgReadings.allSatisfy { !$0.outOfRange }
-                                        ? Color.secondary : Color.orange
-                                )
-                        }
-                    }
-                }
-                if showLights {
-                    ForEach(lights) { light in
-                        LightRowView(
-                            light: light,
-                            pendingLightLevels: $pendingLightLevels,
-                            colorPickerLightId: $colorPickerLightId,
-                            actionError: $actionError
-                        )
-                    }
-                    if let error = actionError {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                }
-                if showSensors {
-                    ForEach(sensors) { sensor in
-                        OpenCloseSensorRow(sensor: sensor, now: now)
-                    }
-                }
-            } header: {
-                HStack {
-                    Spacer()
-                    if showLights && !lights.isEmpty {
-                        Button {
-                            Task { await toggleLights() }
-                        } label: {
-                            Image(systemName: anyLightOn ? "lightbulb.fill" : "lightbulb")
-                                .foregroundStyle(anyLightOn ? Color.orange : Color.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            if showLights && !lights.isEmpty {
+                LightsSectionView(
+                    lights: lights,
+                    isExpanded: $lightsExpanded,
+                    pendingLightLevels: $pendingLightLevels,
+                    colorPickerLightId: $colorPickerLightId,
+                    actionError: $actionError,
+                    onToggleAll: { await toggleLights() }
+                )
+            }
+            if showEnvSensors && !envSensors.isEmpty {
+                EnvSensorsSectionView(
+                    sensors: envSensors,
+                    isExpanded: $envExpanded
+                )
+            }
+            if showSensors && !sensors.isEmpty {
+                OpenCloseSensorsSectionView(
+                    sensors: sensors,
+                    now: now,
+                    isExpanded: $sensorsExpanded
+                )
             }
         }
-        .listStyle(.inset)
     }
 
     private func toggleLights() async {
         guard let ip = mdns.currentIPAddress else { return }
-        let newState = !anyLightOn
+        let newState = !lights.contains { $0.isOn }
         let ids = Set(lights.map { $0.id })
         for i in appState.lights.indices where ids.contains(appState.lights[i].id) {
             appState.lights[i].attributes.isOn = newState
