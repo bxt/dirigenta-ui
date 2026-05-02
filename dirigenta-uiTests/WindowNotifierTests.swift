@@ -29,6 +29,7 @@ private func window(
 private func envSensor(
     id: String,
     roomId: String = "room1",
+    roomName: String? = nil,
     co2: Double? = nil,
     temperature: Double? = nil,
     humidity: Double? = nil
@@ -42,7 +43,7 @@ private func envSensor(
         id: id,
         type: "sensor",
         deviceType: "environmentSensor",
-        room: Room(id: roomId, name: roomId),
+        room: Room(id: roomId, name: roomName ?? roomId),
         attributes: attrs
     )
 }
@@ -75,6 +76,8 @@ final class WindowNotifierTests: XCTestCase {
         notifier.coldThreshold = 15
         notifier.humidityHighThreshold = 65
         notifier.co2HighThreshold = 1000
+        notifier.co2OpenThreshold = 1200
+        notifier.openWindowCooldown = 15 * 60
 
         postedRequests = []
         cancelled = []
@@ -385,13 +388,131 @@ final class WindowNotifierTests: XCTestCase {
         XCTAssertTrue(postedRequests.map(\.identifier).allSatisfy { $0 == "w1" })
     }
 
+    // MARK: - Open window: basic triggering
+
+    func testHighCO2_noOpenWindow_hasWindowSensor_notifiesOpenWindow() {
+        let w = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertEqual(openWindowRequests.count, 1)
+        XCTAssertEqual(openWindowRequests.first?.content.title, "Open a window")
+    }
+
+    func testHighCO2_windowAlreadyOpen_noOpenWindowNotification() {
+        let w = window(id: "w1", isOpen: true)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertTrue(openWindowRequests.isEmpty)
+    }
+
+    func testHighCO2_noWindowSensorInRoom_noOpenWindowNotification() {
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [], envSensors: [sensor], now: t0)
+        XCTAssertTrue(openWindowRequests.isEmpty)
+    }
+
+    func testCO2BelowOpenThreshold_noOpenWindowNotification() {
+        let w = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1100) // below 1200
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertTrue(openWindowRequests.isEmpty)
+    }
+
+    func testWindowSensorInDifferentRoom_noOpenWindowNotification() {
+        let w = window(id: "w1", roomId: "room2", isOpen: false)
+        let sensor = envSensor(id: "e1", roomId: "room1", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertTrue(openWindowRequests.isEmpty)
+    }
+
+    // MARK: - Open window: notification content
+
+    func testOpenWindowNotification_subtitleIsRoomName() {
+        let w = window(id: "w1", roomId: "r1", roomName: "Kitchen", isOpen: false)
+        let sensor = envSensor(id: "e1", roomId: "r1", roomName: "Kitchen", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        XCTAssertEqual(openWindowRequests.first?.content.subtitle, "Kitchen")
+    }
+
+    func testOpenWindowNotification_bodyContainsSensorName() {
+        let w = window(id: "w1", isOpen: false)
+        var attrs = DirigeraDevice.Attributes()
+        attrs.customName = "CO2 Sensor"
+        attrs.currentCO2 = 1300
+        let sensor = DirigeraDevice(
+            id: "e1", type: "sensor", deviceType: "environmentSensor",
+            room: Room(id: "room1", name: "room1"), attributes: attrs
+        )
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        let body = openWindowRequests.first?.content.body ?? ""
+        XCTAssertTrue(body.contains("CO2 Sensor"), "Body should contain sensor name; got: \(body)")
+    }
+
+    func testOpenWindowNotification_bodyContainsReadings() {
+        let w = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1350, temperature: 22, humidity: 58)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        let body = openWindowRequests.first?.content.body ?? ""
+        XCTAssertTrue(body.contains("ppm"), "Body should contain CO2 reading; got: \(body)")
+        XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
+        XCTAssertTrue(body.contains("%"), "Body should contain humidity; got: \(body)")
+    }
+
+    // MARK: - Open window: cooldown
+
+    func testOpenWindowNotification_respectsCooldown() {
+        let w = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 5 * 60) // within cooldown
+        XCTAssertEqual(openWindowRequests.count, 1, "Should not repeat within the cooldown window")
+    }
+
+    func testOpenWindowNotification_firesAgainAfterCooldown() {
+        let w = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0)
+        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 16 * 60) // past cooldown
+        XCTAssertEqual(openWindowRequests.count, 2, "Should fire again after cooldown expires")
+    }
+
+    // MARK: - Open window: cancelled when window opens
+
+    func testWindowOpening_cancelsPendingOpenWindowNotification() {
+        let closed = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        notifier.update(windows: [closed], envSensors: [sensor], now: t0)
+        // User opens the window
+        let open = window(id: "w1", isOpen: true)
+        notifier.update(windows: [open], envSensors: [sensor], now: t0 + 60)
+        XCTAssertTrue(cancelled.flatMap { $0 }.contains("open-window:room1"))
+    }
+
+    func testWindowOpening_resetsCooldown_allowsImmediateRealert() {
+        let closed = window(id: "w1", isOpen: false)
+        let sensor = envSensor(id: "e1", co2: 1300)
+        // First alert fires
+        notifier.update(windows: [closed], envSensors: [sensor], now: t0)
+        // Window opens (clears cooldown)
+        let open = window(id: "w1", isOpen: true)
+        notifier.update(windows: [open], envSensors: [sensor], now: t0 + 60)
+        // Window closes again, CO2 still high — should alert immediately without waiting for cooldown
+        notifier.update(windows: [closed], envSensors: [sensor], now: t0 + 120)
+        XCTAssertEqual(openWindowRequests.count, 2,
+                       "Should re-alert immediately after cooldown reset by window opening")
+    }
+
     // MARK: - Helpers
 
     private var immediateRequests: [UNNotificationRequest] {
-        postedRequests.filter { $0.trigger == nil }
+        postedRequests.filter { $0.trigger == nil && !$0.identifier.hasPrefix("open-window:") }
     }
 
     private var timedRequests: [UNNotificationRequest] {
         postedRequests.filter { $0.trigger is UNTimeIntervalNotificationTrigger }
+    }
+
+    private var openWindowRequests: [UNNotificationRequest] {
+        postedRequests.filter { $0.identifier.hasPrefix("open-window:") }
     }
 }

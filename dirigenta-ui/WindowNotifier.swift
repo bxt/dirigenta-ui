@@ -29,6 +29,8 @@ final class WindowNotifier {
     var coldThreshold: Double = 15              // °C below which we notify immediately
     var humidityHighThreshold: Double = 65      // % above which rising humidity is urgent
     var co2HighThreshold: Double = 1000         // ppm above which still ventilating
+    var co2OpenThreshold: Double = 1200         // ppm above which "open a window" is suggested
+    var openWindowCooldown: TimeInterval = 15 * 60  // minimum interval between "open window" alerts per room
 
     // MARK: - Injectable side-effects (replaced in tests)
 
@@ -42,9 +44,10 @@ final class WindowNotifier {
 
     // MARK: - State
 
-    private var openedAt: [String: Date] = [:]      // windowId → time window opened
-    private var notified: Set<String> = []           // windows already notified this open period
-    private var history: [String: [EnvReading]] = [:] // roomId → rolling reading buffer
+    private var openedAt: [String: Date] = [:]                    // windowId → time window opened
+    private var notified: Set<String> = []                        // windows already notified this open period
+    private var history: [String: [EnvReading]] = [:]             // roomId → rolling reading buffer
+    private var lastOpenWindowNotification: [String: Date] = [:]  // roomId → last "open a window" alert time
 
     // MARK: - Public interface
 
@@ -67,9 +70,15 @@ final class WindowNotifier {
 
         // Track newly opened windows. Prefer the sensor's lastSeen timestamp so a window
         // already open at app start is treated as having been open since then, not since launch.
+        // When a window just opens, cancel any pending "open a window" alert for its room and
+        // clear the cooldown so a future CO2 spike after it closes can re-trigger immediately.
         for window in openWindows where openedAt[window.id] == nil {
             let openTime = window.lastSeenDate.map { min($0, now) } ?? now
             openedAt[window.id] = openTime
+            if let roomId = window.room?.id {
+                cancel(["open-window:\(roomId)"])
+                lastOpenWindowNotification.removeValue(forKey: roomId)
+            }
         }
 
         // Reschedule the timed fallback on every update for all pending windows, baking in
@@ -87,6 +96,9 @@ final class WindowNotifier {
         for window in openWindows where !notified.contains(window.id) {
             evaluate(window: window, now: now)
         }
+
+        // Check whether any room needs a window opened (high CO2, no open window).
+        checkOpenWindowNeeded(windows: windows, envSensors: envSensors, now: now)
     }
 
     // MARK: - Private
@@ -223,6 +235,52 @@ final class WindowNotifier {
         Logger.notifications.info(
             "Scheduled fallback notification for \(window.id, privacy: .public)"
         )
+    }
+
+    private func checkOpenWindowNeeded(windows: [DirigeraDevice], envSensors: [DirigeraDevice], now: Date) {
+        // Index all window sensors and env sensors by room
+        var windowsByRoom: [String: [DirigeraDevice]] = [:]
+        for w in windows where w.isWindowSensor {
+            guard let roomId = w.room?.id else { continue }
+            windowsByRoom[roomId, default: []].append(w)
+        }
+        var sensorsByRoom: [String: [DirigeraDevice]] = [:]
+        for s in envSensors {
+            guard let roomId = s.room?.id else { continue }
+            sensorsByRoom[roomId, default: []].append(s)
+        }
+
+        for (roomId, roomSensors) in sensorsByRoom {
+            // Room must have at least one window sensor
+            guard let roomWindows = windowsByRoom[roomId], !roomWindows.isEmpty else { continue }
+            // Skip if a window is already open
+            if roomWindows.contains(where: { $0.isOpen }) { continue }
+            // CO2 must be above the open threshold
+            let readings = history[roomId] ?? []
+            guard let co2 = recentAverage(in: readings, keyPath: \.co2, now: now),
+                  co2 > co2OpenThreshold else { continue }
+            // Enforce per-room cooldown
+            if let last = lastOpenWindowNotification[roomId],
+               now.timeIntervalSince(last) < openWindowCooldown { continue }
+
+            let roomName = roomSensors.first?.room?.name ?? roomId
+            let sensorNames = roomSensors.map(\.displayName).joined(separator: ", ")
+            let summary = readingsSummary(readings: readings, now: now)
+            let content = UNMutableNotificationContent()
+            content.title = "Open a window"
+            content.subtitle = roomName
+            content.body = summary.isEmpty ? sensorNames : sensorNames + " · " + summary
+            content.sound = .default
+            schedule(UNNotificationRequest(
+                identifier: "open-window:\(roomId)",
+                content: content,
+                trigger: nil
+            ))
+            lastOpenWindowNotification[roomId] = now
+            Logger.notifications.info(
+                "Posted 'Open a window' for room \(roomId, privacy: .public)"
+            )
+        }
     }
 
     private func post(
