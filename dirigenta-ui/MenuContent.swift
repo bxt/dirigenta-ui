@@ -163,11 +163,9 @@ struct MenuContent: View {
                         }
                     }
                     Spacer(minLength: 0)
-                    if !appState.accessToken.isEmpty {
-                        Button("Clear Token") {
-                            appState.pinnedLightId = nil
-                            appState.accessToken = ""
-                        }
+                    SettingsLink {
+                        Label("Settings", systemImage: "gearshape")
+                            .labelStyle(.iconOnly)
                     }
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                 }

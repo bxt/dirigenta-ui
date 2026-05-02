@@ -19,6 +19,10 @@ struct RoomsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
+    @AppStorage("settings.rooms.showLights") private var showLights = true
+    @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors = true
+    @AppStorage("settings.rooms.showSensors") private var showSensors = true
+
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
     @State private var actionError: String? = nil
@@ -66,7 +70,7 @@ struct RoomsView: View {
         Text(room.name)
             .fontWeight(.semibold).padding(.top, 8)
 
-        if !room.lights.isEmpty {
+        if showLights && !room.lights.isEmpty {
             LightsSectionView(
                 lights: room.lights,
                 isExpanded: membership(room.id, in: $expandedLightsRoomIds),
@@ -77,16 +81,20 @@ struct RoomsView: View {
             )
         }
 
-        EnvSensorsSectionView(
-            sensors: room.envSensors,
-            isExpanded: membership(room.id, in: $expandedEnvRoomIds)
-        )
+        if showEnvSensors {
+            EnvSensorsSectionView(
+                sensors: room.envSensors,
+                isExpanded: membership(room.id, in: $expandedEnvRoomIds)
+            )
+        }
 
-        OpenCloseSensorsSectionView(
-            sensors: room.sensors,
-            now: now,
-            isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
-        )
+        if showSensors {
+            OpenCloseSensorsSectionView(
+                sensors: room.sensors,
+                now: now,
+                isExpanded: membership(room.id, in: $expandedSensorsRoomIds)
+            )
+        }
     }
 
     // MARK: - Data

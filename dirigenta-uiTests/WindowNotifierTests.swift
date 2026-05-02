@@ -68,6 +68,10 @@ final class WindowNotifierTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        UserDefaults.standard.register(defaults: [
+            "settings.notifications.closeWindow": true,
+            "settings.notifications.openWindow": true,
+        ])
         notifier = WindowNotifier()
         notifier.minElapsed = 5 * 60
         notifier.noSensorDelay = 15 * 60

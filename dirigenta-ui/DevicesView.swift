@@ -6,6 +6,11 @@ struct DevicesView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
+    @AppStorage("settings.devices.showLights") private var showLights = true
+    @AppStorage("settings.devices.showEnvSensors") private var showEnvSensors = true
+    @AppStorage("settings.devices.showSensors") private var showSensors = true
+    @AppStorage("settings.devices.showOtherDevices") private var showOtherDevices = true
+
     @State private var lightsExpanded: Bool = true
     @State private var envExpanded: Bool = true
     @State private var sensorsExpanded: Bool = true
@@ -16,16 +21,18 @@ struct DevicesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LightsSectionView(
-                lights: appState.lights,
-                isExpanded: $lightsExpanded,
-                pendingLightLevels: $pendingLightLevels,
-                colorPickerLightId: $colorPickerLightId,
-                actionError: $actionError,
-                showRoom: true,
-                onToggleAll: { await toggleAllLights() }
-            )
-            if !appState.envSensors.isEmpty {
+            if showLights {
+                LightsSectionView(
+                    lights: appState.lights,
+                    isExpanded: $lightsExpanded,
+                    pendingLightLevels: $pendingLightLevels,
+                    colorPickerLightId: $colorPickerLightId,
+                    actionError: $actionError,
+                    showRoom: true,
+                    onToggleAll: { await toggleAllLights() }
+                )
+            }
+            if showEnvSensors && !appState.envSensors.isEmpty {
                 Divider()
                 EnvSensorsSectionView(
                     sensors: appState.envSensors,
@@ -33,7 +40,7 @@ struct DevicesView: View {
                     showRoom: true
                 )
             }
-            if !appState.sensors.isEmpty {
+            if showSensors && !appState.sensors.isEmpty {
                 Divider()
                 OpenCloseSensorsSectionView(
                     sensors: appState.sensors,
@@ -42,7 +49,7 @@ struct DevicesView: View {
                     showRoom: true
                 )
             }
-            if !appState.otherDevices.isEmpty {
+            if showOtherDevices && !appState.otherDevices.isEmpty {
                 Divider()
                 OtherDevicesSectionView(
                     devices: appState.otherDevices,

@@ -17,7 +17,10 @@ struct DirigentaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        Settings { EmptyView() }
+        Settings {
+            SettingsView()
+                .environmentObject(appDelegate.appState)
+        }
     }
 }
 
@@ -28,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // NWPathMonitor — both crash an unsigned CI binary.
     private static let isRunningTests = NSClassFromString("XCTestCase") != nil
 
-    private lazy var appState = AppState()
+    lazy var appState = AppState()
     private lazy var statusBarController = StatusBarController(appState: appState)
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -43,6 +46,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
             exit(0)
         }
+
+        // Register defaults so UserDefaults.bool(forKey:) returns the right value
+        // even before the user has opened Settings for the first time.
+        UserDefaults.standard.register(defaults: [
+            "settings.devices.showLights": true,
+            "settings.devices.showEnvSensors": true,
+            "settings.devices.showSensors": true,
+            "settings.devices.showOtherDevices": true,
+            "settings.rooms.showLights": true,
+            "settings.rooms.showEnvSensors": true,
+            "settings.rooms.showSensors": true,
+            "settings.notifications.openWindow": true,
+            "settings.notifications.closeWindow": true,
+            "settings.notifications.ipc": true,
+        ])
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -59,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] _ in
             guard let self else { return }
+            guard UserDefaults.standard.bool(forKey: "settings.notifications.ipc") else { return }
             Task { await self.appState.triggerNotification() }
         }
     }

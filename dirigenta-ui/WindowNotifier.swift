@@ -81,20 +81,22 @@ final class WindowNotifier {
             }
         }
 
-        // Reschedule the timed fallback on every update for all pending windows, baking in
-        // the latest readings so the notification shows current sensor state when it fires.
-        // If an env-sensor reading arrives in time, evaluate() posts an immediate notification
-        // with the same identifier, replacing the pending timed one.
-        for window in openWindows where !notified.contains(window.id) {
-            guard let openTime = openedAt[window.id] else { continue }
-            guard now.timeIntervalSince(openTime) < noSensorDelay else { continue }
-            let readings = roomReadings(for: window)
-            scheduleFallbackNotification(for: window, openedAt: openTime, readings: readings, now: now)
-        }
+        if UserDefaults.standard.bool(forKey: "settings.notifications.closeWindow") {
+            // Reschedule the timed fallback on every update for all pending windows, baking in
+            // the latest readings so the notification shows current sensor state when it fires.
+            // If an env-sensor reading arrives in time, evaluate() posts an immediate notification
+            // with the same identifier, replacing the pending timed one.
+            for window in openWindows where !notified.contains(window.id) {
+                guard let openTime = openedAt[window.id] else { continue }
+                guard now.timeIntervalSince(openTime) < noSensorDelay else { continue }
+                let readings = roomReadings(for: window)
+                scheduleFallbackNotification(for: window, openedAt: openTime, readings: readings, now: now)
+            }
 
-        // Evaluate open windows that haven't been notified yet.
-        for window in openWindows where !notified.contains(window.id) {
-            evaluate(window: window, now: now)
+            // Evaluate open windows that haven't been notified yet.
+            for window in openWindows where !notified.contains(window.id) {
+                evaluate(window: window, now: now)
+            }
         }
 
         // Check whether any room needs a window opened (high CO2, no open window).
@@ -238,6 +240,7 @@ final class WindowNotifier {
     }
 
     private func checkOpenWindowNeeded(windows: [DirigeraDevice], envSensors: [DirigeraDevice], now: Date) {
+        guard UserDefaults.standard.bool(forKey: "settings.notifications.openWindow") else { return }
         // Index all window sensors and env sensors by room
         var windowsByRoom: [String: [DirigeraDevice]] = [:]
         for w in windows where w.isWindowSensor {
