@@ -63,6 +63,16 @@ final class MDNSDiscoveryTests: XCTestCase {
         XCTAssertFalse(resolver.isResolving)
     }
 
+    func testRetryResetsAndRestarts() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        resolver.start()
+        resolver.stop()
+        XCTAssertFalse(resolver.isResolving)
+        resolver.retry()
+        XCTAssertTrue(resolver.isResolving)
+        resolver.stop()
+    }
+
     // MARK: - Integration: requires a Dirigera hub on the local network.
     // Skipped on CI; run manually with the hub powered on.
     func testDiscoverHubOnLocalNetwork() async throws {

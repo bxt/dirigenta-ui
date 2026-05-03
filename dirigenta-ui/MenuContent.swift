@@ -16,9 +16,13 @@ private struct DiscoveryStatusView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Label("Hub not found", systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Label("Hub not found", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Retry") { mdns.retry() }
+                        .font(.caption)
+                }
             }
         }
     }

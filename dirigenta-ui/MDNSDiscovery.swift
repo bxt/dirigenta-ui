@@ -13,6 +13,8 @@ final class MDNSResolver: ObservableObject {
     private var pathMonitor: NWPathMonitor?
     private var retryTask: Task<Void, Never>?
     private var hasStarted = false
+    private var browseAttempts = 0
+    private let maxBrowseAttempts = 5
     private let networkingEnabled: Bool
 
     /// - Parameter networkingEnabled: When `false`, `start()` only flips the
@@ -44,6 +46,12 @@ final class MDNSResolver: ObservableObject {
         connection = nil
         isResolving = false
         hasStarted = false
+        browseAttempts = 0
+    }
+
+    func retry() {
+        stop()
+        start()
     }
 
     // MARK: - Path monitor
@@ -64,8 +72,7 @@ final class MDNSResolver: ObservableObject {
     private func handlePath(_ path: NWPath) {
         switch path.status {
         case .satisfied:
-            // Only kick off a browse if we don't yet have an IP. If we already
-            // do, AppState's wake handler is responsible for explicit refresh.
+            browseAttempts = 0
             if currentIPAddress == nil { startBrowse() }
         case .unsatisfied, .requiresConnection:
             // Network gone — tear down sockets, keep "Discovering…" in the UI
@@ -85,6 +92,13 @@ final class MDNSResolver: ObservableObject {
     // MARK: - Browse
 
     private func startBrowse() {
+        browseAttempts += 1
+        if browseAttempts > maxBrowseAttempts {
+            Logger.mdns.info("Max browse attempts reached — giving up")
+            isResolving = false
+            return
+        }
+
         browser?.cancel()
         retryTask?.cancel()
         isResolving = true
