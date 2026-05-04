@@ -4,6 +4,10 @@ A macOS menu bar app for controlling your [IKEA Dirigera](https://www.ikea.com/d
 
 Toggle lights, adjust brightness and colour, and glance at environment sensor readings — all without opening the Home app.
 
+This is perfect if you just want to toggle a single IKEA light with one click on your Macbook. Or if you have an IKEA hub and no Apple hub (e.g. HomePod, Apple TV) but you still want to control your smart home from macOS.
+
+It also takes all your room configs and settings from the IKEA smart home instead of having to set up another Matter hub.
+
 ## Requirements
 
 - macOS 26.2 or later
