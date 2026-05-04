@@ -257,7 +257,7 @@ struct LightRowView: View {
             {
                 appState.lights[i].attributes.colorTemperature = oldValue
             }
-            actionError = "Failed to set colour for \(light.displayName)"
+            actionError = "Failed to set color for \(light.displayName)"
             Logger.api.error(
                 "Color temperature error: \(error.localizedDescription, privacy: .public)"
             )
@@ -287,7 +287,7 @@ struct LightRowView: View {
                 appState.lights[i].attributes.colorHue = oldHue
                 appState.lights[i].attributes.colorSaturation = oldSaturation
             }
-            actionError = "Failed to set colour for \(light.displayName)"
+            actionError = "Failed to set color for \(light.displayName)"
             Logger.api.error(
                 "Color error: \(error.localizedDescription, privacy: .public)"
             )

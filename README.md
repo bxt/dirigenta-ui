@@ -2,7 +2,7 @@
 
 A macOS menu bar app for controlling your [IKEA Dirigera](https://www.ikea.com/de/de/p/dirigera-hub-fuer-smarte-produkte-weiss-smart-10503406/) smart home hub.
 
-Toggle lights, adjust brightness and colour, and glance at environment sensor readings — all without opening the Home app.
+Toggle lights, adjust brightness and color, and glance at environment sensor readings — all without opening the Home app.
 
 This is perfect if you just want to toggle a single IKEA light with one click on your Macbook. Or if you have an IKEA hub and no Apple hub (e.g. HomePod, Apple TV) but you still want to control your smart home from macOS.
 
@@ -44,7 +44,7 @@ Pass `--notify` to the app binary. It posts an IPC message to the already-runnin
 
 1. Flashes the **pinned light** if one is set, otherwise flashes **all lights that are currently on**
 2. Lights that were off are turned on for the flash and switched back off afterwards
-3. Colour lights turn **red** at full brightness for 1 second, then restore their previous colour, temperature, and brightness
+3. Color lights turn **red** at full brightness for 1 second, then restore their previous color, temperature, and brightness
 4. White-spectrum and dimmable lights flash at **full brightness** for 1 second, then restore their previous level
 
 The app must be running and connected to the hub for the notification to have any effect. You have to turn on the feature in the app's settings first.

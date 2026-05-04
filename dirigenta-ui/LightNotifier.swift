@@ -4,7 +4,7 @@ import Foundation
 /// turns target lights red for one second, then restores their previous state.
 ///
 /// The caller is responsible for the two `fetchDevices` calls that bracket the
-/// sequence (step 3 to read on-state colour, and a final sync after restore),
+/// sequence (step 3 to read on-state color, and a final sync after restore),
 /// since those belong to AppState, not to the notifier.
 struct LightNotifier {
     private let client: any DirigeraClientProtocol
@@ -12,7 +12,7 @@ struct LightNotifier {
     /// all lights that were on at the time the notifier was created.
     let targets: [DirigeraDevice]
     /// On/off state of each target before anything was touched, used to restore
-    /// lights that had to be turned on just to read their colour.
+    /// lights that had to be turned on just to read their color.
     let wasOn: [String: Bool]
 
     /// Returns `nil` when there are no lights to flash.
@@ -36,7 +36,7 @@ struct LightNotifier {
         )
     }
 
-    /// Step 2 — turns on any targets that were off so their colour state can be read.
+    /// Step 2 — turns on any targets that were off so their color state can be read.
     func turnOnDimmed() async {
         await withTaskGroup(of: Void.self) { group in
             for (id, on) in wasOn where !on {
@@ -45,7 +45,7 @@ struct LightNotifier {
         }
     }
 
-    /// Step 4 — reads each target's current colour/brightness from a freshly-fetched
+    /// Step 4 — reads each target's current color/brightness from a freshly-fetched
     /// device list (call after `fetchDevices` so values reflect the on state).
     func capturePresets(from lights: [DirigeraDevice]) -> [(
         id: String, preset: LightColorPreset?
@@ -57,7 +57,7 @@ struct LightNotifier {
         }
     }
 
-    /// Step 5 — colour lights go red at full saturation; all dimmable lights go to 100 %.
+    /// Step 5 — color lights go red at full saturation; all dimmable lights go to 100 %.
     func flash() async {
         await withTaskGroup(of: Void.self) { group in
             for t in targets {

@@ -110,16 +110,16 @@ nonisolated extension DirigeraDevice {
     }
     var isWindowSensor: Bool { customIcon == "placement_window" }
 
-    /// True if the light supports a white-spectrum (colour-temperature) slider.
+    /// True if the light supports a white-spectrum (color-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }
-    /// True if the light supports full RGB colour (hue + saturation).
+    /// True if the light supports full RGB color (hue + saturation).
     var isColorLight: Bool { attributes.colorHue != nil }
-    /// True if either colour control is available for this light.
+    /// True if either color control is available for this light.
     var supportsColorControls: Bool { isColorTemperatureLight || isColorLight }
 
-    /// The light's current appearance preset (level + colour/temperature),
+    /// The light's current appearance preset (level + color/temperature),
     /// determined by `colorMode`. Returns nil for lights with neither level
-    /// nor colour support.
+    /// nor color support.
     var colorPreset: LightColorPreset? {
         guard isLight else { return nil }
         let level = attributes.lightLevel
@@ -167,7 +167,7 @@ nonisolated extension DirigeraDevice {
         return nil
     }
 
-    /// UserDefaults key for persisting this light's saved colour/brightness default.
+    /// UserDefaults key for persisting this light's saved color/brightness default.
     var colorDefaultsKey: String { "lightColorDefault.\(id)" }
 
     /// Merges env-sensor components that share a `relationId` into a single device.
@@ -382,16 +382,16 @@ nonisolated struct DirigeraEvent: Decodable {
     }
 }
 
-/// A light's colour/temperature state, used for saving presets and for
+/// A light's color/temperature state, used for saving presets and for
 /// snapshot/restore in the notification flash.
 nonisolated struct LightColorPreset: Codable {
     /// Brightness level 1–100.
     var lightLevel: Int? = nil
-    /// Colour-temperature mode value in Kelvin (mutually exclusive with hue/saturation).
+    /// Color-temperature mode value in Kelvin (mutually exclusive with hue/saturation).
     var colorTemperature: Int? = nil
-    /// Hue in degrees 0–360 (colour mode).
+    /// Hue in degrees 0–360 (color mode).
     var hue: Double? = nil
-    /// Saturation 0–1 (colour mode).
+    /// Saturation 0–1 (color mode).
     var saturation: Double? = nil
 }
 

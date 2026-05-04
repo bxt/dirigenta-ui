@@ -95,7 +95,7 @@ final class StatusBarController: NSObject {
                 .leftMouseDown, .rightMouseDown,
             ]) { [weak self] _ in
                 // Don't close while the system color panel is open — the user is
-                // picking a colour and clicks there are expected outside the popover.
+                // picking a color and clicks there are expected outside the popover.
                 guard !NSColorPanel.shared.isVisible else { return }
                 self?.closePopover()
             }
@@ -103,7 +103,7 @@ final class StatusBarController: NSObject {
     }
 
     private func closePopover() {
-        NSColorPanel.shared.orderOut(nil)  // dismiss colour panel together with popover
+        NSColorPanel.shared.orderOut(nil)  // dismiss color panel together with popover
         popover.performClose(nil)
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)

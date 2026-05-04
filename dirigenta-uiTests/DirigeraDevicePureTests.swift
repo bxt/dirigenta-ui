@@ -43,7 +43,7 @@ final class ColorPresetTests: XCTestCase {
         XCTAssertNil(d.colorPreset)
     }
 
-    // Light with no level and no colour support → nil
+    // Light with no level and no color support → nil
     func testColorPreset_nilForBareLight() {
         XCTAssertNil(makeLight().colorPreset)
     }
@@ -129,7 +129,7 @@ final class ColorPresetTests: XCTestCase {
         XCTAssertNil(p.colorTemperature)
     }
 
-    // lightLevel nil but colour present → preset still returned
+    // lightLevel nil but color present → preset still returned
     func testColorPreset_nilLevel_withColor() {
         let d = makeLight(colorHue: 30.0, colorSaturation: 0.5, colorMode: "color")
         let p = try! XCTUnwrap(d.colorPreset)

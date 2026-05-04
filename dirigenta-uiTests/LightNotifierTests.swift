@@ -169,7 +169,7 @@ final class LightNotifierStepTests: XCTestCase {
 
     func testCapturePresets_returnsNilPreset_forPlainDimmableLight() {
         let client = MockLightClient()
-        // Plain dimmable light (no colour support) → colorPreset is level-only
+        // Plain dimmable light (no color support) → colorPreset is level-only
         let light = makeLight(id: "l1", isOn: true, lightLevel: 50)
         let notifier = try! XCTUnwrap(LightNotifier(client: client, lights: [light], pinnedId: nil))
         let presets = notifier.capturePresets(from: [light])
