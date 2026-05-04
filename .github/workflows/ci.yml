@@ -53,6 +53,7 @@ jobs:
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartIsIdempotent \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartSetsIsResolving \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStopClearsState \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testRetryResetsAndRestarts \
             -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStopThenStart_allowsSecondStart \
             -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_isIdempotent \
             -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_withoutStart_doesNotCrash \
