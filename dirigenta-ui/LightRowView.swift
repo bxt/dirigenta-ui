@@ -33,6 +33,10 @@ struct LightRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            if light.isReachable == false {
+                Text("offline").font(.caption2).foregroundStyle(.orange)
+            }
+
             if showRoom, let roomName = light.room?.name {
                 Text(roomName).font(.caption2).foregroundStyle(.secondary)
             }

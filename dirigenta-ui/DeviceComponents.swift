@@ -4,13 +4,21 @@ import SwiftUI
 
 // Battery + optional room name footer used by sensor rows.
 // Battery text turns orange when below 10%.
+// "offline" appears in orange first when the device is unreachable.
 private struct SensorFooter: View {
     let battery: Int?
     let room: String?
+    var isOffline: Bool = false
 
     var body: some View {
-        if battery != nil || room != nil {
+        if isOffline || battery != nil || room != nil {
             HStack(spacing: 0) {
+                if isOffline {
+                    Text("offline").foregroundStyle(.orange)
+                    if battery != nil || room != nil {
+                        Text(" · ").foregroundStyle(.secondary)
+                    }
+                }
                 if let battery {
                     Text("\(battery)% battery")
                         .foregroundStyle(
@@ -68,7 +76,8 @@ struct EnvSensorRow: View {
                 EnvReadingsLine(readings: sensor.envReadings)
                 SensorFooter(
                     battery: sensor.attributes.batteryPercentage,
-                    room: showRoom ? sensor.room?.name : nil
+                    room: showRoom ? sensor.room?.name : nil,
+                    isOffline: sensor.isReachable == false
                 )
             }
         } icon: {
@@ -100,7 +109,8 @@ struct OpenCloseSensorRow: View {
                 }
                 SensorFooter(
                     battery: sensor.attributes.batteryPercentage,
-                    room: showRoom ? sensor.room?.name : nil
+                    room: showRoom ? sensor.room?.name : nil,
+                    isOffline: sensor.isReachable == false
                 )
             }
         } icon: {
@@ -138,7 +148,8 @@ struct OtherDeviceRow: View {
                 .foregroundStyle(.secondary)
                 SensorFooter(
                     battery: device.attributes.batteryPercentage,
-                    room: device.room?.name
+                    room: device.room?.name,
+                    isOffline: device.isReachable == false
                 )
             }
         } icon: {
