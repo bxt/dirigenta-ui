@@ -222,4 +222,23 @@ final class AppStateFetchDevicesTests: XCTestCase {
         // Two genericSwitch components → 1 merged entry + 1 blinds = 2 otherDevices
         XCTAssertEqual(state.otherDevices.count, 2)
     }
+
+    // MARK: Demo hub end-to-end
+    //
+    // Most tests above use tight ad-hoc fixtures so each classification edge
+    // case is unambiguous. This one runs against the real `DemoDirigeraClient`
+    // — what users see when they pick "Add Demo Hub" — to make sure the demo
+    // fixture stays compatible with the live classification path. If the
+    // demo hub stops producing the device shape AppState expects, this test
+    // catches it before users do.
+
+    func testFetchDevices_demoHub_classifiesEveryFamily() async {
+        let demoClient = DemoDirigeraClient()
+        await state.fetchDevices(ip: "demo", client: demoClient)
+        XCTAssertGreaterThanOrEqual(state.lights.count, 6)
+        XCTAssertEqual(state.sensors.count, 2)
+        XCTAssertGreaterThanOrEqual(state.envSensors.count, 1)
+        XCTAssertEqual(state.gatewayName, "Demo Hub")
+        XCTAssertTrue(state.lights.contains { $0.isReachable == false })
+    }
 }
