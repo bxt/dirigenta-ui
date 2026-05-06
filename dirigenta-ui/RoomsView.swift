@@ -162,7 +162,7 @@ struct RoomsView: View {
     // MARK: - Actions
 
     private func toggleRoomLights(_ room: RoomSummary) async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         let newState = !room.anyLightOn

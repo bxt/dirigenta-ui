@@ -64,7 +64,7 @@ struct DevicesView: View {
     // MARK: - Actions
 
     private func toggleAllLights() async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil

@@ -73,6 +73,52 @@ final class MDNSDiscoveryTests: XCTestCase {
         resolver.stop()
     }
 
+    // MARK: - ip(forHub:) lookup (pure)
+
+    func testIpForHub_returnsDemoSentinelForDemoHub() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        XCTAssertEqual(resolver.ip(forHub: Hub.demo()), "demo")
+    }
+
+    func testIpForHub_returnsNil_whenNoDiscoveredHubs() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        XCTAssertNil(resolver.ip(forHub: hub))
+    }
+
+    func testIpForHub_returnsMostRecentDiscovered_whenNoLastKnownIP() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        let now = Date()
+        resolver.discoveredHubs = [
+            DiscoveredHub(ip: "10.0.0.1", serviceName: "older", lastSeenAt: now.addingTimeInterval(-60)),
+            DiscoveredHub(ip: "10.0.0.2", serviceName: "newer", lastSeenAt: now),
+        ]
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        XCTAssertEqual(resolver.ip(forHub: hub), "10.0.0.2")
+    }
+
+    func testIpForHub_prefersLastKnownIP_whenStillAdvertised() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        let now = Date()
+        resolver.discoveredHubs = [
+            DiscoveredHub(ip: "10.0.0.1", serviceName: "older", lastSeenAt: now.addingTimeInterval(-60)),
+            DiscoveredHub(ip: "10.0.0.2", serviceName: "newer", lastSeenAt: now),
+        ]
+        var hub = Hub.real(displayName: "Home", accessToken: "tok")
+        hub.lastKnownIP = "10.0.0.1"
+        XCTAssertEqual(resolver.ip(forHub: hub), "10.0.0.1")
+    }
+
+    func testIpForHub_ignoresLastKnownIP_whenNoLongerAdvertised() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        resolver.discoveredHubs = [
+            DiscoveredHub(ip: "10.0.0.2", serviceName: "newer", lastSeenAt: Date())
+        ]
+        var hub = Hub.real(displayName: "Home", accessToken: "tok")
+        hub.lastKnownIP = "10.0.0.99"  // stale
+        XCTAssertEqual(resolver.ip(forHub: hub), "10.0.0.2")
+    }
+
     // MARK: - Integration: requires a Dirigera hub on the local network.
     // Skipped on CI; run manually with the hub powered on.
     func testDiscoverHubOnLocalNetwork() async throws {
@@ -86,14 +132,14 @@ final class MDNSDiscoveryTests: XCTestCase {
         defer { resolver.stop() }
 
         for _ in 0..<50 {
-            if resolver.currentIPAddress != nil { break }
+            if !resolver.discoveredHubs.isEmpty { break }
             try await Task.sleep(for: .milliseconds(200))
         }
 
-        let ip = try XCTUnwrap(
-            resolver.currentIPAddress,
+        let hub = try XCTUnwrap(
+            resolver.discoveredHubs.first,
             "No Dirigera hub discovered within 10 seconds — ensure the hub is powered on and on the local network"
         )
-        print("[Test] Discovered Dirigera hub at: \(ip)")
+        print("[Test] Discovered Dirigera hub at: \(hub.ip)")
     }
 }

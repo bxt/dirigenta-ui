@@ -58,7 +58,7 @@ struct PinnedRoomView: View {
     }
 
     private func toggleLights() async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         let newState = !lights.contains { $0.isOn }

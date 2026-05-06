@@ -162,7 +162,7 @@ struct LightRowView: View {
     // MARK: - Disco
 
     private func startDisco() {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         let id = light.id
@@ -187,7 +187,7 @@ struct LightRowView: View {
             )
         else { return }
         Task {
-            guard let ip = mdns.currentIPAddress,
+            guard let ip = appState.currentHubIP,
                 let client = appState.makeClient(ip: ip)
             else { return }
             try? await client.applyColorPreset(preset, to: light.id)
@@ -197,7 +197,7 @@ struct LightRowView: View {
     // MARK: - Actions
 
     private func toggleLight() async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil
@@ -222,7 +222,7 @@ struct LightRowView: View {
     }
 
     private func setBrightness(to level: Int) async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil
@@ -247,7 +247,7 @@ struct LightRowView: View {
     }
 
     private func setColorTemperature(to value: Int) async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil
@@ -274,7 +274,7 @@ struct LightRowView: View {
     }
 
     private func setColor(hue: Double, saturation: Double) async {
-        guard let ip = mdns.currentIPAddress,
+        guard let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil

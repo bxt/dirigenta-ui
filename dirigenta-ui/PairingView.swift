@@ -9,6 +9,10 @@ private enum PairingStep {
 }
 
 struct PairingView: View {
+    /// Optional callback invoked after a successful pair (OAuth or manual token
+    /// entry). Used by the sheet-presented "Add Hub" flow to dismiss itself.
+    let onPaired: (() -> Void)?
+
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
@@ -18,10 +22,33 @@ struct PairingView: View {
     // The fingerprint captured during step 1 is then pinned for step 2.
     @State private var authClient: DirigeraAuthClient?
 
-    init() {}
+    init(onPaired: (() -> Void)? = nil) {
+        self.onPaired = onPaired
+    }
 
-    fileprivate init(initialPairingStep: PairingStep) {
+    fileprivate init(
+        initialPairingStep: PairingStep,
+        onPaired: (() -> Void)? = nil
+    ) {
+        self.onPaired = onPaired
         _pairingStep = State(initialValue: initialPairingStep)
+    }
+
+    /// Picks an mDNS-discovered hub IP for pairing. Prefers an IP that
+    /// doesn't match any paired hub's `lastKnownIP` so adding a second hub on
+    /// the same LAN doesn't try to re-pair the first; falls back to the most
+    /// recent discovered IP when every advertisement matches a paired hub
+    /// (typical case: re-pairing the only hub).
+    private var pairingTargetIP: String? {
+        let pairedIPs = Set(appState.hubs.compactMap { $0.lastKnownIP })
+        if let unpaired = mdns.discoveredHubs.first(where: {
+            !pairedIPs.contains($0.ip)
+        }) {
+            return unpaired.ip
+        }
+        return mdns.discoveredHubs
+            .sorted { $0.lastSeenAt > $1.lastSeenAt }
+            .first?.ip
     }
 
     var body: some View {
@@ -38,10 +65,10 @@ struct PairingView: View {
             HStack {
                 Spacer()
                 Button("Start pairing") {
-                    guard let ip = mdns.currentIPAddress else { return }
+                    guard let ip = pairingTargetIP else { return }
                     Task { await startPairing(ip: ip) }
                 }
-                .disabled(mdns.currentIPAddress == nil)
+                .disabled(pairingTargetIP == nil)
             }
             manualTokenEntry
 
@@ -116,6 +143,7 @@ struct PairingView: View {
                         hubFingerprint: nil,
                         gatewayName: nil
                     )
+                    onPaired?()
                 }
                 .disabled(
                     tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -165,6 +193,7 @@ struct PairingView: View {
                 hubFingerprint: fingerprint?.base64EncodedString(),
                 gatewayName: nil
             )
+            onPaired?()
         } catch {
             authClient?.invalidate()
             authClient = nil
@@ -178,7 +207,13 @@ struct PairingView: View {
 #Preview("Pairing — idle") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
     return VStack(alignment: .leading, spacing: 8) { PairingView() }
         .padding(12)
         .frame(width: 300)
@@ -189,7 +224,13 @@ struct PairingView: View {
 #Preview("Pairing — requesting") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(initialPairingStep: .requesting)
     }
@@ -202,7 +243,13 @@ struct PairingView: View {
 #Preview("Pairing — awaiting button press") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(
             initialPairingStep: .awaitingButtonPress(
@@ -221,7 +268,13 @@ struct PairingView: View {
 #Preview("Pairing — exchanging") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(initialPairingStep: .exchanging)
     }
@@ -234,7 +287,13 @@ struct PairingView: View {
 #Preview("Pairing — failed") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(
             initialPairingStep: .failed(

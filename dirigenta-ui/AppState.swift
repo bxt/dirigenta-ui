@@ -33,6 +33,12 @@ final class AppState: ObservableObject {
         return hubs.first { $0.id == id }
     }
 
+    /// IP we should use to talk to the selected hub right now. Nil when no
+    /// hub is selected, or when a real selected hub isn't on the LAN.
+    var currentHubIP: String? {
+        selectedHub.flatMap { mdns.ip(forHub: $0) }
+    }
+
     /// Pinned light id, scoped to the selected hub. Mirrored from `selectedHub`
     /// so views and Combine subscribers can observe `$pinnedLightId` directly;
     /// writes are propagated back into the hub model.
@@ -130,8 +136,14 @@ final class AppState: ObservableObject {
             self.skipHubSync = false
         }
         guard !Self.isPreview, !injected else { return }
-        // Auto-fetch whenever mDNS resolves a new IP and we have a paired hub.
-        self.mdns.$currentIPAddress
+        // Auto-fetch whenever a hub matching the current selection appears
+        // on the LAN, and we have credentials for it.
+        self.mdns.$discoveredHubs
+            .map { [weak self] hubs -> String? in
+                guard let self, let hub = self.selectedHub else { return nil }
+                _ = hubs  // dependency only — actual lookup uses ip(forHub:)
+                return self.mdns.ip(forHub: hub)
+            }
             .compactMap { $0 }
             .removeDuplicates()
             .sink { [weak self] ip in
@@ -168,7 +180,9 @@ final class AppState: ObservableObject {
         mdns.start()
         // mDNS only re-fires the auto-fetch sink when the IP changes
         // (removeDuplicates), so explicitly fetch with whatever IP we know.
-        if let ip = mdns.currentIPAddress, selectedHub?.accessToken != nil {
+        if let hub = selectedHub, hub.accessToken != nil,
+            let ip = mdns.ip(forHub: hub)
+        {
             Task { await self.fetchDevices(ip: ip) }
         }
     }
@@ -263,6 +277,7 @@ final class AppState: ObservableObject {
             Logger.api.info(
                 "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)"
             )
+            recordSuccessfulConnection(ip: ip)
             syncPinnedState()
             windowNotifier.update(
                 windows: sensors,
@@ -310,7 +325,8 @@ final class AppState: ObservableObject {
     /// Flashes the pinned light (or all lights that are currently on) red for 1 second,
     /// then restores their previous state. Triggered by a --notify IPC invocation.
     func triggerNotification() async {
-        guard let ip = mdns.currentIPAddress,
+        guard let hub = selectedHub,
+            let ip = mdns.ip(forHub: hub),
             let client = makeClient(ip: ip),
             let notifier = LightNotifier(
                 client: client,
@@ -362,12 +378,15 @@ final class AppState: ObservableObject {
 
     /// Switches to the hub with `id`, tearing down all device state and the
     /// cached client so the next mDNS resolve / fetch builds a fresh session
-    /// against the new hub's credentials.
+    /// against the new hub's credentials. If the new hub is already on the
+    /// LAN (or is the demo hub), kicks off an immediate device fetch — the
+    /// mDNS pipeline only fires when `discoveredHubs` itself changes, which
+    /// won't happen when both old and new hubs are already discovered.
     func switchHub(to id: UUID) {
         guard hubs.contains(where: { $0.id == id }) else { return }
-        guard id != selectedHubID else {
-            // Same hub re-selected: still sync pinned IDs in case caller
-            // expects a refresh.
+        if id == selectedHubID {
+            // Same hub re-selected: sync pinned IDs in case caller expects a
+            // refresh, but don't tear down the active session.
             syncPinnedFieldsFromSelectedHub()
             return
         }
@@ -377,6 +396,22 @@ final class AppState: ObservableObject {
         selectedHubID = id
         persistSelectedHubID()
         syncPinnedFieldsFromSelectedHub()
+        if let hub = selectedHub, hub.accessToken != nil,
+            let ip = mdns.ip(forHub: hub)
+        {
+            Task { await self.fetchDevices(ip: ip) }
+        }
+    }
+
+    /// Updates the display name of the hub with `id`. No-op if the hub
+    /// doesn't exist or the name is empty.
+    func renameHub(_ id: UUID, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+            let idx = hubs.firstIndex(where: { $0.id == id })
+        else { return }
+        hubs[idx].displayName = trimmed
+        saveHubs()
     }
 
     /// Removes the hub with `id`. If it was the selected hub, picks another
@@ -477,6 +512,17 @@ final class AppState: ObservableObject {
         else { return }
         block(&hubs[idx])
         saveHubs()
+    }
+
+    /// Updates the selected hub's `lastKnownIP` / `lastConnectedAt` after a
+    /// successful device fetch, so subsequent launches can prefer that IP
+    /// over a fresh mDNS pick when matching paired hubs to LAN endpoints.
+    private func recordSuccessfulConnection(ip: String) {
+        guard ip != "demo" else { return }
+        mutateSelectedHub {
+            $0.lastKnownIP = ip
+            $0.lastConnectedAt = Date()
+        }
     }
 
     private func syncPinnedFieldsFromSelectedHub() {

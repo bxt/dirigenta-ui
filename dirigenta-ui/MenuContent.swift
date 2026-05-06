@@ -2,29 +2,108 @@ import AppKit
 import OSLog
 import SwiftUI
 
+/// Banner shown above the hub content. The IP itself isn't surfaced here —
+/// it's a per-hub diagnostic and lives in the Hubs section of Settings — so
+/// users only see status (resolving, not found, or wrong-network) when
+/// something is off. Hidden entirely once a connection is established or for
+/// demo hubs (which bypass mDNS).
 private struct DiscoveryStatusView: View {
+    @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
     var body: some View {
         Group {
-            if let ip = mdns.currentIPAddress {
-                Label("Hub: \(ip)", systemImage: "network")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if let hub = appState.selectedHub, hub.kind == .demo {
+                EmptyView()
+            } else if appState.selectedHub == nil {
+                // No paired hub — PairingView itself drives the discovery UX.
+                EmptyView()
+            } else if appState.currentHubIP != nil {
+                EmptyView()
             } else if mdns.isResolving {
                 Label("Discovering hub…", systemImage: "magnifyingglass")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else {
+            } else if mdns.discoveredHubs.isEmpty {
                 HStack(spacing: 4) {
-                    Label("Hub not found", systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Label(
+                        "Hub not found",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     Button("Retry") { mdns.retry() }
                         .font(.caption)
                 }
+            } else {
+                Label(
+                    "Selected hub not on this network",
+                    systemImage: "wifi.exclamationmark"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
             }
         }
+    }
+}
+
+/// Header dropdown that lets the user switch between paired hubs, add a new
+/// one, or jump to the Hubs section in Settings. Only shown when at least one
+/// hub is paired — first-launch / fully-cleared state still goes through
+/// `PairingView`.
+private struct HubSwitcherView: View {
+    @EnvironmentObject private var appState: AppState
+    @Binding var showingAddHub: Bool
+
+    var body: some View {
+        Menu {
+            ForEach(appState.hubs) { hub in
+                Button {
+                    if hub.id != appState.selectedHubID {
+                        appState.switchHub(to: hub.id)
+                    }
+                } label: {
+                    Label {
+                        Text(hub.displayName)
+                    } icon: {
+                        if hub.id == appState.selectedHubID {
+                            Image(systemName: "checkmark")
+                        } else if hub.kind == .demo {
+                            Image(systemName: "play.tv")
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button("Add Hub…") { showingAddHub = true }
+            SettingsLink {
+                Text("Manage Hubs…")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(headerTitle).font(.headline)
+                if appState.selectedHub?.kind == .demo {
+                    Image(systemName: "play.tv")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    private var headerTitle: String {
+        if let hub = appState.selectedHub {
+            // Prefer the live gateway name once we've fetched devices, since
+            // it's authoritative. Fall back to the user-stored display name.
+            return appState.gatewayName ?? hub.displayName
+        }
+        return "Dirigenta"
     }
 }
 
@@ -49,6 +128,7 @@ struct MenuContent: View {
     @State private var wsRetry = 0
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
+    @State private var showingAddHub = false
     @AppStorage("settings.defaultTab") private var selectedTab: MenuTab =
         .devices
 
@@ -69,8 +149,8 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let name = appState.gatewayName {
-                Text(name).font(.headline)
+            if !appState.hubs.isEmpty {
+                HubSwitcherView(showingAddHub: $showingAddHub)
             }
             DiscoveryStatusView()
             Divider()
@@ -189,9 +269,9 @@ struct MenuContent: View {
         .background(ScreenReader { currentScreen = $0 })
         .task(
             id:
-                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.accessToken != nil)"
+                "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.accessToken != nil)"
         ) {
-            guard let ip = mdns.currentIPAddress,
+            guard let ip = appState.currentHubIP,
                 let client = appState.makeClient(ip: ip)
             else { return }
             await wsReconnectLoop(
@@ -212,6 +292,17 @@ struct MenuContent: View {
             if newValue.isEmpty && selectedTab == .pinnedRoom {
                 selectedTab = .rooms
             }
+        }
+        .sheet(isPresented: $showingAddHub) {
+            VStack(alignment: .leading, spacing: 8) {
+                PairingView(onPaired: { showingAddHub = false })
+                HStack {
+                    Spacer()
+                    Button("Cancel") { showingAddHub = false }
+                }
+            }
+            .padding(16)
+            .frame(width: 320)
         }
     }
 }
@@ -246,7 +337,25 @@ struct MenuContent: View {
 #Preview("Hub found — idle") {
     let state = AppState.preview()
     state.hubs = []
-    state.mdns.currentIPAddress = "192.168.1.100"
+    state.mdns.discoveredHubs = [
+        DiscoveredHub(
+            ip: "192.168.1.100",
+            serviceName: "Dirigera-Preview",
+            lastSeenAt: Date()
+        )
+    ]
+    return MenuContent()
+        .environmentObject(state)
+        .environmentObject(state.mdns)
+}
+
+#Preview("Multiple hubs paired") {
+    let state = AppState.preview()
+    let cottage = Hub.real(
+        displayName: "Cottage",
+        accessToken: "tok-cottage"
+    )
+    state.hubs.append(cottage)
     return MenuContent()
         .environmentObject(state)
         .environmentObject(state.mdns)

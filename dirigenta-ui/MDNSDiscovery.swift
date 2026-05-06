@@ -3,13 +3,23 @@ import Foundation
 import Network
 import OSLog
 
+struct DiscoveredHub: Equatable {
+    let ip: String
+    let serviceName: String  // unique per hub instance (mDNS service name)
+    var lastSeenAt: Date
+}
+
 @MainActor
 final class MDNSResolver: ObservableObject {
-    @Published var currentIPAddress: String? = nil
+    /// All hubs currently advertised on the LAN. We keep every entry rather
+    /// than just the latest so a paired hub can be matched against its known
+    /// fingerprint when more than one hub is reachable. Mutate via the browse
+    /// callbacks; direct assignment is allowed for previews and tests.
+    @Published var discoveredHubs: [DiscoveredHub] = []
     @Published var isResolving: Bool = false
 
     private var browser: NWBrowser?
-    private var connection: NWConnection?
+    private var resolveConnections: [NWConnection] = []
     private var pathMonitor: NWPathMonitor?
     private var retryTask: Task<Void, Never>?
     private var hasStarted = false
@@ -24,6 +34,25 @@ final class MDNSResolver: ObservableObject {
     ///   right entitlements).
     init(networkingEnabled: Bool = true) {
         self.networkingEnabled = networkingEnabled
+    }
+
+    /// Best-effort IP for `hub`:
+    /// - `kind == .demo` → the `"demo"` sentinel (never used for networking).
+    /// - real hub with a `lastKnownIP` that's still being advertised → that IP.
+    /// - real hub otherwise → the most recently discovered IP, or `nil` if
+    ///   nothing is on the LAN.
+    /// TLS pinning in `DirigeraClient` is what ultimately validates we're
+    /// talking to the right hub when multiple are reachable.
+    func ip(forHub hub: Hub) -> String? {
+        if hub.kind == .demo { return "demo" }
+        if let last = hub.lastKnownIP,
+            discoveredHubs.contains(where: { $0.ip == last })
+        {
+            return last
+        }
+        return discoveredHubs
+            .sorted { $0.lastSeenAt > $1.lastSeenAt }
+            .first?.ip
     }
 
     func start() {
@@ -41,9 +70,10 @@ final class MDNSResolver: ObservableObject {
         pathMonitor?.cancel()
         pathMonitor = nil
         browser?.cancel()
-        connection?.cancel()
         browser = nil
-        connection = nil
+        for conn in resolveConnections { conn.cancel() }
+        resolveConnections.removeAll()
+        discoveredHubs = []
         isResolving = false
         hasStarted = false
         browseAttempts = 0
@@ -73,15 +103,15 @@ final class MDNSResolver: ObservableObject {
         switch path.status {
         case .satisfied:
             browseAttempts = 0
-            if currentIPAddress == nil { startBrowse() }
+            if discoveredHubs.isEmpty { startBrowse() }
         case .unsatisfied, .requiresConnection:
             // Network gone — tear down sockets, keep "Discovering…" in the UI
             // (rather than "Hub not found") since we already know we can't.
             browser?.cancel()
-            connection?.cancel()
+            for conn in resolveConnections { conn.cancel() }
+            resolveConnections.removeAll()
             retryTask?.cancel()
             browser = nil
-            connection = nil
             retryTask = nil
             isResolving = true
         @unknown default:
@@ -111,24 +141,13 @@ final class MDNSResolver: ObservableObject {
         self.browser = browser
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            guard let self, let result = results.first else { return }
-            Logger.mdns.info(
-                "Found service: \(String(describing: result.endpoint), privacy: .public)"
-            )
-            // browser.start(queue: .main) guarantees this closure runs on the main
-            // queue, so MainActor.assumeIsolated is safe here.
+            // browser.start(queue: .main) guarantees this runs on the main queue.
             MainActor.assumeIsolated {
-                // Cancel the fallback retry — we have a result and are now
-                // moving into the (potentially slow) resolve phase. The retry
-                // would otherwise tear down the in-flight NWConnection.
-                self.retryTask?.cancel()
-                self.retryTask = nil
-                self.resolveEndpoint(result.endpoint)
+                self?.handleBrowseResults(Array(results))
             }
         }
 
         browser.stateUpdateHandler = { [weak self] state in
-            // Same queue guarantee as above.
             switch state {
             case .ready:
                 Logger.mdns.info("Browser ready")
@@ -155,21 +174,41 @@ final class MDNSResolver: ObservableObject {
         browser.start(queue: .main)
     }
 
+    private func handleBrowseResults(_ results: [NWBrowser.Result]) {
+        retryTask?.cancel()
+        retryTask = nil
+        for result in results {
+            let key = Self.serviceKey(for: result.endpoint)
+            if let i = discoveredHubs.firstIndex(where: { $0.serviceName == key }) {
+                discoveredHubs[i].lastSeenAt = Date()
+            } else {
+                Logger.mdns.info(
+                    "Found service: \(String(describing: result.endpoint), privacy: .public)"
+                )
+                resolveEndpoint(result.endpoint, key: key)
+            }
+        }
+    }
+
+    private static func serviceKey(for endpoint: NWEndpoint) -> String {
+        if case .service(let name, _, _, _) = endpoint { return name }
+        return "\(endpoint)"
+    }
+
     private func scheduleBrowseRetry(after delay: Duration) {
         retryTask?.cancel()
         retryTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: delay)
-            guard !Task.isCancelled, let self, self.currentIPAddress == nil
+            guard !Task.isCancelled, let self, self.discoveredHubs.isEmpty
             else { return }
             Logger.mdns.info("Retrying mDNS browse")
             self.startBrowse()
         }
     }
 
-    private func resolveEndpoint(_ endpoint: NWEndpoint) {
-        connection?.cancel()
+    private func resolveEndpoint(_ endpoint: NWEndpoint, key: String) {
         let conn = NWConnection(to: endpoint, using: .tcp)
-        connection = conn
+        resolveConnections.append(conn)
 
         conn.stateUpdateHandler = { [weak self] state in
             // conn.start(queue: .main) guarantees this closure runs on the main queue.
@@ -182,30 +221,56 @@ final class MDNSResolver: ObservableObject {
                     if !ip.isEmpty {
                         Logger.mdns.info("Resolved IP: \(ip, privacy: .public)")
                         MainActor.assumeIsolated {
-                            self?.currentIPAddress = ip
-                            self?.isResolving = false
-                            self?.retryTask?.cancel()
-                            self?.retryTask = nil
+                            self?.recordDiscovered(ip: ip, serviceName: key)
                         }
                     }
+                }
+                MainActor.assumeIsolated {
+                    self?.removeResolveConnection(conn)
                 }
                 conn.cancel()
             case .failed(let error):
                 Logger.mdns.error(
                     "Resolve failed: \(error.localizedDescription, privacy: .public) — re-browsing"
                 )
-                conn.cancel()
-                // The browse result may have been stale (host advertised but
-                // unreachable). Re-browse to pick up a fresh endpoint.
                 MainActor.assumeIsolated {
+                    self?.removeResolveConnection(conn)
+                    // The browse result may have been stale (host advertised but
+                    // unreachable). Re-browse to pick up a fresh endpoint.
                     self?.scheduleBrowseRetry(after: .seconds(2))
                 }
+                conn.cancel()
             default:
                 break
             }
         }
 
         conn.start(queue: .main)
+    }
+
+    private func recordDiscovered(ip: String, serviceName: String) {
+        if let i = discoveredHubs.firstIndex(where: { $0.serviceName == serviceName }) {
+            discoveredHubs[i] = DiscoveredHub(
+                ip: ip,
+                serviceName: serviceName,
+                lastSeenAt: Date()
+            )
+        } else {
+            discoveredHubs.append(
+                DiscoveredHub(
+                    ip: ip,
+                    serviceName: serviceName,
+                    lastSeenAt: Date()
+                )
+            )
+        }
+        isResolving = false
+        retryTask?.cancel()
+        retryTask = nil
+    }
+
+    private func removeResolveConnection(_ conn: NWConnection) {
+        resolveConnections.removeAll { $0 === conn }
     }
 
     nonisolated static func ipString(from host: NWEndpoint.Host) -> String {
