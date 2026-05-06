@@ -51,9 +51,10 @@ struct MenuContent: View {
     @State private var contentHeight: CGFloat = 0
     @AppStorage("settings.defaultTab") private var selectedTab: MenuTab =
         .devices
-    @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
     init() {}
+
+    private var pinnedRoomId: String { appState.pinnedRoomId ?? "" }
 
     private var pinnedRoomName: String? {
         guard !pinnedRoomId.isEmpty else { return nil }
@@ -73,7 +74,7 @@ struct MenuContent: View {
             }
             DiscoveryStatusView()
             Divider()
-            if appState.accessToken.isEmpty {
+            if appState.selectedHub?.accessToken == nil {
                 PairingView()
             } else {
                 // Show a loading/error placeholder only on the very first fetch,
@@ -142,7 +143,7 @@ struct MenuContent: View {
                 Text("v\(appVersion)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                if !appState.accessToken.isEmpty {
+                if appState.selectedHub?.accessToken != nil {
                     if appState.isLoadingDevices {
                         Label("Refreshing…", systemImage: "arrow.clockwise")
                             .font(.caption)
@@ -188,12 +189,13 @@ struct MenuContent: View {
         .background(ScreenReader { currentScreen = $0 })
         .task(
             id:
-                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(appState.wsRestartToken):\(!appState.accessToken.isEmpty)"
+                "\(mdns.currentIPAddress ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.accessToken != nil)"
         ) {
-            guard let ip = mdns.currentIPAddress, !appState.accessToken.isEmpty
+            guard let ip = mdns.currentIPAddress,
+                let client = appState.makeClient(ip: ip)
             else { return }
             await wsReconnectLoop(
-                eventStream: { appState.makeClient(ip: ip).eventStream() },
+                eventStream: { client.eventStream() },
                 onConnecting: { appState.wsConnectionState = .connecting },
                 onConnected: { appState.wsConnectionState = .connected },
                 onEvent: { appState.applyEvent($0) },
@@ -234,7 +236,7 @@ struct MenuContent: View {
 
 #Preview("Discovering hub") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.isResolving = true
     return MenuContent()
         .environmentObject(state)
@@ -243,7 +245,7 @@ struct MenuContent: View {
 
 #Preview("Hub found — idle") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return MenuContent()
         .environmentObject(state)

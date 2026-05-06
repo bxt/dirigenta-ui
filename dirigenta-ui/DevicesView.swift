@@ -64,7 +64,9 @@ struct DevicesView: View {
     // MARK: - Actions
 
     private func toggleAllLights() async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         actionError = nil
         let anyOn = appState.lights.contains { $0.isOn }
         let newState = !anyOn
@@ -72,7 +74,6 @@ struct DevicesView: View {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
-        let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in appState.lights {
                 group.addTask {

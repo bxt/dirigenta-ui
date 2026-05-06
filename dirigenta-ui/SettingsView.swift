@@ -62,13 +62,14 @@ struct SettingsView: View {
 
             Section("Account") {
                 Button(role: .destructive) {
-                    appState.pinnedLightId = nil
-                    appState.accessToken = ""
+                    if let id = appState.selectedHubID {
+                        appState.removeHub(id)
+                    }
                 } label: {
-                    Text("Clear Saved Token")
+                    Text("Remove Hub")
                         .frame(maxWidth: .infinity)
                 }
-                .disabled(appState.accessToken.isEmpty)
+                .disabled(appState.selectedHub == nil)
             }
         }
         .formStyle(.grouped)

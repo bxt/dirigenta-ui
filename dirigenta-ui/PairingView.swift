@@ -111,7 +111,11 @@ struct PairingView: View {
                         in: .whitespacesAndNewlines
                     )
                     guard !trimmed.isEmpty else { return }
-                    appState.accessToken = trimmed
+                    appState.addOrUpdateHub(
+                        token: trimmed,
+                        hubFingerprint: nil,
+                        gatewayName: nil
+                    )
                 }
                 .disabled(
                     tempToken.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -156,7 +160,11 @@ struct PairingView: View {
             let fingerprint = client.capturedFingerprint
             client.invalidate()
             authClient = nil
-            appState.completePairing(token: token, hubFingerprint: fingerprint)
+            appState.addOrUpdateHub(
+                token: token,
+                hubFingerprint: fingerprint?.base64EncodedString(),
+                gatewayName: nil
+            )
         } catch {
             authClient?.invalidate()
             authClient = nil
@@ -169,7 +177,7 @@ struct PairingView: View {
 
 #Preview("Pairing — idle") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return VStack(alignment: .leading, spacing: 8) { PairingView() }
         .padding(12)
@@ -180,7 +188,7 @@ struct PairingView: View {
 
 #Preview("Pairing — requesting") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(initialPairingStep: .requesting)
@@ -193,7 +201,7 @@ struct PairingView: View {
 
 #Preview("Pairing — awaiting button press") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(
@@ -212,7 +220,7 @@ struct PairingView: View {
 
 #Preview("Pairing — exchanging") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(initialPairingStep: .exchanging)
@@ -225,7 +233,7 @@ struct PairingView: View {
 
 #Preview("Pairing — failed") {
     let state = AppState.preview()
-    state.accessToken = ""
+    state.hubs = []
     state.mdns.currentIPAddress = "192.168.1.100"
     return VStack(alignment: .leading, spacing: 8) {
         PairingView(

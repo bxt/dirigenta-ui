@@ -58,7 +58,9 @@ struct PinnedRoomView: View {
     }
 
     private func toggleLights() async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         let newState = !lights.contains { $0.isOn }
         let ids = Set(lights.map { $0.id })
         for i in appState.lights.indices
@@ -66,7 +68,6 @@ struct PinnedRoomView: View {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
-        let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in lights {
                 group.addTask {

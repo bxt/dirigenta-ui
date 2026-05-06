@@ -113,11 +113,11 @@ final class StatusBarController: NSObject {
 
     private func togglePinnedLight() async {
         guard let lightId = appState.pinnedLightId,
-            let ip = appState.mdns.currentIPAddress
+            let ip = appState.mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
         else { return }
         let newState = !appState.pinnedLightIsOn
         appState.pinnedLightIsOn = newState
-        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLight(id: lightId, isOn: newState)
         } catch {

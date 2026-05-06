@@ -162,8 +162,9 @@ struct LightRowView: View {
     // MARK: - Disco
 
     private func startDisco() {
-        guard let ip = mdns.currentIPAddress else { return }
-        let client = appState.makeClient(ip: ip)
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         let id = light.id
         discoTask = Task {
             while !Task.isCancelled {
@@ -186,8 +187,9 @@ struct LightRowView: View {
             )
         else { return }
         Task {
-            guard let ip = mdns.currentIPAddress else { return }
-            let client = appState.makeClient(ip: ip)
+            guard let ip = mdns.currentIPAddress,
+                let client = appState.makeClient(ip: ip)
+            else { return }
             try? await client.applyColorPreset(preset, to: light.id)
         }
     }
@@ -195,14 +197,15 @@ struct LightRowView: View {
     // MARK: - Actions
 
     private func toggleLight() async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         actionError = nil
         let newState = !light.isOn
         if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
-        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLight(id: light.id, isOn: newState)
             await appState.fetchDevices(ip: ip)
@@ -219,14 +222,15 @@ struct LightRowView: View {
     }
 
     private func setBrightness(to level: Int) async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         actionError = nil
         let oldLevel = light.attributes.lightLevel
         if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
             appState.lights[i].attributes.lightLevel = level
         }
         pendingLightLevels[light.id] = nil
-        let client = appState.makeClient(ip: ip)
         do {
             try await client.setLightLevel(id: light.id, lightLevel: level)
         } catch {
@@ -243,13 +247,14 @@ struct LightRowView: View {
     }
 
     private func setColorTemperature(to value: Int) async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         actionError = nil
         let oldValue = light.attributes.colorTemperature
         if let i = appState.lights.firstIndex(where: { $0.id == light.id }) {
             appState.lights[i].attributes.colorTemperature = value
         }
-        let client = appState.makeClient(ip: ip)
         do {
             try await client.setColorTemperature(
                 id: light.id,
@@ -269,7 +274,9 @@ struct LightRowView: View {
     }
 
     private func setColor(hue: Double, saturation: Double) async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         actionError = nil
         let oldHue = light.attributes.colorHue
         let oldSaturation = light.attributes.colorSaturation
@@ -277,7 +284,6 @@ struct LightRowView: View {
             appState.lights[i].attributes.colorHue = hue
             appState.lights[i].attributes.colorSaturation = saturation
         }
-        let client = appState.makeClient(ip: ip)
         do {
             try await client.setColor(
                 id: light.id,

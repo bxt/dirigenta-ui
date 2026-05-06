@@ -2,7 +2,7 @@ import XCTest
 
 @testable import dirigenta_ui
 
-// MARK: - #12  HubCredentials storage round-trip
+// MARK: - #12  Credential storage round-trip
 //
 // Most coverage runs against an in-memory CredentialStore so we don't depend
 // on the real Keychain (which fails on unsigned CI binaries due to ACL bound
@@ -53,29 +53,45 @@ final class CredentialStoreTests: XCTestCase {
         XCTAssertEqual(try store.get(key), value)
     }
 
-    // MARK: JSON credential blob round-trip (HubCredentials format)
+    // MARK: Hub array JSON round-trip (v2 storage format)
 
-    func testRoundTrip_credentialJSON_tokenOnly() throws {
-        let json = #"{"accessToken":"my-bearer-token"}"#
-        try store.set(json, for: key)
-        let raw = try XCTUnwrap(store.get(key))
-        let dict = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
+    func testRoundTrip_hubArray_singleRealHub() throws {
+        let hub = Hub.real(
+            displayName: "Living Room",
+            accessToken: "tok",
+            hubFingerprint: "fp"
         )
-        XCTAssertEqual(dict["accessToken"], "my-bearer-token")
-        XCTAssertNil(dict["hubFingerprint"])
+        let data = try JSONEncoder().encode([hub])
+        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+        try store.set(json, for: "dirigeraHubs.v2")
+
+        let raw = try XCTUnwrap(try store.get("dirigeraHubs.v2"))
+        let decoded = try JSONDecoder().decode(
+            [Hub].self,
+            from: raw.data(using: .utf8)!
+        )
+        XCTAssertEqual(decoded.count, 1)
+        XCTAssertEqual(decoded[0].displayName, "Living Room")
+        XCTAssertEqual(decoded[0].accessToken, "tok")
+        XCTAssertEqual(decoded[0].hubFingerprint, "fp")
+        XCTAssertEqual(decoded[0].kind, .real)
     }
 
-    func testRoundTrip_credentialJSON_withFingerprint() throws {
-        let fp = Data(repeating: 0xAB, count: 32).base64EncodedString()
-        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
-        try store.set(json, for: key)
-        let raw = try XCTUnwrap(store.get(key))
-        let dict = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: raw.data(using: .utf8)!) as? [String: String]
+    func testRoundTrip_hubArray_multipleHubs() throws {
+        let hubs = [
+            Hub.real(displayName: "Home", accessToken: "tok-1", hubFingerprint: "fp-1"),
+            Hub.real(displayName: "Cottage", accessToken: "tok-2", hubFingerprint: "fp-2"),
+        ]
+        let data = try JSONEncoder().encode(hubs)
+        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+        try store.set(json, for: "dirigeraHubs.v2")
+
+        let raw = try XCTUnwrap(try store.get("dirigeraHubs.v2"))
+        let decoded = try JSONDecoder().decode(
+            [Hub].self,
+            from: raw.data(using: .utf8)!
         )
-        XCTAssertEqual(dict["accessToken"], "tok")
-        XCTAssertEqual(dict["hubFingerprint"], fp)
+        XCTAssertEqual(decoded.map(\.displayName), ["Home", "Cottage"])
     }
 }
 
@@ -84,7 +100,7 @@ final class CredentialStoreTests: XCTestCase {
 @MainActor
 final class AppStateCredentialInitTests: XCTestCase {
 
-    private let key = "dirigeraHub"
+    private let v2Key = "dirigeraHubs.v2"
     private var store: InMemoryCredentialStore!
 
     override func setUp() {
@@ -99,34 +115,49 @@ final class AppStateCredentialInitTests: XCTestCase {
         )
     }
 
-    func testInit_readsAccessTokenFromStore() throws {
-        let json = #"{"accessToken":"keychain-token-123"}"#
-        try store.set(json, for: key)
+    func testInit_readsHubsFromV2Store() throws {
+        let hub = Hub.real(
+            displayName: "Home",
+            accessToken: "keychain-token-123",
+            hubFingerprint: nil
+        )
+        let json = try XCTUnwrap(
+            String(data: try JSONEncoder().encode([hub]), encoding: .utf8)
+        )
+        try store.set(json, for: v2Key)
 
         let state = makeState()
-        XCTAssertEqual(state.accessToken, "keychain-token-123")
+        XCTAssertEqual(state.hubs.count, 1)
+        XCTAssertEqual(state.selectedHub?.accessToken, "keychain-token-123")
     }
 
     func testInit_readsFingerprintFromStore() throws {
         let fingerprint = Data(repeating: 0xBC, count: 32)
         let fp = fingerprint.base64EncodedString()
-        let json = #"{"accessToken":"tok","hubFingerprint":"\#(fp)"}"#
-        try store.set(json, for: key)
+        let hub = Hub.real(
+            displayName: "Home",
+            accessToken: "tok",
+            hubFingerprint: fp
+        )
+        let json = try XCTUnwrap(
+            String(data: try JSONEncoder().encode([hub]), encoding: .utf8)
+        )
+        try store.set(json, for: v2Key)
 
         let state = makeState()
-        XCTAssertEqual(state.hubCertFingerprint, fingerprint)
+        XCTAssertEqual(state.selectedHub?.hubFingerprint, fp)
     }
 
-    func testInit_emptyToken_whenStoreEmpty() {
+    func testInit_emptyHubs_whenStoreEmpty() {
         let state = makeState()
-        XCTAssertEqual(state.accessToken, "")
-        XCTAssertNil(state.hubCertFingerprint)
+        XCTAssertTrue(state.hubs.isEmpty)
+        XCTAssertNil(state.selectedHubID)
     }
 
     func testInit_gracefullyHandlesMalformedJSON() throws {
-        try store.set("not-valid-json", for: key)
+        try store.set("not-valid-json", for: v2Key)
         let state = makeState()
-        XCTAssertEqual(state.accessToken, "")
+        XCTAssertTrue(state.hubs.isEmpty)
     }
 }
 

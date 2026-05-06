@@ -3,9 +3,9 @@ import Combine
 import Foundation
 import OSLog
 
-// Both the access token and hub TLS fingerprint are stored together in a single
-// Keychain item so macOS only needs to prompt for access once.
-private struct HubCredentials: Codable {
+// Legacy single-hub Keychain entry. Read once on first launch of a multi-hub
+// build to migrate forward into the new `Hub` array, then deleted.
+private struct LegacyHubCredentials: Codable {
     var accessToken: String
     var hubFingerprint: String?  // base64-encoded SHA-256 of the hub's leaf TLS cert
 }
@@ -15,35 +15,45 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence-backed state
 
-    // SHA-256 fingerprint of the hub's TLS leaf certificate, stored in Keychain.
-    // Set on first successful connection after pairing; required on all subsequent ones.
-    private(set) var hubCertFingerprint: Data?
+    /// All paired hubs (real + demo). Persisted to Keychain as a JSON array.
+    /// Mutate via `addOrUpdateHub` / `removeHub` so persistence stays in sync;
+    /// direct assignment is allowed for previews and tests.
+    @Published var hubs: [Hub] = []
 
-    @Published var accessToken: String {
-        didSet {
-            guard accessToken != oldValue else { return }
-            if accessToken.isEmpty {
-                evictCachedClient()
-                guard !skipSideEffects else { return }
-                try? credentialStore.delete("dirigeraHub")
-                hubCertFingerprint = nil
-                clearDevices()
-            } else {
-                evictCachedClient()
-                guard !skipSideEffects else { return }
-                saveCredentials()
-                if let ip = mdns.currentIPAddress {
-                    Task { await self.fetchDevices(ip: ip) }
-                }
-            }
-        }
+    /// Identifier of the currently active hub. Persisted to UserDefaults
+    /// (non-secret). Nil when no hub is paired — UI shows PairingView.
+    /// Mutate via `switchHub` so device state and the cached client are reset;
+    /// direct assignment is allowed for previews and tests.
+    @Published var selectedHubID: UUID?
+
+    /// Convenience lookup. `selectedHub` is the canonical "current context"
+    /// — devices, websocket, pinned light/room are all scoped to it.
+    var selectedHub: Hub? {
+        guard let id = selectedHubID else { return nil }
+        return hubs.first { $0.id == id }
     }
+
+    /// Pinned light id, scoped to the selected hub. Mirrored from `selectedHub`
+    /// so views and Combine subscribers can observe `$pinnedLightId` directly;
+    /// writes are propagated back into the hub model.
     @Published var pinnedLightId: String? {
         didSet {
-            guard !skipSideEffects else { return }
-            UserDefaults.standard.set(pinnedLightId, forKey: "pinnedLightId")
+            guard !skipHubSync else { return }
+            guard pinnedLightId != oldValue else { return }
+            mutateSelectedHub { $0.pinnedLightId = pinnedLightId }
         }
     }
+
+    /// Pinned room id, also scoped to the selected hub. Empty string is used
+    /// as the "no pinned room" sentinel in views that read it as a `String`.
+    @Published var pinnedRoomId: String? {
+        didSet {
+            guard !skipHubSync else { return }
+            guard pinnedRoomId != oldValue else { return }
+            mutateSelectedHub { $0.pinnedRoomId = pinnedRoomId }
+        }
+    }
+
     @Published var pinnedLightIsOn: Bool = false
 
     // MARK: - Device state
@@ -71,10 +81,15 @@ final class AppState: ObservableObject {
     private let credentialStore: CredentialStore
     private let skipSideEffects: Bool
     private var cancellables: Set<AnyCancellable> = []
+    /// Suppresses the `pinnedLightId` / `pinnedRoomId` write-through into the
+    /// hub model when those `@Published` fields are being synced *from* a hub
+    /// (e.g. on hub switch or initial load).
+    private var skipHubSync: Bool = false
 
-    // Cached client — reused across all requests as long as IP and token are stable.
+    // Cached client — reused across all requests as long as hub + IP are stable.
     private var _cachedClient: DirigeraClient?
     private var _cachedClientIP: String = ""
+    private var _cachedClientHubID: UUID?
 
     // MARK: - Init
 
@@ -95,38 +110,34 @@ final class AppState: ObservableObject {
         let injected = credentialStore != nil && mdns != nil
         self.skipSideEffects = Self.isPreview || injected
 
-        if Self.isPreview {
-            accessToken = ""
-            pinnedLightId = nil
-        } else {
-            // Read token and hub fingerprint from the combined key (one Keychain prompt).
-            if let raw = try? self.credentialStore.get("dirigeraHub"),
-                let data = raw.data(using: .utf8),
-                let creds = try? JSONDecoder().decode(
-                    HubCredentials.self,
-                    from: data
-                )
+        if !Self.isPreview {
+            self.hubs = Self.loadAndMigrateHubs(
+                credentialStore: self.credentialStore,
+                writeBack: !injected
+            )
+            if let raw = UserDefaults.standard.string(forKey: "selectedHubID"),
+                let id = UUID(uuidString: raw),
+                self.hubs.contains(where: { $0.id == id })
             {
-                accessToken = creds.accessToken
-                hubCertFingerprint = creds.hubFingerprint.flatMap {
-                    Data(base64Encoded: $0)
-                }
+                self.selectedHubID = id
             } else {
-                accessToken = ""
+                self.selectedHubID = self.hubs.first?.id
             }
-            pinnedLightId =
-                injected
-                ? nil
-                : UserDefaults.standard.string(forKey: "pinnedLightId")
+            // Mirror selected hub's pinned IDs into the @Published shadow fields.
+            self.skipHubSync = true
+            self.pinnedLightId = self.selectedHub?.pinnedLightId
+            self.pinnedRoomId = self.selectedHub?.pinnedRoomId
+            self.skipHubSync = false
         }
         guard !Self.isPreview, !injected else { return }
-        // Auto-fetch whenever mDNS resolves a new IP and we have a token.
+        // Auto-fetch whenever mDNS resolves a new IP and we have a paired hub.
         self.mdns.$currentIPAddress
             .compactMap { $0 }
             .removeDuplicates()
             .sink { [weak self] ip in
                 Task { @MainActor [weak self] in
-                    guard let self, !self.accessToken.isEmpty else { return }
+                    guard let self, self.selectedHub?.accessToken != nil
+                    else { return }
                     await self.fetchDevices(ip: ip)
                 }
             }
@@ -157,34 +168,45 @@ final class AppState: ObservableObject {
         mdns.start()
         // mDNS only re-fires the auto-fetch sink when the IP changes
         // (removeDuplicates), so explicitly fetch with whatever IP we know.
-        if let ip = mdns.currentIPAddress, !accessToken.isEmpty {
+        if let ip = mdns.currentIPAddress, selectedHub?.accessToken != nil {
             Task { await self.fetchDevices(ip: ip) }
         }
     }
 
     // MARK: - Client factory
 
-    /// Returns a cached `DirigeraClient` for the given IP, creating a new one only
-    /// when the IP changes (or after a token / fingerprint change evicted the cache).
-    /// Each `DirigeraClient` owns a `URLSession` with a TLS delegate; without caching
-    /// every call-site would allocate a new session that is never invalidated.
-    func makeClient(ip: String) -> DirigeraClient {
-        if let cached = _cachedClient, _cachedClientIP == ip {
+    /// Returns a cached `DirigeraClient` for the given IP and the currently
+    /// selected hub. The cache is keyed on `(hubID, ip)` so switching hubs
+    /// (or the IP changing under the same hub) always produces a fresh session
+    /// — TLS pinning is per-hub, so reusing a session across hubs would be unsafe.
+    /// Returns `nil` if no real hub with a token is currently selected.
+    func makeClient(ip: String) -> DirigeraClient? {
+        guard let hub = selectedHub, hub.kind == .real, let token = hub.accessToken
+        else { return nil }
+        if let cached = _cachedClient,
+            _cachedClientIP == ip,
+            _cachedClientHubID == hub.id
+        {
             return cached
         }
         _cachedClient?.invalidate()
+        let pinnedFingerprint = hub.hubFingerprint.flatMap {
+            Data(base64Encoded: $0)
+        }
+        let hubID = hub.id
         let client = DirigeraClient(
             ip: ip,
-            token: accessToken,
-            pinnedLeafFingerprint: hubCertFingerprint,
-            onLeafFingerprint: hubCertFingerprint == nil
+            token: token,
+            pinnedLeafFingerprint: pinnedFingerprint,
+            onLeafFingerprint: pinnedFingerprint == nil
                 ? { [weak self] fp in
                     Task { @MainActor [weak self] in
-                        guard let self, self.hubCertFingerprint == nil else {
-                            return
-                        }
-                        self.hubCertFingerprint = fp
-                        self.saveCredentials()
+                        guard let self,
+                            let idx = self.hubs.firstIndex(where: { $0.id == hubID }),
+                            self.hubs[idx].hubFingerprint == nil
+                        else { return }
+                        self.hubs[idx].hubFingerprint = fp.base64EncodedString()
+                        self.saveHubs()
                         // Evict so the next makeClient builds a session that pins
                         // the now-known fingerprint.
                         self.evictCachedClient()
@@ -194,6 +216,7 @@ final class AppState: ObservableObject {
         )
         _cachedClient = client
         _cachedClientIP = ip
+        _cachedClientHubID = hubID
         return client
     }
 
@@ -201,6 +224,7 @@ final class AppState: ObservableObject {
         _cachedClient?.invalidate()
         _cachedClient = nil
         _cachedClientIP = ""
+        _cachedClientHubID = nil
     }
 
     // MARK: - Device fetch & events
@@ -209,10 +233,11 @@ final class AppState: ObservableObject {
         ip: String,
         client injectedClient: (any DirigeraClientProtocol)? = nil
     ) async {
+        guard let client: any DirigeraClientProtocol =
+            injectedClient ?? makeClient(ip: ip)
+        else { return }
         isLoadingDevices = true
         devicesError = nil
-        let client: any DirigeraClientProtocol =
-            injectedClient ?? makeClient(ip: ip)
         do {
             let all = try await client.fetchAllDevices()
             gatewayName = all.first { $0.isGateway }?.displayName
@@ -285,11 +310,8 @@ final class AppState: ObservableObject {
     /// Flashes the pinned light (or all lights that are currently on) red for 1 second,
     /// then restores their previous state. Triggered by a --notify IPC invocation.
     func triggerNotification() async {
-        guard let ip = mdns.currentIPAddress, !accessToken.isEmpty else {
-            return
-        }
-        let client = makeClient(ip: ip)
-        guard
+        guard let ip = mdns.currentIPAddress,
+            let client = makeClient(ip: ip),
             let notifier = LightNotifier(
                 client: client,
                 lights: lights,
@@ -307,15 +329,69 @@ final class AppState: ObservableObject {
         await fetchDevices(ip: ip)
     }
 
-    /// Called by PairingView once both OAuth steps succeed.
-    /// Storing the fingerprint before the token ensures a single Keychain write
-    /// includes both, and that makeClient immediately builds a pinned session.
-    func completePairing(token: String, hubFingerprint: Data?) {
-        guard !skipSideEffects else { return }
-        if let fp = hubFingerprint {
-            hubCertFingerprint = fp
+    // MARK: - Hub lifecycle
+
+    /// Adds a freshly paired hub or updates an existing one matched by fingerprint.
+    /// Persists hubs and selects the (added/updated) hub.
+    func addOrUpdateHub(
+        token: String,
+        hubFingerprint: String?,
+        gatewayName: String?
+    ) {
+        let targetID: UUID
+        if let fp = hubFingerprint,
+            let idx = hubs.firstIndex(where: { $0.hubFingerprint == fp })
+        {
+            hubs[idx].accessToken = token
+            if let name = gatewayName {
+                hubs[idx].displayName = name
+            }
+            targetID = hubs[idx].id
+        } else {
+            let new = Hub.real(
+                displayName: gatewayName ?? "My Hub",
+                accessToken: token,
+                hubFingerprint: hubFingerprint
+            )
+            hubs.append(new)
+            targetID = new.id
         }
-        accessToken = token  // triggers didSet → evictCachedClient + saveCredentials + fetchDevices
+        saveHubs()
+        switchHub(to: targetID)
+    }
+
+    /// Switches to the hub with `id`, tearing down all device state and the
+    /// cached client so the next mDNS resolve / fetch builds a fresh session
+    /// against the new hub's credentials.
+    func switchHub(to id: UUID) {
+        guard hubs.contains(where: { $0.id == id }) else { return }
+        guard id != selectedHubID else {
+            // Same hub re-selected: still sync pinned IDs in case caller
+            // expects a refresh.
+            syncPinnedFieldsFromSelectedHub()
+            return
+        }
+        evictCachedClient()
+        clearDevices()
+        wsRestartToken &+= 1
+        selectedHubID = id
+        persistSelectedHubID()
+        syncPinnedFieldsFromSelectedHub()
+    }
+
+    /// Removes the hub with `id`. If it was the selected hub, picks another
+    /// (the first remaining) or clears the selection so PairingView is shown.
+    func removeHub(_ id: UUID) {
+        hubs.removeAll { $0.id == id }
+        saveHubs()
+        if selectedHubID == id {
+            evictCachedClient()
+            clearDevices()
+            wsRestartToken &+= 1
+            selectedHubID = hubs.first?.id
+            persistSelectedHubID()
+            syncPinnedFieldsFromSelectedHub()
+        }
     }
 
     func syncPinnedState() {
@@ -323,16 +399,92 @@ final class AppState: ObservableObject {
         pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
     }
 
-    private func saveCredentials() {
+    // MARK: - Persistence helpers
+
+    fileprivate static let hubsKey = "dirigeraHubs.v2"
+    fileprivate static let legacyKey = "dirigeraHub"
+
+    /// Reads paired hubs from the store. On first launch of this version with
+    /// a legacy single-hub Keychain entry, migrates it forward into the v2
+    /// array format and (when `writeBack`) clears the legacy entry. The
+    /// `pinnedLightId` / `settings.pinnedRoomId` UserDefaults keys (previously
+    /// global) are folded into the migrated hub.
+    private static func loadAndMigrateHubs(
+        credentialStore: CredentialStore,
+        writeBack: Bool
+    ) -> [Hub] {
+        if let raw = try? credentialStore.get(hubsKey),
+            let data = raw.data(using: .utf8),
+            let hubs = try? JSONDecoder().decode([Hub].self, from: data)
+        {
+            return hubs
+        }
+        if let raw = try? credentialStore.get(legacyKey),
+            let data = raw.data(using: .utf8),
+            let creds = try? JSONDecoder().decode(
+                LegacyHubCredentials.self,
+                from: data
+            )
+        {
+            let migrated = Hub(
+                id: UUID(),
+                displayName: "My Hub",
+                kind: .real,
+                accessToken: creds.accessToken,
+                hubFingerprint: creds.hubFingerprint,
+                pinnedLightId: UserDefaults.standard.string(forKey: "pinnedLightId"),
+                pinnedRoomId: UserDefaults.standard.string(forKey: "settings.pinnedRoomId")
+            )
+            if writeBack {
+                if let bytes = try? JSONEncoder().encode([migrated]),
+                    let str = String(data: bytes, encoding: .utf8)
+                {
+                    try? credentialStore.set(str, for: hubsKey)
+                }
+                try? credentialStore.delete(legacyKey)
+                UserDefaults.standard.removeObject(forKey: "pinnedLightId")
+                UserDefaults.standard.removeObject(forKey: "settings.pinnedRoomId")
+            }
+            return [migrated]
+        }
+        return []
+    }
+
+    private func saveHubs() {
         guard !skipSideEffects else { return }
-        let creds = HubCredentials(
-            accessToken: accessToken,
-            hubFingerprint: hubCertFingerprint?.base64EncodedString()
-        )
-        guard let data = try? JSONEncoder().encode(creds),
+        guard let data = try? JSONEncoder().encode(hubs),
             let str = String(data: data, encoding: .utf8)
         else { return }
-        try? credentialStore.set(str, for: "dirigeraHub")
+        if hubs.isEmpty {
+            try? credentialStore.delete(Self.hubsKey)
+        } else {
+            try? credentialStore.set(str, for: Self.hubsKey)
+        }
+    }
+
+    private func persistSelectedHubID() {
+        guard !skipSideEffects else { return }
+        if let id = selectedHubID {
+            UserDefaults.standard.set(id.uuidString, forKey: "selectedHubID")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "selectedHubID")
+        }
+    }
+
+    private func mutateSelectedHub(_ block: (inout Hub) -> Void) {
+        guard let id = selectedHubID,
+            let idx = hubs.firstIndex(where: { $0.id == id })
+        else { return }
+        block(&hubs[idx])
+        saveHubs()
+    }
+
+    private func syncPinnedFieldsFromSelectedHub() {
+        skipHubSync = true
+        pinnedLightId = selectedHub?.pinnedLightId
+        pinnedRoomId = selectedHub?.pinnedRoomId
+        pinnedLightIsOn = false
+        skipHubSync = false
     }
 
     private func clearDevices() {
@@ -359,8 +511,13 @@ final class AppState: ObservableObject {
             credentialStore: InMemoryCredentialStore(),
             mdns: MDNSResolver(networkingEnabled: false)
         )
+        let previewHub = Hub.real(
+            displayName: "My Smart Home",
+            accessToken: "preview-token"
+        )
+        state.hubs = [previewHub]
+        state.selectedHubID = previewHub.id
         state.gatewayName = "My Smart Home"
-        state.accessToken = "preview-token"
         state.lights = [
             DirigeraDevice(
                 id: "ll1",

@@ -23,7 +23,6 @@ struct RoomsView: View {
     @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors =
         true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
-    @AppStorage("settings.pinnedRoomId") private var pinnedRoomId: String = ""
 
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
@@ -74,18 +73,22 @@ struct RoomsView: View {
                 .fontWeight(.semibold).padding(.top, 8)
             Spacer()
             Button {
-                pinnedRoomId = pinnedRoomId == room.id ? "" : room.id
+                appState.pinnedRoomId =
+                    appState.pinnedRoomId == room.id ? nil : room.id
             } label: {
-                Image(systemName: pinnedRoomId == room.id ? "pin.fill" : "pin")
-                    .font(.caption)
+                Image(
+                    systemName: appState.pinnedRoomId == room.id
+                        ? "pin.fill" : "pin"
+                )
+                .font(.caption)
             }
             .buttonStyle(.plain)
             .foregroundStyle(
-                pinnedRoomId == room.id
+                appState.pinnedRoomId == room.id
                     ? Color.accentColor : Color.secondary
             )
             .help(
-                pinnedRoomId == room.id
+                appState.pinnedRoomId == room.id
                     ? "Remove tab for this room" : "Add a tab for this room"
             )
             .padding(.top, 8)
@@ -159,7 +162,9 @@ struct RoomsView: View {
     // MARK: - Actions
 
     private func toggleRoomLights(_ room: RoomSummary) async {
-        guard let ip = mdns.currentIPAddress else { return }
+        guard let ip = mdns.currentIPAddress,
+            let client = appState.makeClient(ip: ip)
+        else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
         for i in appState.lights.indices
@@ -167,7 +172,6 @@ struct RoomsView: View {
             appState.lights[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
-        let client = appState.makeClient(ip: ip)
         await withTaskGroup(of: Void.self) { group in
             for light in room.lights {
                 group.addTask {
