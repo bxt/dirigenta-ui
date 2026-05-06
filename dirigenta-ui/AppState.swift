@@ -382,7 +382,7 @@ final class AppState: ObservableObject {
             targetID = hubs[idx].id
         } else {
             let new = Hub.real(
-                displayName: gatewayName ?? "My Hub",
+                displayName: gatewayName ?? Hub.defaultRealDisplayName,
                 accessToken: token,
                 hubFingerprint: hubFingerprint
             )
@@ -512,11 +512,20 @@ final class AppState: ObservableObject {
     /// Updates the selected hub's `lastKnownIP` / `lastConnectedAt` after a
     /// successful device fetch, so subsequent launches can prefer that IP
     /// over a fresh mDNS pick when matching paired hubs to LAN endpoints.
+    /// Also upgrades a freshly paired hub's `displayName` to the live
+    /// `gatewayName` on its first fetch — but only if the user hasn't
+    /// already renamed it (heuristic: still equal to the default sentinel).
     private func recordSuccessfulConnection(ip: String) {
         guard ip != "demo" else { return }
+        let gateway = gatewayName
         mutateSelectedHub {
             $0.lastKnownIP = ip
             $0.lastConnectedAt = Date()
+            if $0.displayName == Hub.defaultRealDisplayName,
+                let gateway, !gateway.isEmpty
+            {
+                $0.displayName = gateway
+            }
         }
     }
 

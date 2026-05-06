@@ -29,6 +29,8 @@ It also takes all your room configs and settings from the IKEA smart home instea
 - **Window notifications** – notifications when windows have been open a while or should be opened, factoring in CO₂, temperature, and humidity from nearby sensors
 - **Terminal notifications** — flash lights red at the end of a CLI command (see below)
 - **Room pinning** – you can now pin a room to a persistent third tab
+- **Multiple hubs** — pair more than one (e.g. for several homes or while travelling) and switch between them from the dropdown in the menu header. Pinned light, pinned room, and last-known IP are remembered per hub
+- **Demo hub** — add a built-in fake hub from Settings to try the app without any IKEA hardware: lights toggle, sensors flip, and the env-sensor readings drift on a timer
 - Disco mode to make lights switch colors in a groovy fashion
 - Automatic hub discovery via mDNS (no manual IP entry needed)
 - Real-time updates over WebSocket

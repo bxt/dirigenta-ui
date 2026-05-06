@@ -241,4 +241,56 @@ final class AppStateFetchDevicesTests: XCTestCase {
         XCTAssertEqual(state.gatewayName, "Demo Hub")
         XCTAssertTrue(state.lights.contains { $0.isReachable == false })
     }
+
+    // MARK: Auto-upgrade default displayName from gatewayName
+
+    func testFetchDevices_upgradesDefaultDisplayName_fromGateway() async {
+        let hub = Hub.real(
+            displayName: Hub.defaultRealDisplayName,
+            accessToken: "tok"
+        )
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        client.devicesToReturn = [
+            device(id: "gw1", type: "gateway", name: "Living Room Hub")
+        ]
+        await state.fetchDevices(ip: "1.2.3.4", client: client)
+
+        XCTAssertEqual(state.selectedHub?.displayName, "Living Room Hub")
+    }
+
+    func testFetchDevices_doesNotOverwriteCustomDisplayName() async {
+        let hub = Hub.real(displayName: "My Cottage", accessToken: "tok")
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        client.devicesToReturn = [
+            device(id: "gw1", type: "gateway", name: "DIRIGERA Hub 1")
+        ]
+        await state.fetchDevices(ip: "1.2.3.4", client: client)
+
+        XCTAssertEqual(
+            state.selectedHub?.displayName,
+            "My Cottage",
+            "fetchDevices must not overwrite a name the user has already customized"
+        )
+    }
+
+    func testFetchDevices_doesNotUpgradeDisplayName_whenGatewayMissing() async {
+        let hub = Hub.real(
+            displayName: Hub.defaultRealDisplayName,
+            accessToken: "tok"
+        )
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        client.devicesToReturn = [device(id: "l1", type: "light")]
+        await state.fetchDevices(ip: "1.2.3.4", client: client)
+
+        XCTAssertEqual(
+            state.selectedHub?.displayName,
+            Hub.defaultRealDisplayName
+        )
+    }
 }

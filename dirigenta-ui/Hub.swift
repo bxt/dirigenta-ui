@@ -24,6 +24,12 @@ struct Hub: Codable, Identifiable, Equatable {
     /// Fixed UUID for the singleton demo hub so it can be added/removed idempotently.
     static let demoID = UUID(uuidString: "DE000000-0000-0000-0000-000000000001")!
 
+    /// Display name assigned to a fresh real-hub pairing before we know the
+    /// gateway's actual name. Used as a sentinel so the first successful
+    /// fetch can auto-upgrade `displayName` to the live `gatewayName`
+    /// without overwriting a name the user has already customized.
+    static let defaultRealDisplayName = "My Hub"
+
     static func real(
         id: UUID = UUID(),
         displayName: String,
