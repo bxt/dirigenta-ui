@@ -43,6 +43,14 @@ final class MockLightClient: DirigeraClientProtocol {
         if shouldThrow { throw URLError(.badServerResponse) }
         calls.append(.applyPreset(id: id))
     }
+
+    func setColorTemperature(id: String, colorTemperature: Int) async throws {
+        if shouldThrow { throw URLError(.badServerResponse) }
+    }
+
+    nonisolated func eventStream() -> AsyncStream<DirigeraEvent> {
+        AsyncStream { $0.finish() }
+    }
 }
 
 // MARK: - Fixtures

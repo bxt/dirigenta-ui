@@ -154,7 +154,7 @@ struct MenuContent: View {
             }
             DiscoveryStatusView()
             Divider()
-            if appState.selectedHub?.accessToken == nil {
+            if appState.selectedHub?.isReady != true {
                 PairingView()
             } else {
                 // Show a loading/error placeholder only on the very first fetch,
@@ -223,7 +223,7 @@ struct MenuContent: View {
                 Text("v\(appVersion)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                if appState.selectedHub?.accessToken != nil {
+                if appState.selectedHub?.isReady == true {
                     if appState.isLoadingDevices {
                         Label("Refreshing…", systemImage: "arrow.clockwise")
                             .font(.caption)
@@ -269,7 +269,7 @@ struct MenuContent: View {
         .background(ScreenReader { currentScreen = $0 })
         .task(
             id:
-                "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.accessToken != nil)"
+                "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.isReady == true)"
         ) {
             guard let ip = appState.currentHubIP,
                 let client = appState.makeClient(ip: ip)

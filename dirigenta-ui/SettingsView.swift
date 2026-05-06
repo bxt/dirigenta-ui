@@ -55,6 +55,17 @@ struct SettingsView: View {
                 } label: {
                     Label("Add Hub…", systemImage: "plus")
                 }
+                Button {
+                    appState.addDemoHub()
+                } label: {
+                    Label("Add Demo Hub", systemImage: "play.tv")
+                }
+                .disabled(appState.hasDemoHub)
+                .help(
+                    appState.hasDemoHub
+                        ? "Demo hub already added"
+                        : "Add a built-in fake hub with sample devices for trying out the app"
+                )
             }
 
             Section("Devices") {

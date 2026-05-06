@@ -18,7 +18,7 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
     var customIcon: String? = nil
     var attributes: Attributes
 
-    struct Attributes: Decodable {
+    struct Attributes: Codable {
         var customName: String? = nil
         var model: String? = nil
         var isOn: Bool? = nil
@@ -400,15 +400,19 @@ private struct PatchBody<A: Encodable>: Encodable {
     let attributes: A
 }
 
-/// The subset of DirigeraClient used by LightNotifier and the flash sequence,
-/// extracted as a protocol so tests can substitute a recording mock.
-protocol DirigeraClientProtocol: Sendable {
+/// The subset of DirigeraClient used by LightNotifier, the flash sequence,
+/// and the WebSocket loop. Extracted as a protocol so tests can substitute a
+/// recording mock and so the `DemoDirigeraClient` can stand in for the real
+/// hub on demand.
+protocol DirigeraClientProtocol: AnyObject, Sendable {
     func fetchAllDevices() async throws -> [DirigeraDevice]
     func setLight(id: String, isOn: Bool) async throws
     func setLightLevel(id: String, lightLevel: Int) async throws
     func setColor(id: String, hue: Double, saturation: Double) async throws
+    func setColorTemperature(id: String, colorTemperature: Int) async throws
     func applyColorPreset(_ preset: LightColorPreset, to id: String)
         async throws
+    func eventStream() -> AsyncStream<DirigeraEvent>
 }
 
 final class DirigeraClient {

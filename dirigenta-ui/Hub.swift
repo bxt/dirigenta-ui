@@ -42,4 +42,14 @@ struct Hub: Codable, Identifiable, Equatable {
     static func demo() -> Hub {
         Hub(id: demoID, displayName: "Demo Hub", kind: .demo)
     }
+
+    /// `true` when this hub can be used immediately — real hubs need an
+    /// access token from a completed pairing flow; demo hubs are always
+    /// ready since they don't talk to the network.
+    var isReady: Bool {
+        switch kind {
+        case .demo: return true
+        case .real: return accessToken != nil
+        }
+    }
 }

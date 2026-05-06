@@ -93,7 +93,9 @@ final class AppState: ObservableObject {
     private var skipHubSync: Bool = false
 
     // Cached client — reused across all requests as long as hub + IP are stable.
-    private var _cachedClient: DirigeraClient?
+    // Holds either a `DirigeraClient` (real hub) or a `DemoDirigeraClient`
+    // (demo hub) depending on the selected hub's kind.
+    private var _cachedClient: (any DirigeraClientProtocol)?
     private var _cachedClientIP: String = ""
     private var _cachedClientHubID: UUID?
 
@@ -148,7 +150,7 @@ final class AppState: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] ip in
                 Task { @MainActor [weak self] in
-                    guard let self, self.selectedHub?.accessToken != nil
+                    guard let self, self.selectedHub?.isReady == true
                     else { return }
                     await self.fetchDevices(ip: ip)
                 }
@@ -180,7 +182,7 @@ final class AppState: ObservableObject {
         mdns.start()
         // mDNS only re-fires the auto-fetch sink when the IP changes
         // (removeDuplicates), so explicitly fetch with whatever IP we know.
-        if let hub = selectedHub, hub.accessToken != nil,
+        if let hub = selectedHub, hub.isReady,
             let ip = mdns.ip(forHub: hub)
         {
             Task { await self.fetchDevices(ip: ip) }
@@ -189,26 +191,43 @@ final class AppState: ObservableObject {
 
     // MARK: - Client factory
 
-    /// Returns a cached `DirigeraClient` for the given IP and the currently
-    /// selected hub. The cache is keyed on `(hubID, ip)` so switching hubs
-    /// (or the IP changing under the same hub) always produces a fresh session
-    /// — TLS pinning is per-hub, so reusing a session across hubs would be unsafe.
-    /// Returns `nil` if no real hub with a token is currently selected.
-    func makeClient(ip: String) -> DirigeraClient? {
-        guard let hub = selectedHub, hub.kind == .real, let token = hub.accessToken
-        else { return nil }
+    /// Returns a cached client for the given IP and the currently selected
+    /// hub. The cache is keyed on `(hubID, ip)` so switching hubs (or the IP
+    /// changing under the same hub) always produces a fresh client — TLS
+    /// pinning is per-hub, so reusing a session across hubs would be unsafe.
+    /// For demo hubs returns a `DemoDirigeraClient` whose synthetic state and
+    /// timer-driven events are wiped when we switch away. Returns `nil` if no
+    /// hub with usable credentials is currently selected.
+    func makeClient(ip: String) -> (any DirigeraClientProtocol)? {
+        guard let hub = selectedHub else { return nil }
         if let cached = _cachedClient,
             _cachedClientIP == ip,
             _cachedClientHubID == hub.id
         {
             return cached
         }
-        _cachedClient?.invalidate()
+        invalidateCachedClient()
+        let client: (any DirigeraClientProtocol)?
+        switch hub.kind {
+        case .demo:
+            client = DemoDirigeraClient()
+        case .real:
+            client = makeRealClient(for: hub, ip: ip)
+        }
+        guard let client else { return nil }
+        _cachedClient = client
+        _cachedClientIP = ip
+        _cachedClientHubID = hub.id
+        return client
+    }
+
+    private func makeRealClient(for hub: Hub, ip: String) -> DirigeraClient? {
+        guard let token = hub.accessToken else { return nil }
         let pinnedFingerprint = hub.hubFingerprint.flatMap {
             Data(base64Encoded: $0)
         }
         let hubID = hub.id
-        let client = DirigeraClient(
+        return DirigeraClient(
             ip: ip,
             token: token,
             pinnedLeafFingerprint: pinnedFingerprint,
@@ -228,17 +247,22 @@ final class AppState: ObservableObject {
                 }
                 : nil
         )
-        _cachedClient = client
-        _cachedClientIP = ip
-        _cachedClientHubID = hubID
-        return client
     }
 
     private func evictCachedClient() {
-        _cachedClient?.invalidate()
+        invalidateCachedClient()
         _cachedClient = nil
         _cachedClientIP = ""
         _cachedClientHubID = nil
+    }
+
+    /// Tears down a cached client without clearing the cache slots. Only the
+    /// real `DirigeraClient` owns a URLSession that needs explicit teardown;
+    /// the demo client has no networking and just stops emitting events.
+    private func invalidateCachedClient() {
+        if let real = _cachedClient as? DirigeraClient {
+            real.invalidate()
+        }
     }
 
     // MARK: - Device fetch & events
@@ -396,12 +420,27 @@ final class AppState: ObservableObject {
         selectedHubID = id
         persistSelectedHubID()
         syncPinnedFieldsFromSelectedHub()
-        if let hub = selectedHub, hub.accessToken != nil,
+        if let hub = selectedHub, hub.isReady,
             let ip = mdns.ip(forHub: hub)
         {
             Task { await self.fetchDevices(ip: ip) }
         }
     }
+
+    /// Adds the singleton demo hub if it isn't already in the list, and
+    /// switches to it. The demo hub never needs pairing — it's an in-memory
+    /// fixture that lets QA exercise every UI surface.
+    func addDemoHub() {
+        if !hubs.contains(where: { $0.kind == .demo }) {
+            hubs.append(Hub.demo())
+            saveHubs()
+        }
+        switchHub(to: Hub.demoID)
+    }
+
+    /// `true` if a demo hub already exists in `hubs`. Lets the Settings UI
+    /// disable the "Add Demo Hub" button.
+    var hasDemoHub: Bool { hubs.contains(where: { $0.kind == .demo }) }
 
     /// Updates the display name of the hub with `id`. No-op if the hub
     /// doesn't exist or the name is empty.
