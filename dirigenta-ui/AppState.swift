@@ -142,9 +142,12 @@ final class AppState: ObservableObject {
         // on the LAN, and we have credentials for it.
         self.mdns.$discoveredHubs
             .map { [weak self] hubs -> String? in
+                // `@Published` fires in willSet, so reading
+                // `self.mdns.discoveredHubs` here would see the stale
+                // pre-assignment array. Use the value the publisher just
+                // emitted directly via the static lookup.
                 guard let self, let hub = self.selectedHub else { return nil }
-                _ = hubs  // dependency only — actual lookup uses ip(forHub:)
-                return self.mdns.ip(forHub: hub)
+                return MDNSResolver.ip(forHub: hub, in: hubs)
             }
             .compactMap { $0 }
             .removeDuplicates()

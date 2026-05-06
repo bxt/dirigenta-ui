@@ -36,21 +36,32 @@ final class MDNSResolver: ObservableObject {
         self.networkingEnabled = networkingEnabled
     }
 
-    /// Best-effort IP for `hub`:
+    /// Best-effort IP for `hub` against the current `discoveredHubs`.
+    /// See ``ip(forHub:in:)`` for the lookup rules.
+    func ip(forHub hub: Hub) -> String? {
+        Self.ip(forHub: hub, in: discoveredHubs)
+    }
+
+    /// Pure variant that runs the lookup against an explicit `hubs` snapshot.
+    /// Used by the AppState Combine sink: `@Published`'s willSet semantics
+    /// fire the publisher *before* the property is updated, so reading
+    /// `self.discoveredHubs` from a `$discoveredHubs.sink` closure sees the
+    /// stale (pre-assignment) value. Passing the publisher's emitted value
+    /// directly avoids that race.
     /// - `kind == .demo` → the `"demo"` sentinel (never used for networking).
     /// - real hub with a `lastKnownIP` that's still being advertised → that IP.
     /// - real hub otherwise → the most recently discovered IP, or `nil` if
     ///   nothing is on the LAN.
     /// TLS pinning in `DirigeraClient` is what ultimately validates we're
     /// talking to the right hub when multiple are reachable.
-    func ip(forHub hub: Hub) -> String? {
+    static func ip(forHub hub: Hub, in hubs: [DiscoveredHub]) -> String? {
         if hub.kind == .demo { return "demo" }
         if let last = hub.lastKnownIP,
-            discoveredHubs.contains(where: { $0.ip == last })
+            hubs.contains(where: { $0.ip == last })
         {
             return last
         }
-        return discoveredHubs
+        return hubs
             .sorted { $0.lastSeenAt > $1.lastSeenAt }
             .first?.ip
     }

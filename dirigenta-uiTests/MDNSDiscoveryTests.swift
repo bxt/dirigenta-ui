@@ -119,6 +119,31 @@ final class MDNSDiscoveryTests: XCTestCase {
         XCTAssertEqual(resolver.ip(forHub: hub), "10.0.0.2")
     }
 
+    /// Regression for the willSet race in the AppState mDNS sink: subscribers
+    /// to `$discoveredHubs` see the new value as a closure parameter but the
+    /// `discoveredHubs` *property* is still empty (publisher fires in
+    /// willSet). The static overload sidesteps that by taking the array
+    /// directly.
+    func testIpForHub_staticOverload_ignoresInstanceState() {
+        let resolver = MDNSResolver(networkingEnabled: false)
+        // Instance state is empty — simulating the pre-assignment moment.
+        XCTAssertTrue(resolver.discoveredHubs.isEmpty)
+
+        // The lookup still finds the new IP from the array passed in directly.
+        let snapshot = [
+            DiscoveredHub(
+                ip: "10.0.0.5",
+                serviceName: "fresh",
+                lastSeenAt: Date()
+            )
+        ]
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        XCTAssertEqual(
+            MDNSResolver.ip(forHub: hub, in: snapshot),
+            "10.0.0.5"
+        )
+    }
+
     // MARK: - Integration: requires a Dirigera hub on the local network.
     // Skipped on CI; run manually with the hub powered on.
     func testDiscoverHubOnLocalNetwork() async throws {
