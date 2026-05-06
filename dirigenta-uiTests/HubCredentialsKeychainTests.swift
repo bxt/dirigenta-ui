@@ -159,6 +159,38 @@ final class AppStateCredentialInitTests: XCTestCase {
         let state = makeState()
         XCTAssertTrue(state.hubs.isEmpty)
     }
+
+    // MARK: Selected hub id is read from UserDefaults
+
+    func testInit_remembersSelectedHubID_whenStillPresent() throws {
+        let hub1 = Hub.real(displayName: "Home", accessToken: "tok-1")
+        let hub2 = Hub.real(displayName: "Cottage", accessToken: "tok-2")
+        let json = try XCTUnwrap(
+            String(
+                data: try JSONEncoder().encode([hub1, hub2]),
+                encoding: .utf8
+            )
+        )
+        try store.set(json, for: v2Key)
+        UserDefaults.standard.set(hub2.id.uuidString, forKey: "selectedHubID")
+        defer { UserDefaults.standard.removeObject(forKey: "selectedHubID") }
+
+        let state = makeState()
+        XCTAssertEqual(state.selectedHubID, hub2.id)
+    }
+
+    func testInit_fallsBackToFirstHub_whenStoredSelectedHubIDStale() throws {
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        let json = try XCTUnwrap(
+            String(data: try JSONEncoder().encode([hub]), encoding: .utf8)
+        )
+        try store.set(json, for: v2Key)
+        UserDefaults.standard.set(UUID().uuidString, forKey: "selectedHubID")
+        defer { UserDefaults.standard.removeObject(forKey: "selectedHubID") }
+
+        let state = makeState()
+        XCTAssertEqual(state.selectedHubID, hub.id)
+    }
 }
 
 // MARK: - Real Keychain integration (local-only)

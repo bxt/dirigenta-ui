@@ -3,13 +3,6 @@ import Combine
 import Foundation
 import OSLog
 
-// Legacy single-hub Keychain entry. Read once on first launch of a multi-hub
-// build to migrate forward into the new `Hub` array, then deleted.
-private struct LegacyHubCredentials: Codable {
-    var accessToken: String
-    var hubFingerprint: String?  // base64-encoded SHA-256 of the hub's leaf TLS cert
-}
-
 @MainActor
 final class AppState: ObservableObject {
 
@@ -119,10 +112,7 @@ final class AppState: ObservableObject {
         self.skipSideEffects = Self.isPreview || injected
 
         if !Self.isPreview {
-            self.hubs = Self.loadAndMigrateHubs(
-                credentialStore: self.credentialStore,
-                writeBack: !injected
-            )
+            self.hubs = Self.loadHubs(credentialStore: self.credentialStore)
             if let raw = UserDefaults.standard.string(forKey: "selectedHubID"),
                 let id = UUID(uuidString: raw),
                 self.hubs.contains(where: { $0.id == id })
@@ -479,52 +469,15 @@ final class AppState: ObservableObject {
     // MARK: - Persistence helpers
 
     fileprivate static let hubsKey = "dirigeraHubs.v2"
-    fileprivate static let legacyKey = "dirigeraHub"
 
-    /// Reads paired hubs from the store. On first launch of this version with
-    /// a legacy single-hub Keychain entry, migrates it forward into the v2
-    /// array format and (when `writeBack`) clears the legacy entry. The
-    /// `pinnedLightId` / `settings.pinnedRoomId` UserDefaults keys (previously
-    /// global) are folded into the migrated hub.
-    private static func loadAndMigrateHubs(
-        credentialStore: CredentialStore,
-        writeBack: Bool
-    ) -> [Hub] {
-        if let raw = try? credentialStore.get(hubsKey),
+    /// Reads paired hubs from the Keychain. Empty array on first launch or
+    /// if the stored JSON is corrupt; PairingView handles either case.
+    private static func loadHubs(credentialStore: CredentialStore) -> [Hub] {
+        guard let raw = try? credentialStore.get(hubsKey),
             let data = raw.data(using: .utf8),
             let hubs = try? JSONDecoder().decode([Hub].self, from: data)
-        {
-            return hubs
-        }
-        if let raw = try? credentialStore.get(legacyKey),
-            let data = raw.data(using: .utf8),
-            let creds = try? JSONDecoder().decode(
-                LegacyHubCredentials.self,
-                from: data
-            )
-        {
-            let migrated = Hub(
-                id: UUID(),
-                displayName: "My Hub",
-                kind: .real,
-                accessToken: creds.accessToken,
-                hubFingerprint: creds.hubFingerprint,
-                pinnedLightId: UserDefaults.standard.string(forKey: "pinnedLightId"),
-                pinnedRoomId: UserDefaults.standard.string(forKey: "settings.pinnedRoomId")
-            )
-            if writeBack {
-                if let bytes = try? JSONEncoder().encode([migrated]),
-                    let str = String(data: bytes, encoding: .utf8)
-                {
-                    try? credentialStore.set(str, for: hubsKey)
-                }
-                try? credentialStore.delete(legacyKey)
-                UserDefaults.standard.removeObject(forKey: "pinnedLightId")
-                UserDefaults.standard.removeObject(forKey: "settings.pinnedRoomId")
-            }
-            return [migrated]
-        }
-        return []
+        else { return [] }
+        return hubs
     }
 
     private func saveHubs() {
