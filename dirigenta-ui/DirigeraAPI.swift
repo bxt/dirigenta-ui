@@ -420,6 +420,12 @@ final class DirigeraClient {
     private let token: String
     private let session: URLSession
 
+    // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed
+    // here: AppState evicts the cached client on hub-switch / IP-change, and
+    // the synthesized isolated deinit hop crashes inside libmalloc on the
+    // macos-26 CI runner.
+    nonisolated deinit {}
+
     init(
         ip: String,
         token: String,

@@ -19,6 +19,12 @@ struct EnvReading {
 @MainActor
 final class WindowNotifier {
 
+    // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed
+    // here: AppState releases this property during its own deinit, and the
+    // synthesized isolated deinit hop crashes inside libmalloc on the
+    // macos-26 CI runner.
+    nonisolated deinit {}
+
     // MARK: - Thresholds (var so tests can override)
 
     var minElapsed: TimeInterval = 5 * 60  // wait before "can close" check

@@ -18,6 +18,9 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
         self.devices = Self.initialDevices()
     }
 
+    // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed.
+    nonisolated deinit {}
+
     // MARK: - DirigeraClientProtocol
 
     nonisolated func fetchAllDevices() async throws -> [DirigeraDevice] {

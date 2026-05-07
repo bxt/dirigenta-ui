@@ -43,10 +43,6 @@ jobs:
             -scheme dirigenta-ui \
             -destination 'platform=macOS,arch=arm64' \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \

@@ -36,6 +36,14 @@ final class MDNSResolver: ObservableObject {
         self.networkingEnabled = networkingEnabled
     }
 
+    // The synthesized `@MainActor`-isolated deinit hops to the main actor via
+    // `swift_task_deinitOnExecutorImpl`, which on the macos-26 CI runner
+    // corrupts the task-local state and aborts inside libmalloc. Opting out
+    // with `nonisolated deinit` skips that hop. Cleanup via `stop()` is the
+    // caller's responsibility; the synthesized property releases are safe to
+    // run without main-actor isolation.
+    nonisolated deinit {}
+
     /// Best-effort IP for `hub` against the current `discoveredHubs`.
     /// See ``ip(forHub:in:)`` for the lookup rules.
     func ip(forHub hub: Hub) -> String? {
