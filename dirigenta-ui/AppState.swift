@@ -160,6 +160,9 @@ final class AppState: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed.
+    nonisolated deinit {}
+
     private func handleWake() {
         Logger.api.info(
             "System woke from sleep — refreshing devices and reconnecting WebSocket"
