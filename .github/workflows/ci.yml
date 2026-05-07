@@ -43,20 +43,16 @@ jobs:
             -scheme dirigenta-ui \
             -destination 'platform=macOS,arch=arm64' \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testDiscoverHubOnLocalNetwork \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_emptyToken_whenStoreEmpty \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_gracefullyHandlesMalformedJSON \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsAccessTokenFromStore \
-            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsFingerprintFromStore \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_afterIPChange_newCallWithOldIPCreatesNewInstance \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_differentIP_returnsDifferentInstance \
-            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_usesCurrentAccessToken \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testRetryResetsAndRestarts \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartIsIdempotent \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStartSetsIsResolving \
-            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testStopClearsState \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStopThenStart_allowsSecondStart \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_isIdempotent \
-            -skip-testing:dirigenta-uiTests/MDNSResolverStopGuardTests/testStop_withoutStart_doesNotCrash \
+            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_emptyHubs_whenStoreEmpty \
+            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_fallsBackToFirstHub_whenStoredSelectedHubIDStale \
+            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsHubsFromV2Store \
+            -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_remembersSelectedHubID_whenStillPresent \
+            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_switchingHub_evictsCache \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_ignoresLastKnownIP_whenNoLongerAdvertised \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_prefersLastKnownIP_whenStillAdvertised \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_returnsDemoSentinelForDemoHub \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_returnsMostRecentDiscovered_whenNoLastKnownIP \
+            -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_returnsNil_whenNoDiscoveredHubs \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
