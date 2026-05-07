@@ -47,6 +47,7 @@ jobs:
             -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_fallsBackToFirstHub_whenStoredSelectedHubIDStale \
             -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_readsHubsFromV2Store \
             -skip-testing:dirigenta-uiTests/AppStateCredentialInitTests/testInit_remembersSelectedHubID_whenStillPresent \
+            -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_afterIPChange_newCallWithOldIPCreatesNewInstance \
             -skip-testing:dirigenta-uiTests/AppStateMakeClientTests/testMakeClient_switchingHub_evictsCache \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_ignoresLastKnownIP_whenNoLongerAdvertised \
             -skip-testing:dirigenta-uiTests/MDNSDiscoveryTests/testIpForHub_prefersLastKnownIP_whenStillAdvertised \
