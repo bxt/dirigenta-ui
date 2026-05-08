@@ -65,11 +65,16 @@ final class AppState: ObservableObject {
     @Published var wsRestartToken: Int = 0
 
     @Published var gatewayName: String? = nil
-    @Published var lights: [DirigeraDevice] = []
-    @Published var sensors: [DirigeraDevice] = []
-    @Published var envSensors: [DirigeraDevice] = []
-    @Published var envSensorIdMap: [String: String] = [:]
-    @Published var otherDevices: [DirigeraDevice] = []
+    /// All visible devices in id-ascending order, with relationId-grouped
+    /// components already merged into a single primary entry. Use the
+    /// `[DirigeraDevice]` extension splitters (e.g. `appState.devices.lights`)
+    /// to filter by type.
+    @Published var devices: [DirigeraDevice] = []
+    /// Maps every component id (including primaries) of any merged group to
+    /// its primary device id, so WebSocket events targeting a component get
+    /// routed to the correct merged entry. Devices outside any merged group
+    /// are absent — call sites use `deviceIdMap[id] ?? id`.
+    @Published var deviceIdMap: [String: String] = [:]
     @Published var isLoadingDevices: Bool = false
     @Published var devicesError: String? = nil
 
@@ -274,25 +279,21 @@ final class AppState: ObservableObject {
         devicesError = nil
         do {
             let all = try await client.fetchAllDevices()
-            gatewayName = all.first { $0.isGateway }?.displayName
-            lights = all.filter { $0.isLight }
-            sensors = all.filter { $0.isOpenCloseSensor }
-            let (merged, idMap) = DirigeraDevice.mergeEnvSensors(
-                all.filter { $0.isEnvironmentSensor }
+            // Sort by id BEFORE merge so each relationId-group iterates in
+            // stable id order, and so the final `devices` array is
+            // deterministically ordered across re-fetches.
+            let sorted = all.sorted { $0.id < $1.id }
+            let (merged, idMap) = DirigeraDevice.mergeByRelationId(sorted)
+            let withSwitchGroups = DirigeraDevice.collectSwitchGroups(
+                merged: merged,
+                components: sorted
             )
-            envSensors = merged
-            envSensorIdMap = idMap
-            let mergedSwitches = DirigeraDevice.mergeGenericSwitches(
-                all.filter { $0.isGenericSwitch }
-            )
-            otherDevices =
-                all.filter {
-                    !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
-                        && !$0.isEnvironmentSensor && !$0.isGenericSwitch
-                } + mergedSwitches
-            let lc = lights.count
-            let sc = sensors.count
-            let ec = envSensors.count
+            gatewayName = withSwitchGroups.first { $0.isGateway }?.displayName
+            devices = withSwitchGroups.filter { !$0.isGateway }
+            deviceIdMap = idMap
+            let lc = devices.lights.count
+            let sc = devices.openCloseSensors.count
+            let ec = devices.envSensors.count
             let gw = gatewayName ?? "none"
             Logger.api.info(
                 "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)"
@@ -300,8 +301,8 @@ final class AppState: ObservableObject {
             recordSuccessfulConnection(ip: ip)
             syncPinnedState()
             windowNotifier.update(
-                windows: sensors,
-                envSensors: envSensors,
+                windows: devices.openCloseSensors,
+                envSensors: devices.envSensors,
                 now: Date()
             )
         } catch {
@@ -317,26 +318,19 @@ final class AppState: ObservableObject {
         guard event.isDeviceStateChanged,
             let data = event.data, let id = data.id
         else { return }
-        if let i = lights.firstIndex(where: { $0.id == id }) {
-            lights[i].merge(data)
+        let primaryId = deviceIdMap[id] ?? id
+        guard let i = devices.firstIndex(where: { $0.id == primaryId })
+        else { return }
+        devices[i].merge(data)
+        let updated = devices[i]
+        if updated.isLight {
             syncPinnedState()
-        } else if let i = sensors.firstIndex(where: { $0.id == id }) {
-            sensors[i].merge(data)
+        } else if updated.isOpenCloseSensor || updated.isEnvironmentSensor {
             windowNotifier.update(
-                windows: sensors,
-                envSensors: envSensors,
+                windows: devices.openCloseSensors,
+                envSensors: devices.envSensors,
                 now: Date()
             )
-        } else {
-            let primaryId = envSensorIdMap[id] ?? id
-            if let i = envSensors.firstIndex(where: { $0.id == primaryId }) {
-                envSensors[i].merge(data)
-                windowNotifier.update(
-                    windows: sensors,
-                    envSensors: envSensors,
-                    now: Date()
-                )
-            }
         }
     }
 
@@ -350,14 +344,14 @@ final class AppState: ObservableObject {
             let client = makeClient(ip: ip),
             let notifier = LightNotifier(
                 client: client,
-                lights: lights,
+                lights: devices.lights,
                 pinnedId: pinnedLightId
             )
         else { return }
 
         await notifier.turnOnDimmed()  // Step 2
         await fetchDevices(ip: ip)  // Step 3
-        let presets = notifier.capturePresets(from: lights)  // Step 4
+        let presets = notifier.capturePresets(from: devices.lights)  // Step 4
         await notifier.flash()  // Step 5
         try? await Task.sleep(for: .seconds(1))
         await notifier.restore(presets)  // Step 6
@@ -466,7 +460,7 @@ final class AppState: ObservableObject {
 
     func syncPinnedState() {
         guard let id = pinnedLightId else { return }
-        pinnedLightIsOn = lights.first { $0.id == id }?.isOn ?? false
+        pinnedLightIsOn = devices.lights.first { $0.id == id }?.isOn ?? false
     }
 
     // MARK: - Persistence helpers
@@ -541,11 +535,8 @@ final class AppState: ObservableObject {
     }
 
     private func clearDevices() {
-        lights = []
-        sensors = []
-        envSensors = []
-        envSensorIdMap = [:]
-        otherDevices = []
+        devices = []
+        deviceIdMap = [:]
         gatewayName = nil
         devicesError = nil
     }
@@ -571,7 +562,33 @@ final class AppState: ObservableObject {
         state.hubs = [previewHub]
         state.selectedHubID = previewHub.id
         state.gatewayName = "My Smart Home"
-        state.lights = [
+        state.devices = [
+            DirigeraDevice(
+                id: "e1",
+                type: "sensor",
+                deviceType: "environmentSensor",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Air Quality",
+                    currentTemperature: 21.5,
+                    currentRH: 45,
+                    currentCO2: 650,
+                    currentPM25: 5
+                )
+            ),
+            DirigeraDevice(
+                id: "e2",
+                type: "sensor",
+                deviceType: "environmentSensor",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Air Quality Backup",
+                    currentTemperature: 20.2,
+                    currentRH: 43,
+                    currentCO2: 652,
+                    currentPM25: 4
+                )
+            ),
             DirigeraDevice(
                 id: "ll1",
                 type: "light",
@@ -608,8 +625,20 @@ final class AppState: ObservableObject {
                     lightLevel: 100
                 )
             ),
-        ]
-        state.sensors = [
+            DirigeraDevice(
+                id: "o1",
+                type: "blinds",
+                room: Room(id: "r2", name: "Bedroom"),
+                attributes: .init(
+                    customName: "Bedroom Blinds",
+                    batteryPercentage: 72
+                )
+            ),
+            DirigeraDevice(
+                id: "o2",
+                type: "speaker",
+                attributes: .init(customName: "Kitchen Speaker")
+            ),
             DirigeraDevice(
                 id: "s1",
                 type: "sensor",
@@ -634,22 +663,6 @@ final class AppState: ObservableObject {
                     batteryPercentage: 85
                 )
             ),
-        ]
-        state.otherDevices = [
-            DirigeraDevice(
-                id: "o1",
-                type: "blinds",
-                room: Room(id: "r2", name: "Bedroom"),
-                attributes: .init(
-                    customName: "Bedroom Blinds",
-                    batteryPercentage: 72
-                )
-            ),
-            DirigeraDevice(
-                id: "o2",
-                type: "speaker",
-                attributes: .init(customName: "Kitchen Speaker")
-            ),
             DirigeraDevice(
                 id: "sw1",
                 type: "controller",
@@ -659,34 +672,6 @@ final class AppState: ObservableObject {
                     customName: "Living Room Remote",
                     batteryPercentage: 88,
                     switchGroups: [1, 2, 3, 4]
-                )
-            ),
-        ]
-        state.envSensors = [
-            DirigeraDevice(
-                id: "e1",
-                type: "sensor",
-                deviceType: "environmentSensor",
-                room: Room(id: "r1", name: "Living Room"),
-                attributes: .init(
-                    customName: "Air Quality",
-                    currentTemperature: 21.5,
-                    currentRH: 45,
-                    currentCO2: 650,
-                    currentPM25: 5
-                )
-            ),
-            DirigeraDevice(
-                id: "e2",
-                type: "sensor",
-                deviceType: "environmentSensor",
-                room: Room(id: "r1", name: "Living Room"),
-                attributes: .init(
-                    customName: "Air Quality Backup",
-                    currentTemperature: 20.2,
-                    currentRH: 43,
-                    currentCO2: 652,
-                    currentPM25: 4
                 )
             ),
         ]

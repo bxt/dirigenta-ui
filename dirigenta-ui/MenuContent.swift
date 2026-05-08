@@ -138,7 +138,7 @@ struct MenuContent: View {
 
     private var pinnedRoomName: String? {
         guard !pinnedRoomId.isEmpty else { return nil }
-        return (appState.lights + appState.sensors + appState.envSensors)
+        return appState.devices
             .first { $0.room?.id == pinnedRoomId }?.room?.name
     }
 
@@ -161,9 +161,7 @@ struct MenuContent: View {
                 // before any devices have arrived. Background refreshes (e.g. after
                 // a toggle) leave the existing device data in place and are
                 // indicated by the footer instead.
-                let noDevicesYet =
-                    appState.lights.isEmpty && appState.sensors.isEmpty
-                    && appState.envSensors.isEmpty
+                let noDevicesYet = appState.devices.isEmpty
                 if noDevicesYet && appState.isLoadingDevices {
                     HStack(spacing: 8) {
                         ProgressView()

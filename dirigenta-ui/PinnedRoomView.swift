@@ -20,13 +20,13 @@ struct PinnedRoomView: View {
     @State private var sensorsExpanded = true
 
     private var lights: [DirigeraDevice] {
-        appState.lights.filter { $0.room?.id == roomId }
+        appState.devices.lights.filter { $0.room?.id == roomId }
     }
     private var envSensors: [DirigeraDevice] {
-        appState.envSensors.filter { $0.room?.id == roomId }
+        appState.devices.envSensors.filter { $0.room?.id == roomId }
     }
     private var sensors: [DirigeraDevice] {
-        appState.sensors.filter { $0.room?.id == roomId }
+        appState.devices.openCloseSensors.filter { $0.room?.id == roomId }
     }
 
     var body: some View {
@@ -63,9 +63,9 @@ struct PinnedRoomView: View {
         else { return }
         let newState = !lights.contains { $0.isOn }
         let ids = Set(lights.map { $0.id })
-        for i in appState.lights.indices
-        where ids.contains(appState.lights[i].id) {
-            appState.lights[i].attributes.isOn = newState
+        for i in appState.devices.indices
+        where ids.contains(appState.devices[i].id) {
+            appState.devices[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         await withTaskGroup(of: Void.self) { group in

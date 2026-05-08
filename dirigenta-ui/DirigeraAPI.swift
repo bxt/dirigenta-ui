@@ -36,7 +36,8 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var colorSaturation: Double? = nil
         var colorMode: String? = nil  // "color" | "temperature"
         var switchGroup: Int? = nil
-        /// Populated by mergeGenericSwitches; not present in JSON (optional → decodeIfPresent → nil).
+        /// Populated by collectSwitchGroups after relationId merging; not
+        /// present in JSON (optional → decodeIfPresent → nil).
         var switchGroups: [Int]? = nil
 
         /// Overwrites each field with the corresponding non-nil value from `other`.
@@ -60,7 +61,7 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
             if let v = other.colorSaturation { colorSaturation = v }
             if let v = other.colorMode { colorMode = v }
             if let v = other.switchGroup { switchGroup = v }
-            // switchGroups is accumulated by mergeGenericSwitches, not merged field-by-field
+            // switchGroups is accumulated by collectSwitchGroups, not merged field-by-field
         }
     }
 
@@ -170,100 +171,85 @@ nonisolated extension DirigeraDevice {
     /// UserDefaults key for persisting this light's saved color/brightness default.
     var colorDefaultsKey: String { "lightColorDefault.\(id)" }
 
-    /// Merges env-sensor components that share a `relationId` into a single device.
-    /// Returns the merged list and a map from each component id to the primary device id,
-    /// used to route WebSocket events back to the right merged entry.
-    static func mergeEnvSensors(_ sensors: [DirigeraDevice]) -> (
-        [DirigeraDevice], [String: String]
+    /// Merges device components that share a `relationId` into a single primary
+    /// entry, regardless of device type. Devices with `relationId == nil` pass
+    /// through unchanged. Group order matches input order; within each group the
+    /// first member is the primary and subsequent members' attributes are folded
+    /// in. CustomName precedence is order-independent: any component whose
+    /// `customName != model` (i.e. user-renamed) wins over a default name.
+    /// Returns the merged list and a map from each grouped component id to its
+    /// primary id, used to route WebSocket events back to the merged entry.
+    static func mergeByRelationId(_ devices: [DirigeraDevice]) -> (
+        merged: [DirigeraDevice], idMap: [String: String]
     ) {
         var byRelation: [String: [DirigeraDevice]] = [:]
+        var orderedRelationIds: [String] = []
         var result: [DirigeraDevice] = []
         var idMap: [String: String] = [:]
 
-        for sensor in sensors {
-            if let rel = sensor.relationId {
-                byRelation[rel, default: []].append(sensor)
-            } else {
-                result.append(sensor)
-            }
-        }
-
-        for (_, group) in byRelation {
-            // Sort so devices whose customName == model (generic default) come first;
-            // the fold's last value wins, so the real user-set name ends up on top.
-            let sorted = group.sorted { a, _ in
-                a.attributes.customName == a.attributes.model
-            }
-            guard let first = sorted.first else { continue }
-            var mergedAttrs = first.attributes
-            for device in sorted.dropFirst() {
-                mergedAttrs.merge(device.attributes)
-            }
-            let room = sorted.first(where: { $0.room != nil })?.room
-            result.append(
-                DirigeraDevice(
-                    id: first.id,
-                    type: first.type,
-                    deviceType: first.deviceType,
-                    relationId: first.relationId,
-                    isReachable: first.isReachable,
-                    lastSeen: first.lastSeen,
-                    room: room,
-                    customIcon: first.customIcon,
-                    attributes: mergedAttrs
-                )
-            )
-            for sensor in sorted { idMap[sensor.id] = first.id }
-        }
-
-        return (result, idMap)
-    }
-
-    /// Merges genericSwitch controller components that share a `relationId` into a single device.
-    /// The merged device's `attributes.switchGroups` lists every component's `switchGroup` value.
-    static func mergeGenericSwitches(_ devices: [DirigeraDevice])
-        -> [DirigeraDevice]
-    {
-        var byRelation: [String: [DirigeraDevice]] = [:]
-        var result: [DirigeraDevice] = []
-
         for device in devices {
             if let rel = device.relationId {
+                if byRelation[rel] == nil {
+                    orderedRelationIds.append(rel)
+                }
                 byRelation[rel, default: []].append(device)
             } else {
                 result.append(device)
             }
         }
 
-        for (_, group) in byRelation {
-            let sorted = group.sorted { a, _ in
-                a.attributes.customName == a.attributes.model
+        for rel in orderedRelationIds {
+            guard let group = byRelation[rel], let primary = group.first
+            else { continue }
+            var mergedAttrs = primary.attributes
+            for component in group.dropFirst() {
+                mergedAttrs.merge(component.attributes)
             }
-            guard let first = sorted.first else { continue }
-            var mergedAttrs = first.attributes
-            for device in sorted.dropFirst() {
-                mergedAttrs.merge(device.attributes)
+            if let realName = group.first(where: {
+                $0.attributes.customName != nil
+                    && $0.attributes.customName != $0.attributes.model
+            })?.attributes.customName {
+                mergedAttrs.customName = realName
             }
-            mergedAttrs.switchGroups = sorted.compactMap {
-                $0.attributes.switchGroup
-            }
-            let room = sorted.first(where: { $0.room != nil })?.room
+            let room = group.first(where: { $0.room != nil })?.room
             result.append(
                 DirigeraDevice(
-                    id: first.id,
-                    type: first.type,
-                    deviceType: first.deviceType,
-                    relationId: first.relationId,
-                    isReachable: first.isReachable,
-                    lastSeen: first.lastSeen,
+                    id: primary.id,
+                    type: primary.type,
+                    deviceType: primary.deviceType,
+                    relationId: primary.relationId,
+                    isReachable: primary.isReachable,
+                    lastSeen: primary.lastSeen,
                     room: room,
-                    customIcon: first.customIcon,
+                    customIcon: primary.customIcon,
                     attributes: mergedAttrs
                 )
             )
+            for component in group { idMap[component.id] = primary.id }
         }
 
-        return result
+        return (result, idMap)
+    }
+
+    /// Type-specific post-pass run after `mergeByRelationId`: for each merged
+    /// generic-switch primary, populates `attributes.switchGroups` with the
+    /// `switchGroup` value of every component sharing its `relationId`.
+    /// Non-switch devices pass through unchanged.
+    static func collectSwitchGroups(
+        merged: [DirigeraDevice],
+        components: [DirigeraDevice]
+    ) -> [DirigeraDevice] {
+        return merged.map { device in
+            guard device.isGenericSwitch, let rel = device.relationId
+            else { return device }
+            let groups = components
+                .filter { $0.relationId == rel }
+                .compactMap { $0.attributes.switchGroup }
+            guard !groups.isEmpty else { return device }
+            var updated = device
+            updated.attributes.switchGroups = groups
+            return updated
+        }
     }
 
     struct Reading {
@@ -362,6 +348,22 @@ nonisolated extension DirigeraDevice {
     func openDuration(now: Date) -> String? {
         guard let s = openSeconds(now: now) else { return nil }
         return String(format: "%02d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60)
+    }
+}
+
+nonisolated extension Array where Element == DirigeraDevice {
+    /// Lights, in source-array order.
+    var lights: [DirigeraDevice] { filter { $0.isLight } }
+    /// Open/close (window/door) sensors, in source-array order.
+    var openCloseSensors: [DirigeraDevice] { filter { $0.isOpenCloseSensor } }
+    /// Environment sensors (already merged by relationId upstream).
+    var envSensors: [DirigeraDevice] { filter { $0.isEnvironmentSensor } }
+    /// Everything that isn't a light, gateway, open/close sensor, or env sensor.
+    var others: [DirigeraDevice] {
+        filter {
+            !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
+                && !$0.isEnvironmentSensor
+        }
     }
 }
 

@@ -130,19 +130,19 @@ struct RoomsView: View {
                 sensors: [DirigeraDevice],
                 envSensors: [DirigeraDevice]
             )] = [:]
-        for device in appState.lights {
+        for device in appState.devices.lights {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])
             e.lights.append(device)
             byRoom[room.id] = e
         }
-        for device in appState.sensors {
+        for device in appState.devices.openCloseSensors {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])
             e.sensors.append(device)
             byRoom[room.id] = e
         }
-        for device in appState.envSensors {
+        for device in appState.devices.envSensors {
             guard let room = device.room else { continue }
             var e = byRoom[room.id] ?? (room.name, [], [], [])
             e.envSensors.append(device)
@@ -167,9 +167,9 @@ struct RoomsView: View {
         else { return }
         let newState = !room.anyLightOn
         let ids = Set(room.lights.map { $0.id })
-        for i in appState.lights.indices
-        where ids.contains(appState.lights[i].id) {
-            appState.lights[i].attributes.isOn = newState
+        for i in appState.devices.indices
+        where ids.contains(appState.devices[i].id) {
+            appState.devices[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         await withTaskGroup(of: Void.self) { group in

@@ -57,11 +57,8 @@ final class AppStateFetchDevicesTests: XCTestCase {
     override func setUp() {
         super.setUp()
         state = AppState.preview()
-        state.lights = []
-        state.sensors = []
-        state.envSensors = []
-        state.envSensorIdMap = [:]
-        state.otherDevices = []
+        state.devices = []
+        state.deviceIdMap = [:]
         client = MockFetchClient()
     }
 
@@ -74,7 +71,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "s1", type: "sensor", deviceType: "openCloseSensor"),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertEqual(state.lights.map(\.id).sorted(), ["l1", "l2"])
+        XCTAssertEqual(state.devices.lights.map(\.id).sorted(), ["l1", "l2"])
     }
 
     func testFetchDevices_classifiesOpenCloseSensors() async {
@@ -84,7 +81,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "l1", type: "light"),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertEqual(state.sensors.map(\.id).sorted(), ["s1", "s2"])
+        XCTAssertEqual(state.devices.openCloseSensors.map(\.id).sorted(), ["s1", "s2"])
     }
 
     func testFetchDevices_doesNotClassifyOpenSensorsAsLights() async {
@@ -92,7 +89,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "s1", type: "sensor", deviceType: "openCloseSensor"),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertTrue(state.lights.isEmpty)
+        XCTAssertTrue(state.devices.lights.isEmpty)
     }
 
     // MARK: Environment sensor merging
@@ -105,8 +102,8 @@ final class AppStateFetchDevicesTests: XCTestCase {
         ]
         await state.fetchDevices(ip: "x", client: client)
         // Merged: one entry in envSensors, both IDs mapped to the primary
-        XCTAssertEqual(state.envSensors.count, 1)
-        XCTAssertFalse(state.envSensorIdMap.isEmpty)
+        XCTAssertEqual(state.devices.envSensors.count, 1)
+        XCTAssertFalse(state.deviceIdMap.isEmpty)
     }
 
     func testFetchDevices_doesNotPutEnvSensorsInLightsOrSensors() async {
@@ -114,8 +111,8 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "env1", type: "sensor", deviceType: "environmentSensor"),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertTrue(state.lights.isEmpty)
-        XCTAssertTrue(state.sensors.isEmpty)
+        XCTAssertTrue(state.devices.lights.isEmpty)
+        XCTAssertTrue(state.devices.openCloseSensors.isEmpty)
     }
 
     // MARK: Gateway name
@@ -174,7 +171,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
                    relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertEqual(state.otherDevices.count, 1)
+        XCTAssertEqual(state.devices.others.count, 1)
     }
 
     func testFetchDevices_mergedSwitch_collectsSwitchGroups() async {
@@ -185,7 +182,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
                    relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        let groups = state.otherDevices.first?.attributes.switchGroups ?? []
+        let groups = state.devices.others.first?.attributes.switchGroups ?? []
         XCTAssertEqual(groups.sorted(), [1, 2])
     }
 
@@ -195,9 +192,9 @@ final class AppStateFetchDevicesTests: XCTestCase {
                    relationId: "rel-sw", switchGroup: 1),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertTrue(state.lights.isEmpty)
-        XCTAssertTrue(state.sensors.isEmpty)
-        XCTAssertTrue(state.envSensors.isEmpty)
+        XCTAssertTrue(state.devices.lights.isEmpty)
+        XCTAssertTrue(state.devices.openCloseSensors.isEmpty)
+        XCTAssertTrue(state.devices.envSensors.isEmpty)
     }
 
     // MARK: Mixed bag
@@ -215,12 +212,26 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "other1", type: "blinds"),
         ]
         await state.fetchDevices(ip: "x", client: client)
-        XCTAssertEqual(state.lights.count, 1)
-        XCTAssertEqual(state.sensors.count, 1)
-        XCTAssertEqual(state.envSensors.count, 1)
+        XCTAssertEqual(state.devices.lights.count, 1)
+        XCTAssertEqual(state.devices.openCloseSensors.count, 1)
+        XCTAssertEqual(state.devices.envSensors.count, 1)
         XCTAssertEqual(state.gatewayName, "Hub")
         // Two genericSwitch components → 1 merged entry + 1 blinds = 2 otherDevices
-        XCTAssertEqual(state.otherDevices.count, 2)
+        XCTAssertEqual(state.devices.others.count, 2)
+    }
+
+    // MARK: Stable sort order
+
+    func testFetchDevices_sortsDevicesByIdAscending() async {
+        // Hub returns devices in arbitrary order; AppState must surface them
+        // in id-ascending order so views render deterministically.
+        client.devicesToReturn = [
+            device(id: "z3", type: "light"),
+            device(id: "a1", type: "light"),
+            device(id: "m2", type: "sensor", deviceType: "openCloseSensor"),
+        ]
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertEqual(state.devices.map(\.id), ["a1", "m2", "z3"])
     }
 
     // MARK: Demo hub end-to-end
@@ -235,11 +246,11 @@ final class AppStateFetchDevicesTests: XCTestCase {
     func testFetchDevices_demoHub_classifiesEveryFamily() async {
         let demoClient = DemoDirigeraClient()
         await state.fetchDevices(ip: "demo", client: demoClient)
-        XCTAssertGreaterThanOrEqual(state.lights.count, 6)
-        XCTAssertEqual(state.sensors.count, 2)
-        XCTAssertGreaterThanOrEqual(state.envSensors.count, 1)
+        XCTAssertGreaterThanOrEqual(state.devices.lights.count, 6)
+        XCTAssertEqual(state.devices.openCloseSensors.count, 2)
+        XCTAssertGreaterThanOrEqual(state.devices.envSensors.count, 1)
         XCTAssertEqual(state.gatewayName, "Demo Hub")
-        XCTAssertTrue(state.lights.contains { $0.isReachable == false })
+        XCTAssertTrue(state.devices.lights.contains { $0.isReachable == false })
     }
 
     // MARK: Auto-upgrade default displayName from gatewayName

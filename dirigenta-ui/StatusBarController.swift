@@ -43,7 +43,7 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
-        appState.$lights
+        appState.$devices
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
@@ -55,7 +55,7 @@ final class StatusBarController: NSObject {
         guard let button = statusItem.button else { return }
         let name: String
         if let id = appState.pinnedLightId,
-            let light = appState.lights.first(where: { $0.id == id })
+            let light = appState.devices.lights.first(where: { $0.id == id })
         {
             name = light.lightIcon(isOn: appState.pinnedLightIsOn)
         } else if appState.pinnedLightId != nil {

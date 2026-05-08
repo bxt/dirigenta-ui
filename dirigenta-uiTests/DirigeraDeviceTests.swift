@@ -338,7 +338,7 @@ final class DirigeraDeviceMergingTests: XCTestCase {
         XCTAssertEqual(updated.attributes.lightLevel, 90)
     }
 
-    func testMergeEnvSensors_combinesComponentsByRelationId() {
+    func testMergeByRelationId_combinesComponentsByRelationId() {
         let s1 = makeDevice(
             id: "s1",
             type: "sensor",
@@ -356,7 +356,7 @@ final class DirigeraDeviceMergingTests: XCTestCase {
                 #"{"customName": "STARKVIND Table", "currentPM25": 5.0}"#
         )
 
-        let (merged, idMap) = DirigeraDevice.mergeEnvSensors([s1, s2])
+        let (merged, idMap) = DirigeraDevice.mergeByRelationId([s1, s2])
 
         XCTAssertEqual(merged.count, 1)
         XCTAssertNotNil(merged[0].attributes.currentCO2)
@@ -364,19 +364,19 @@ final class DirigeraDeviceMergingTests: XCTestCase {
         XCTAssertEqual(idMap["s1"], idMap["s2"])
     }
 
-    func testMergeEnvSensors_preservesUnrelatedSensors() {
+    func testMergeByRelationId_passesThroughDevicesWithoutRelationId() {
         let standalone = makeDevice(
             id: "s1",
             type: "sensor",
             deviceType: "environmentSensor"
         )
-        let (merged, idMap) = DirigeraDevice.mergeEnvSensors([standalone])
+        let (merged, idMap) = DirigeraDevice.mergeByRelationId([standalone])
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged[0].id, "s1")
         XCTAssertTrue(idMap.isEmpty)
     }
 
-    func testMergeEnvSensors_prefersNamedComponentOverDefault() {
+    func testMergeByRelationId_prefersNamedComponentOverDefault() {
         // One component has customName == model (IKEA default), the other has a user-set name.
         let generic = makeDevice(
             id: "s1",
@@ -394,11 +394,35 @@ final class DirigeraDeviceMergingTests: XCTestCase {
                 #"{"customName": "Living Room Air", "model": "STARKVIND"}"#
         )
 
-        let (merged, _) = DirigeraDevice.mergeEnvSensors([generic, named])
+        let (merged, _) = DirigeraDevice.mergeByRelationId([generic, named])
         XCTAssertEqual(merged[0].attributes.customName, "Living Room Air")
     }
 
-    func testMergeEnvSensors_picksRoomFromSensorThatHasOne() throws {
+    func testMergeByRelationId_namePrecedenceIsOrderIndependent() {
+        // Same fixtures as above but with the renamed component first. The
+        // refactor moved the "user-renamed wins" rule out of input ordering
+        // into explicit attribute precedence, so the result must match.
+        let generic = makeDevice(
+            id: "s1",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes: #"{"customName": "STARKVIND", "model": "STARKVIND"}"#
+        )
+        let named = makeDevice(
+            id: "s2",
+            type: "sensor",
+            deviceType: "environmentSensor",
+            relationId: "rel-1",
+            attributes:
+                #"{"customName": "Living Room Air", "model": "STARKVIND"}"#
+        )
+
+        let (merged, _) = DirigeraDevice.mergeByRelationId([named, generic])
+        XCTAssertEqual(merged[0].attributes.customName, "Living Room Air")
+    }
+
+    func testMergeByRelationId_picksRoomFromComponentThatHasOne() throws {
         let noRoom = try decode(
             DirigeraDevice.self,
             from: """
@@ -416,7 +440,7 @@ final class DirigeraDeviceMergingTests: XCTestCase {
                 """
         )
 
-        let (merged, _) = DirigeraDevice.mergeEnvSensors([noRoom, withRoom])
+        let (merged, _) = DirigeraDevice.mergeByRelationId([noRoom, withRoom])
         XCTAssertEqual(merged[0].room?.name, "Living Room")
     }
 }

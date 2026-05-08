@@ -26,6 +26,10 @@ private func event(id: String, isOn: Bool? = nil, lightLevel: Int? = nil) -> Dir
     return try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
 }
 
+private func device(id: String) -> (DirigeraDevice) -> Bool {
+    { $0.id == id }
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -36,36 +40,46 @@ final class AppStateApplyEventTests: XCTestCase {
     override func setUp() {
         super.setUp()
         state = AppState.preview()
-        // Override preview lights with controlled fixtures
-        state.lights = [
+        // Override preview devices with controlled fixtures, in id-ascending
+        // order to mirror what fetchDevices would produce.
+        state.devices = [
+            makeDevice(id: "env-primary", type: "sensor", deviceType: "environmentSensor"),
             makeDevice(id: "light-1", type: "light"),
             makeDevice(id: "light-2", type: "light"),
-        ]
-        state.sensors = [
             makeDevice(id: "sensor-1", type: "sensor", deviceType: "openCloseSensor"),
         ]
-        state.envSensors = [
-            makeDevice(id: "env-primary", type: "sensor", deviceType: "environmentSensor"),
-        ]
-        state.envSensorIdMap = [:]
+        state.deviceIdMap = [:]
     }
 
     // MARK: Light routing
 
     func testApplyEvent_updatesMatchingLight() {
         state.applyEvent(event(id: "light-1", isOn: true))
-        XCTAssertEqual(state.lights[0].attributes.isOn, true)
-        XCTAssertEqual(state.lights[1].attributes.isOn, false)  // unaffected
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "light-1"))?.attributes.isOn,
+            true
+        )
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "light-2"))?.attributes.isOn,
+            false
+        )
     }
 
     func testApplyEvent_updatesLightLevel() {
         state.applyEvent(event(id: "light-2", lightLevel: 75))
-        XCTAssertEqual(state.lights[1].attributes.lightLevel, 75)
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "light-2"))?.attributes
+                .lightLevel,
+            75
+        )
     }
 
     func testApplyEvent_doesNotTouchSensorsWhenLightMatches() {
         state.applyEvent(event(id: "light-1", isOn: true))
-        XCTAssertFalse(state.sensors[0].attributes.isOn ?? false)
+        XCTAssertFalse(
+            state.devices.first(where: device(id: "sensor-1"))?.attributes.isOn
+                ?? false
+        )
     }
 
     // MARK: Sensor routing
@@ -76,7 +90,11 @@ final class AppStateApplyEventTests: XCTestCase {
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertEqual(state.sensors[0].attributes.isOpen, true)
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "sensor-1"))?.attributes
+                .isOpen,
+            true
+        )
     }
 
     func testApplyEvent_doesNotTouchLightsWhenSensorMatches() {
@@ -85,20 +103,26 @@ final class AppStateApplyEventTests: XCTestCase {
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertNil(state.lights[0].attributes.isOpen)
+        XCTAssertNil(
+            state.devices.first(where: device(id: "light-1"))?.attributes.isOpen
+        )
     }
 
-    // MARK: Env sensor routing via idMap
+    // MARK: Component-id routing via deviceIdMap
 
     func testApplyEvent_routesComponentIdToPrimaryEnvSensor() {
         // Map component id "env-component" → primary "env-primary"
-        state.envSensorIdMap = ["env-component": "env-primary"]
+        state.deviceIdMap = ["env-component": "env-primary"]
         let json = """
             {"type":"deviceStateChanged","data":{"id":"env-component","attributes":{"currentCO2":900.0}}}
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertEqual(state.envSensors[0].attributes.currentCO2, 900.0)
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "env-primary"))?.attributes
+                .currentCO2,
+            900.0
+        )
     }
 
     func testApplyEvent_fallsBackToPrimaryId_whenNotInIdMap() {
@@ -108,7 +132,31 @@ final class AppStateApplyEventTests: XCTestCase {
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertEqual(state.envSensors[0].attributes.currentTemperature, 22.5)
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "env-primary"))?.attributes
+                .currentTemperature,
+            22.5
+        )
+    }
+
+    func testApplyEvent_routesComponentIdToPrimaryGenericSwitch() {
+        // Generic switches share the same component-id routing path: events
+        // targeting a component get applied to the merged primary. This case
+        // was unreachable before the refactor because applyEvent only walked
+        // lights/sensors/envSensors.
+        state.devices.append(
+            makeDevice(
+                id: "sw-primary", type: "controller",
+                deviceType: "genericSwitch"
+            )
+        )
+        state.deviceIdMap = ["sw-component": "sw-primary"]
+        state.applyEvent(event(id: "sw-component", isOn: true))
+        XCTAssertEqual(
+            state.devices.first(where: device(id: "sw-primary"))?.attributes
+                .isOn,
+            true
+        )
     }
 
     // MARK: Guard conditions
@@ -119,7 +167,10 @@ final class AppStateApplyEventTests: XCTestCase {
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertNotEqual(state.lights[0].attributes.isOn, true)  // unchanged
+        XCTAssertNotEqual(
+            state.devices.first(where: device(id: "light-1"))?.attributes.isOn,
+            true
+        )
     }
 
     func testApplyEvent_ignoresEventWithNoData() {
@@ -131,7 +182,7 @@ final class AppStateApplyEventTests: XCTestCase {
     func testApplyEvent_ignoresUnknownDeviceId() {
         state.applyEvent(event(id: "no-such-device", isOn: true))
         // No crash; nothing changed
-        XCTAssertFalse(state.lights.contains { $0.attributes.isOn == true })
+        XCTAssertFalse(state.devices.contains { $0.attributes.isOn == true })
     }
 
     // MARK: Pinned state sync

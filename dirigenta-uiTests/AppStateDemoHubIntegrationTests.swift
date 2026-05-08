@@ -125,17 +125,17 @@ final class AppStateDemoHubIntegrationTests: XCTestCase {
         await state.fetchDevices(ip: "demo", client: client)
 
         XCTAssertGreaterThanOrEqual(
-            state.lights.count,
+            state.devices.lights.count,
             6,
             "demo set should expose at least 6 lights so room views look populated"
         )
         XCTAssertEqual(
-            state.sensors.count,
+            state.devices.openCloseSensors.count,
             2,
             "demo set should expose 2 open/close sensors"
         )
         XCTAssertGreaterThanOrEqual(
-            state.envSensors.count,
+            state.devices.envSensors.count,
             1,
             "demo set should include at least one environment sensor"
         )
@@ -148,7 +148,7 @@ final class AppStateDemoHubIntegrationTests: XCTestCase {
         await state.fetchDevices(ip: "demo", client: client)
 
         XCTAssertTrue(
-            state.lights.contains { $0.isReachable == false },
+            state.devices.lights.contains { $0.isReachable == false },
             "demo set must include an unreachable light so the offline warning UI is exercised"
         )
     }

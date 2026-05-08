@@ -25,7 +25,7 @@ struct DevicesView: View {
         VStack(alignment: .leading, spacing: 8) {
             if showLights {
                 LightsSectionView(
-                    lights: appState.lights,
+                    lights: appState.devices.lights,
                     isExpanded: $lightsExpanded,
                     pendingLightLevels: $pendingLightLevels,
                     colorPickerLightId: $colorPickerLightId,
@@ -34,27 +34,27 @@ struct DevicesView: View {
                     onToggleAll: { await toggleAllLights() }
                 )
             }
-            if showEnvSensors && !appState.envSensors.isEmpty {
+            if showEnvSensors && !appState.devices.envSensors.isEmpty {
                 Divider()
                 EnvSensorsSectionView(
-                    sensors: appState.envSensors,
+                    sensors: appState.devices.envSensors,
                     isExpanded: $envExpanded,
                     showRoom: true
                 )
             }
-            if showSensors && !appState.sensors.isEmpty {
+            if showSensors && !appState.devices.openCloseSensors.isEmpty {
                 Divider()
                 OpenCloseSensorsSectionView(
-                    sensors: appState.sensors,
+                    sensors: appState.devices.openCloseSensors,
                     now: now,
                     isExpanded: $sensorsExpanded,
                     showRoom: true
                 )
             }
-            if showOtherDevices && !appState.otherDevices.isEmpty {
+            if showOtherDevices && !appState.devices.others.isEmpty {
                 Divider()
                 OtherDevicesSectionView(
-                    devices: appState.otherDevices,
+                    devices: appState.devices.others,
                     isExpanded: $othersExpanded
                 )
             }
@@ -68,14 +68,15 @@ struct DevicesView: View {
             let client = appState.makeClient(ip: ip)
         else { return }
         actionError = nil
-        let anyOn = appState.lights.contains { $0.isOn }
+        let lights = appState.devices.lights
+        let anyOn = lights.contains { $0.isOn }
         let newState = !anyOn
-        for i in appState.lights.indices {
-            appState.lights[i].attributes.isOn = newState
+        for i in appState.devices.indices where appState.devices[i].isLight {
+            appState.devices[i].attributes.isOn = newState
         }
         appState.syncPinnedState()
         await withTaskGroup(of: Void.self) { group in
-            for light in appState.lights {
+            for light in lights {
                 group.addTask {
                     try? await client.setLight(id: light.id, isOn: newState)
                 }

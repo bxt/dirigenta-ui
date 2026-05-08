@@ -229,24 +229,32 @@ private func makeSwitch(
     )
 }
 
-// MARK: - DirigeraDevice.mergeGenericSwitches
+// MARK: - Generic-switch merging via mergeByRelationId + collectSwitchGroups
+
+private func mergeSwitches(_ devices: [DirigeraDevice]) -> [DirigeraDevice] {
+    let (merged, _) = DirigeraDevice.mergeByRelationId(devices)
+    return DirigeraDevice.collectSwitchGroups(
+        merged: merged,
+        components: devices
+    )
+}
 
 @MainActor
 final class GenericSwitchMergeTests: XCTestCase {
 
     func testMerge_empty_returnsEmpty() {
-        XCTAssertTrue(DirigeraDevice.mergeGenericSwitches([]).isEmpty)
+        XCTAssertTrue(mergeSwitches([]).isEmpty)
     }
 
     func testMerge_noRelationId_passesThrough() {
         let sw = makeSwitch(id: "sw1", switchGroup: 1)
-        let result = DirigeraDevice.mergeGenericSwitches([sw])
+        let result = mergeSwitches([sw])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].id, "sw1")
     }
 
     func testMerge_sharedRelationId_producesOneDevice() {
-        let result = DirigeraDevice.mergeGenericSwitches([
+        let result = mergeSwitches([
             makeSwitch(id: "sw1", relationId: "rel", switchGroup: 1),
             makeSwitch(id: "sw2", relationId: "rel", switchGroup: 2),
         ])
@@ -254,7 +262,7 @@ final class GenericSwitchMergeTests: XCTestCase {
     }
 
     func testMerge_collectsSwitchGroupsFromAllComponents() {
-        let result = DirigeraDevice.mergeGenericSwitches([
+        let result = mergeSwitches([
             makeSwitch(id: "sw1", relationId: "rel", switchGroup: 1),
             makeSwitch(id: "sw2", relationId: "rel", switchGroup: 2),
             makeSwitch(id: "sw3", relationId: "rel", switchGroup: 3),
@@ -264,7 +272,7 @@ final class GenericSwitchMergeTests: XCTestCase {
     }
 
     func testMerge_nilSwitchGroup_excluded() {
-        let result = DirigeraDevice.mergeGenericSwitches([
+        let result = mergeSwitches([
             makeSwitch(id: "sw1", relationId: "rel", switchGroup: 1),
             makeSwitch(id: "sw2", relationId: "rel", switchGroup: nil),
         ])
@@ -273,7 +281,7 @@ final class GenericSwitchMergeTests: XCTestCase {
     }
 
     func testMerge_distinctRelationIds_separateOutputDevices() {
-        let result = DirigeraDevice.mergeGenericSwitches([
+        let result = mergeSwitches([
             makeSwitch(id: "sw1", relationId: "rel-X", switchGroup: 1),
             makeSwitch(id: "sw2", relationId: "rel-Y", switchGroup: 1),
         ])
@@ -281,7 +289,7 @@ final class GenericSwitchMergeTests: XCTestCase {
     }
 
     func testMerge_noRelationId_notMergedWithRelationGroup() {
-        let result = DirigeraDevice.mergeGenericSwitches([
+        let result = mergeSwitches([
             makeSwitch(id: "sw1", relationId: "rel", switchGroup: 1),
             makeSwitch(id: "sw2", relationId: nil, switchGroup: 2),
         ])
