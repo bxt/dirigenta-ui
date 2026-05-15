@@ -6,6 +6,8 @@ struct SettingsView: View {
     // MARK: - Devices tab visibility
     @AppStorage("settings.devices.showLights") private var devicesShowLights =
         true
+    @AppStorage("settings.devices.showPlugs") private var devicesShowPlugs =
+        true
     @AppStorage("settings.devices.showEnvSensors") private
         var devicesShowEnvSensors = true
     @AppStorage("settings.devices.showSensors") private var devicesShowSensors =
@@ -15,6 +17,7 @@ struct SettingsView: View {
 
     // MARK: - Rooms tab visibility
     @AppStorage("settings.rooms.showLights") private var roomsShowLights = true
+    @AppStorage("settings.rooms.showPlugs") private var roomsShowPlugs = true
     @AppStorage("settings.rooms.showEnvSensors") private
         var roomsShowEnvSensors = true
     @AppStorage("settings.rooms.showSensors") private var roomsShowSensors =
@@ -70,6 +73,7 @@ struct SettingsView: View {
 
             Section("Devices") {
                 Toggle("Lights", isOn: $devicesShowLights)
+                Toggle("Smart Plugs", isOn: $devicesShowPlugs)
                 Toggle("Environment Sensors", isOn: $devicesShowEnvSensors)
                 Toggle("Sensors", isOn: $devicesShowSensors)
                 Toggle("Other Devices", isOn: $devicesShowOtherDevices)
@@ -77,6 +81,7 @@ struct SettingsView: View {
 
             Section("Rooms") {
                 Toggle("Lights", isOn: $roomsShowLights)
+                Toggle("Smart Plugs", isOn: $roomsShowPlugs)
                 Toggle("Environment Sensors", isOn: $roomsShowEnvSensors)
                 Toggle("Sensors", isOn: $roomsShowSensors)
             }

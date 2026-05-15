@@ -55,9 +55,16 @@ final class StatusBarController: NSObject {
         guard let button = statusItem.button else { return }
         let name: String
         if let id = appState.pinnedDeviceId,
-            let light = appState.devices.lights.first(where: { $0.id == id })
+            let device = appState.devices.first(where: { $0.id == id })
         {
-            name = light.lightIcon(isOn: appState.pinnedDeviceIsOn)
+            if device.isLight {
+                name = device.lightIcon(isOn: appState.pinnedDeviceIsOn)
+            } else if device.isSmartPlug {
+                name = appState.pinnedDeviceIsOn
+                    ? "poweroutlet.type.f.fill" : "poweroutlet.type.f"
+            } else {
+                name = appState.pinnedDeviceIsOn ? "lightbulb.fill" : "lightbulb"
+            }
         } else if appState.pinnedDeviceId != nil {
             name = appState.pinnedDeviceIsOn ? "lightbulb.fill" : "lightbulb"
         } else {
@@ -116,10 +123,15 @@ final class StatusBarController: NSObject {
             let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
+        let device = appState.devices.first(where: { $0.id == deviceId })
         let newState = !appState.pinnedDeviceIsOn
         appState.pinnedDeviceIsOn = newState
         do {
-            try await client.setLight(id: deviceId, isOn: newState)
+            if let outletId = device?.attributes.outletId {
+                try await client.setOutlet(id: outletId, isOn: newState)
+            } else {
+                try await client.setLight(id: deviceId, isOn: newState)
+            }
         } catch {
             appState.pinnedDeviceIsOn = !newState
             Logger.statusBar.error(

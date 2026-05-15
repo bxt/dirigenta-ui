@@ -220,6 +220,62 @@ struct LightsSectionView: View {
     }
 }
 
+// Collapsible smart-plug section with a toggle-all button in the header.
+// Shows "No smart plugs found" when the list is empty (devices tab).
+// onToggleAll lets callers toggle plugs in a single room or all rooms.
+struct SmartPlugsSectionView: View {
+    let plugs: [DirigeraDevice]
+    @Binding var isExpanded: Bool
+    @Binding var expandedPlugId: String?
+    @Binding var actionError: String?
+    var showRoom: Bool = false
+    let onToggleAll: () async -> Void
+
+    var body: some View {
+        if plugs.isEmpty {
+            Label("No smart plugs found", systemImage: "poweroutlet.type.f")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            let anyOn = plugs.contains { $0.isOn }
+            let onCount = plugs.filter { $0.isOn }.count
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(spacing: 8) {
+                    ForEach(plugs) { plug in
+                        SmartPlugRowView(
+                            plug: plug,
+                            expandedPlugId: $expandedPlugId,
+                            actionError: $actionError,
+                            showRoom: showRoom
+                        )
+                    }
+                }
+                .padding(.top, 4)
+                .padding(.leading, 10)
+            } label: {
+                Button {
+                    Task { await onToggleAll() }
+                } label: {
+                    Image(systemName: "poweroutlet.type.f")
+                        .foregroundStyle(
+                            anyOn ? Color.orange : Color.primary
+                        )
+                }
+                .buttonStyle(.bordered)
+                .help(anyOn ? "Turn all off" : "Turn all on")
+                Text(
+                    onCount > 0 ? "\(onCount) of \(plugs.count) on" : "All off"
+                )
+            }
+            if let error = actionError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
 // Collapsible env-sensor section. Header shows averaged readings;
 // expanded content shows individual sensor rows.
 // Renders nothing when sensors is empty.

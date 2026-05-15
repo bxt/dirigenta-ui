@@ -39,6 +39,14 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         /// Populated by collectSwitchGroups after relationId merging; not
         /// present in JSON (optional → decodeIfPresent → nil).
         var switchGroups: [Int]? = nil
+        var currentActivePower: Double? = nil
+        var currentAmps: Double? = nil
+        var energyConsumedAtLastReset: Double? = nil
+        var timeOfLastEnergyReset: String? = nil
+        var totalEnergyConsumed: Double? = nil
+        /// Populated by collectOutletIds after relationId merging to identify
+        /// the component whose deviceType is "outlet". Not present in JSON.
+        var outletId: String? = nil
 
         /// Overwrites each field with the corresponding non-nil value from `other`.
         /// Add new fields here whenever Attributes gains a new property.
@@ -61,7 +69,13 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
             if let v = other.colorSaturation { colorSaturation = v }
             if let v = other.colorMode { colorMode = v }
             if let v = other.switchGroup { switchGroup = v }
+            if let v = other.currentActivePower { currentActivePower = v }
+            if let v = other.currentAmps { currentAmps = v }
+            if let v = other.energyConsumedAtLastReset { energyConsumedAtLastReset = v }
+            if let v = other.timeOfLastEnergyReset { timeOfLastEnergyReset = v }
+            if let v = other.totalEnergyConsumed { totalEnergyConsumed = v }
             // switchGroups is accumulated by collectSwitchGroups, not merged field-by-field
+            // outletId is set by collectOutletIds, not merged field-by-field
         }
     }
 
@@ -110,6 +124,10 @@ nonisolated extension DirigeraDevice {
         type == "controller" && deviceType == "genericSwitch"
     }
     var isWindowSensor: Bool { customIcon == "placement_window" }
+    /// True if this merged device has an outlet component — i.e. it's a smart
+    /// plug. Set by `collectOutletIds`, so the device may be the outlet itself
+    /// or a power-meter sibling that got merged in.
+    var isSmartPlug: Bool { attributes.outletId != nil }
 
     /// True if the light supports a white-spectrum (color-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }
@@ -252,6 +270,32 @@ nonisolated extension DirigeraDevice {
         }
     }
 
+    /// Type-specific post-pass run after `mergeByRelationId`: for each merged
+    /// device that is or shares a relationId with a `deviceType == "outlet"`
+    /// component, records that component's id in `attributes.outletId` so
+    /// toggles target the relay (not a power-meter sibling). Non-plug devices
+    /// pass through unchanged.
+    static func collectOutletIds(
+        merged: [DirigeraDevice],
+        components: [DirigeraDevice]
+    ) -> [DirigeraDevice] {
+        return merged.map { device in
+            if device.deviceType == "outlet" {
+                var updated = device
+                updated.attributes.outletId = device.id
+                return updated
+            }
+            guard let rel = device.relationId,
+                let outlet = components.first(where: {
+                    $0.relationId == rel && $0.deviceType == "outlet"
+                })
+            else { return device }
+            var updated = device
+            updated.attributes.outletId = outlet.id
+            return updated
+        }
+    }
+
     struct Reading {
         let text: String
         let outOfRange: Bool
@@ -358,11 +402,13 @@ nonisolated extension Array where Element == DirigeraDevice {
     var openCloseSensors: [DirigeraDevice] { filter { $0.isOpenCloseSensor } }
     /// Environment sensors (already merged by relationId upstream).
     var envSensors: [DirigeraDevice] { filter { $0.isEnvironmentSensor } }
-    /// Everything that isn't a light, gateway, open/close sensor, or env sensor.
+    /// Smart plugs (merged outlet+meter pairs), in source-array order.
+    var smartPlugs: [DirigeraDevice] { filter { $0.isSmartPlug } }
+    /// Everything that isn't a light, gateway, open/close sensor, env sensor, or smart plug.
     var others: [DirigeraDevice] {
         filter {
             !$0.isLight && !$0.isGateway && !$0.isOpenCloseSensor
-                && !$0.isEnvironmentSensor
+                && !$0.isEnvironmentSensor && !$0.isSmartPlug
         }
     }
 }
@@ -414,6 +460,7 @@ protocol DirigeraClientProtocol: AnyObject, Sendable {
     func setColorTemperature(id: String, colorTemperature: Int) async throws
     func applyColorPreset(_ preset: LightColorPreset, to id: String)
         async throws
+    func setOutlet(id: String, isOn: Bool) async throws
     func eventStream() -> AsyncStream<DirigeraEvent>
 }
 
@@ -512,6 +559,11 @@ final class DirigeraClient {
     }
 
     func setLight(id: String, isOn: Bool) async throws {
+        struct Attrs: Encodable { let isOn: Bool }
+        try await patchAttributes(Attrs(isOn: isOn), deviceId: id)
+    }
+
+    func setOutlet(id: String, isOn: Bool) async throws {
         struct Attrs: Encodable { let isOn: Bool }
         try await patchAttributes(Attrs(isOn: isOn), deviceId: id)
     }

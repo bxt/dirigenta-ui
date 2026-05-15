@@ -22,6 +22,7 @@ final class MockFetchClient: DirigeraClientProtocol {
     nonisolated func setColor(id: String, hue: Double, saturation: Double) async throws {}
     nonisolated func setColorTemperature(id: String, colorTemperature: Int) async throws {}
     nonisolated func applyColorPreset(_ preset: LightColorPreset, to id: String) async throws {}
+    nonisolated func setOutlet(id: String, isOn: Bool) async throws {}
     nonisolated func eventStream() -> AsyncStream<DirigeraEvent> {
         AsyncStream { $0.finish() }
     }

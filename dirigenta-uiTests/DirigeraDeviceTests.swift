@@ -67,6 +67,43 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
         XCTAssertEqual(device.attributes.batteryPercentage, 95)
     }
 
+    func testDecodesPlugAttributes() throws {
+        let device = makeDevice(
+            deviceType: "outlet",
+            attributes: """
+                {
+                  "customName": "Coffee Maker",
+                  "isOn": true,
+                  "currentActivePower": 87.3,
+                  "currentAmps": 0.395,
+                  "energyConsumedAtLastReset": 8400.5,
+                  "timeOfLastEnergyReset": "2025-01-15T10:30:00.000Z",
+                  "totalEnergyConsumed": 12450.75
+                }
+                """
+        )
+        XCTAssertEqual(device.deviceType, "outlet")
+        XCTAssertEqual(device.attributes.isOn, true)
+        XCTAssertEqual(
+            device.attributes.currentActivePower!, 87.3, accuracy: 0.01
+        )
+        XCTAssertEqual(device.attributes.currentAmps!, 0.395, accuracy: 0.001)
+        XCTAssertEqual(
+            device.attributes.energyConsumedAtLastReset!,
+            8400.5,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            device.attributes.timeOfLastEnergyReset,
+            "2025-01-15T10:30:00.000Z"
+        )
+        XCTAssertEqual(
+            device.attributes.totalEnergyConsumed!,
+            12450.75,
+            accuracy: 0.01
+        )
+    }
+
     func testDecodesEnvSensorAttributes() throws {
         let device = makeDevice(
             deviceType: "environmentSensor",
@@ -195,6 +232,16 @@ final class DirigeraDevicePropertiesTests: XCTestCase {
 
     func testSupportsColorControls_falseForPlainLight() {
         XCTAssertFalse(makeDevice(type: "light").supportsColorControls)
+    }
+
+    func testIsSmartPlug_falseByDefault() {
+        XCTAssertFalse(makeDevice().isSmartPlug)
+    }
+
+    func testIsSmartPlug_trueWhenOutletIdSet() {
+        var d = makeDevice()
+        d.attributes.outletId = "outlet-1"
+        XCTAssertTrue(d.isSmartPlug)
     }
 }
 
@@ -420,6 +467,88 @@ final class DirigeraDeviceMergingTests: XCTestCase {
 
         let (merged, _) = DirigeraDevice.mergeByRelationId([named, generic])
         XCTAssertEqual(merged[0].attributes.customName, "Living Room Air")
+    }
+
+    func testCollectOutletIds_assignsComponentIdOfOutlet() {
+        // Meter has the lower id, so it becomes the merged primary. The outlet
+        // is the secondary component — outletId must point to the outlet.
+        let meter = makeDevice(
+            id: "p1-meter",
+            type: "outlet",
+            relationId: "plug-rel",
+            attributes: #"{"currentActivePower": 50.0}"#
+        )
+        let outlet = makeDevice(
+            id: "p1-outlet",
+            type: "outlet",
+            deviceType: "outlet",
+            relationId: "plug-rel",
+            attributes: #"{"isOn": true}"#
+        )
+        let (merged, _) = DirigeraDevice.mergeByRelationId([meter, outlet])
+        let result = DirigeraDevice.collectOutletIds(
+            merged: merged, components: [meter, outlet]
+        )
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].id, "p1-meter")  // primary by lower id
+        XCTAssertEqual(result[0].attributes.outletId, "p1-outlet")
+    }
+
+    func testCollectOutletIds_handlesOutletAsPrimary() {
+        // Outlet has the lower id, so it's already the primary. outletId
+        // should still equal the outlet's id (i.e. the primary's id).
+        let outlet = makeDevice(
+            id: "p1-outlet",
+            type: "outlet",
+            deviceType: "outlet",
+            relationId: "plug-rel",
+            attributes: #"{"isOn": true}"#
+        )
+        let meter = makeDevice(
+            id: "p1-zmeter",
+            type: "outlet",
+            relationId: "plug-rel",
+            attributes: #"{"currentActivePower": 50.0}"#
+        )
+        let (merged, _) = DirigeraDevice.mergeByRelationId([outlet, meter])
+        let result = DirigeraDevice.collectOutletIds(
+            merged: merged, components: [outlet, meter]
+        )
+        XCTAssertEqual(result[0].id, "p1-outlet")
+        XCTAssertEqual(result[0].attributes.outletId, "p1-outlet")
+    }
+
+    func testCollectOutletIds_unrelatedDevicesPassThrough() {
+        let light = makeDevice(id: "l1", type: "light")
+        let result = DirigeraDevice.collectOutletIds(
+            merged: [light], components: [light]
+        )
+        XCTAssertNil(result[0].attributes.outletId)
+    }
+
+    func testCollectOutletIds_standaloneOutletWithoutRelation() {
+        let outlet = makeDevice(
+            id: "p1",
+            type: "outlet",
+            deviceType: "outlet"
+        )
+        let result = DirigeraDevice.collectOutletIds(
+            merged: [outlet], components: [outlet]
+        )
+        XCTAssertEqual(result[0].attributes.outletId, "p1")
+    }
+
+    func testAttributesMerging_doesNotOverwriteOutletId() throws {
+        var base = DirigeraDevice.Attributes()
+        base.outletId = "outlet-1"
+        let other = try decode(
+            DirigeraDevice.Attributes.self,
+            from: #"{"isOn": true, "currentActivePower": 42.0}"#
+        )
+        base.merge(other)
+        XCTAssertEqual(base.outletId, "outlet-1")  // preserved
+        XCTAssertEqual(base.isOn, true)
+        XCTAssertEqual(base.currentActivePower, 42.0)
     }
 
     func testMergeByRelationId_picksRoomFromComponentThatHasOne() throws {

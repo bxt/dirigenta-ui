@@ -297,3 +297,113 @@ final class GenericSwitchMergeTests: XCTestCase {
         XCTAssertEqual(result.count, 2)
     }
 }
+
+// MARK: - Smart-plug fixtures
+
+private func makePlugOutlet(
+    id: String,
+    relationId: String? = nil,
+    isOn: Bool = false,
+    name: String = "Plug"
+) -> DirigeraDevice {
+    var attrs = DirigeraDevice.Attributes()
+    attrs.customName = name
+    attrs.isOn = isOn
+    return DirigeraDevice(
+        id: id, type: "outlet", deviceType: "outlet",
+        relationId: relationId, attributes: attrs
+    )
+}
+
+private func makePlugMeter(
+    id: String,
+    relationId: String? = nil,
+    power: Double? = nil,
+    amps: Double? = nil,
+    totalEnergy: Double? = nil,
+    name: String = "Plug"
+) -> DirigeraDevice {
+    var attrs = DirigeraDevice.Attributes()
+    attrs.customName = name
+    attrs.currentActivePower = power
+    attrs.currentAmps = amps
+    attrs.totalEnergyConsumed = totalEnergy
+    return DirigeraDevice(
+        id: id, type: "outlet",
+        relationId: relationId, attributes: attrs
+    )
+}
+
+private func mergePlugs(_ devices: [DirigeraDevice]) -> [DirigeraDevice] {
+    let sorted = devices.sorted { $0.id < $1.id }
+    let (merged, _) = DirigeraDevice.mergeByRelationId(sorted)
+    return DirigeraDevice.collectOutletIds(merged: merged, components: sorted)
+}
+
+@MainActor
+final class SmartPlugMergeTests: XCTestCase {
+
+    func testMerge_empty_returnsEmpty() {
+        XCTAssertTrue(mergePlugs([]).isEmpty)
+    }
+
+    func testMerge_pairCollapsesIntoOnePlug() {
+        let result = mergePlugs([
+            makePlugOutlet(id: "p1-outlet", relationId: "rel", isOn: true),
+            makePlugMeter(
+                id: "p1-meter", relationId: "rel", power: 50.0, amps: 0.2,
+                totalEnergy: 1234
+            ),
+        ])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertTrue(result[0].isSmartPlug)
+        XCTAssertEqual(result[0].attributes.outletId, "p1-outlet")
+        // Attributes from both components folded in
+        XCTAssertEqual(result[0].attributes.isOn, true)
+        XCTAssertEqual(result[0].attributes.currentActivePower, 50.0)
+        XCTAssertEqual(result[0].attributes.currentAmps, 0.2)
+        XCTAssertEqual(result[0].attributes.totalEnergyConsumed, 1234)
+    }
+
+    func testMerge_twoDistinctPlugs_produceTwoMergedDevices() {
+        let result = mergePlugs([
+            makePlugOutlet(id: "a-outlet", relationId: "rel-a", isOn: true),
+            makePlugMeter(id: "a-meter", relationId: "rel-a", power: 10.0),
+            makePlugOutlet(id: "b-outlet", relationId: "rel-b", isOn: false),
+            makePlugMeter(id: "b-meter", relationId: "rel-b", power: 20.0),
+        ])
+        XCTAssertEqual(result.count, 2)
+        XCTAssertTrue(result.allSatisfy { $0.isSmartPlug })
+    }
+
+    func testMerge_outletWithoutMeter_stillSmartPlug() {
+        let result = mergePlugs([
+            makePlugOutlet(id: "p1", isOn: true)  // no relationId, standalone
+        ])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertTrue(result[0].isSmartPlug)
+        XCTAssertEqual(result[0].attributes.outletId, "p1")
+    }
+
+    func testMerge_meterWithoutOutlet_isNotSmartPlug() {
+        // A meter with no outlet sibling — outletId stays nil, so isSmartPlug is false.
+        let result = mergePlugs([
+            makePlugMeter(id: "m1", relationId: "orphan-rel", power: 5.0)
+        ])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertFalse(result[0].isSmartPlug)
+        XCTAssertNil(result[0].attributes.outletId)
+    }
+
+    func testArrayExtension_smartPlugs_filtersCorrectly() {
+        let merged = mergePlugs([
+            makePlugOutlet(id: "p1-outlet", relationId: "rel", isOn: true),
+            makePlugMeter(id: "p1-meter", relationId: "rel"),
+        ])
+        let withLight = merged + [makeLight()]
+        XCTAssertEqual(withLight.smartPlugs.count, 1)
+        XCTAssertEqual(withLight.lights.count, 1)
+        // Plugs are NOT in `others` — they have their own bucket.
+        XCTAssertEqual(withLight.others.count, 0)
+    }
+}

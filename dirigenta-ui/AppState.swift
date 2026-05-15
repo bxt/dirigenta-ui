@@ -288,15 +288,20 @@ final class AppState: ObservableObject {
                 merged: merged,
                 components: sorted
             )
-            gatewayName = withSwitchGroups.first { $0.isGateway }?.displayName
-            devices = withSwitchGroups.filter { !$0.isGateway }
+            let withOutletIds = DirigeraDevice.collectOutletIds(
+                merged: withSwitchGroups,
+                components: sorted
+            )
+            gatewayName = withOutletIds.first { $0.isGateway }?.displayName
+            devices = withOutletIds.filter { !$0.isGateway }
             deviceIdMap = idMap
             let lc = devices.lights.count
             let sc = devices.openCloseSensors.count
             let ec = devices.envSensors.count
+            let pc = devices.smartPlugs.count
             let gw = gatewayName ?? "none"
             Logger.api.info(
-                "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), gateway: \(gw, privacy: .public)"
+                "Fetched \(lc, privacy: .public) light(s), \(sc, privacy: .public) sensor(s), \(ec, privacy: .public) env sensor(s), \(pc, privacy: .public) plug(s), gateway: \(gw, privacy: .public)"
             )
             recordSuccessfulConnection(ip: ip)
             syncPinnedState()
@@ -460,7 +465,7 @@ final class AppState: ObservableObject {
 
     func syncPinnedState() {
         guard let id = pinnedDeviceId else { return }
-        pinnedDeviceIsOn = devices.lights.first { $0.id == id }?.isOn ?? false
+        pinnedDeviceIsOn = devices.first { $0.id == id }?.isOn ?? false
     }
 
     // MARK: - Persistence helpers
@@ -562,7 +567,7 @@ final class AppState: ObservableObject {
         state.hubs = [previewHub]
         state.selectedHubID = previewHub.id
         state.gatewayName = "My Smart Home"
-        state.devices = [
+        let raw: [DirigeraDevice] = [
             DirigeraDevice(
                 id: "e1",
                 type: "sensor",
@@ -674,7 +679,45 @@ final class AppState: ObservableObject {
                     switchGroups: [1, 2, 3, 4]
                 )
             ),
+            DirigeraDevice(
+                id: "p1-outlet",
+                type: "outlet",
+                deviceType: "outlet",
+                relationId: "plug-rel-1",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Coffee Maker",
+                    isOn: true
+                )
+            ),
+            DirigeraDevice(
+                id: "p1-meter",
+                type: "outlet",
+                relationId: "plug-rel-1",
+                room: Room(id: "r1", name: "Living Room"),
+                attributes: .init(
+                    customName: "Coffee Maker",
+                    currentActivePower: 87.3,
+                    currentAmps: 0.395,
+                    energyConsumedAtLastReset: 8400,
+                    timeOfLastEnergyReset: "2025-01-15T10:30:00.000Z",
+                    totalEnergyConsumed: 12450
+                )
+            ),
         ]
+        // Run the same merge pipeline as `fetchDevices` so the preview reflects
+        // the production data shape (merged plug pair with `outletId` set).
+        let sorted = raw.sorted { $0.id < $1.id }
+        let (merged, idMap) = DirigeraDevice.mergeByRelationId(sorted)
+        let withSwitchGroups = DirigeraDevice.collectSwitchGroups(
+            merged: merged,
+            components: sorted
+        )
+        state.devices = DirigeraDevice.collectOutletIds(
+            merged: withSwitchGroups,
+            components: sorted
+        )
+        state.deviceIdMap = idMap
         return state
     }
 }

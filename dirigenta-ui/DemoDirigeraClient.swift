@@ -32,6 +32,10 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
         await self.mutate(id: id) { $0.isOn = isOn }
     }
 
+    nonisolated func setOutlet(id: String, isOn: Bool) async throws {
+        await self.mutate(id: id) { $0.isOn = isOn }
+    }
+
     nonisolated func setLightLevel(id: String, lightLevel: Int) async throws {
         await self.mutate(id: id) { $0.lightLevel = lightLevel }
     }
@@ -371,6 +375,36 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
                     customName: "Living Room Remote",
                     batteryPercentage: 92,
                     switchGroup: 1
+                )
+            ),
+
+            // Smart plug pair (outlet + meter) sharing a relationId so the
+            // merge pipeline collapses them into one row with power readings.
+            DirigeraDevice(
+                id: "demo-p1-outlet",
+                type: "outlet",
+                deviceType: "outlet",
+                relationId: "demo-plug-rel-1",
+                isReachable: true,
+                room: livingRoom,
+                attributes: .init(
+                    customName: "Coffee Maker",
+                    isOn: true
+                )
+            ),
+            DirigeraDevice(
+                id: "demo-p1-meter",
+                type: "outlet",
+                relationId: "demo-plug-rel-1",
+                isReachable: true,
+                room: livingRoom,
+                attributes: .init(
+                    customName: "Coffee Maker",
+                    currentActivePower: 87.3,
+                    currentAmps: 0.395,
+                    energyConsumedAtLastReset: 8400,
+                    timeOfLastEnergyReset: "2025-01-15T10:30:00.000Z",
+                    totalEnergyConsumed: 12450
                 )
             ),
         ]

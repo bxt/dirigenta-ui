@@ -13,6 +13,7 @@ final class MockLightClient: DirigeraClientProtocol {
         case setLightLevel(id: String, level: Int)
         case setColor(id: String, hue: Double, saturation: Double)
         case applyPreset(id: String)
+        case setOutlet(id: String, isOn: Bool)
     }
 
     var calls: [Call] = []
@@ -46,6 +47,11 @@ final class MockLightClient: DirigeraClientProtocol {
 
     func setColorTemperature(id: String, colorTemperature: Int) async throws {
         if shouldThrow { throw URLError(.badServerResponse) }
+    }
+
+    func setOutlet(id: String, isOn: Bool) async throws {
+        if shouldThrow { throw URLError(.badServerResponse) }
+        calls.append(.setOutlet(id: id, isOn: isOn))
     }
 
     nonisolated func eventStream() -> AsyncStream<DirigeraEvent> {
