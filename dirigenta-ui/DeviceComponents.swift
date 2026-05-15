@@ -316,10 +316,11 @@ struct SmartPlugsSectionView: View {
                 Button {
                     Task { await onToggleAll() }
                 } label: {
-                    Image(systemName: "poweroutlet.type.f")
-                        .foregroundStyle(
-                            anyOn ? Color.orange : Color.primary
-                        )
+                    Image(
+                        systemName: anyOn
+                            ? "poweroutlet.type.f.fill" : "poweroutlet.type.f"
+                    )
+                    .foregroundStyle(anyOn ? Color.orange : Color.primary)
                 }
                 .buttonStyle(.bordered)
                 .help(anyOn ? "Turn all off" : "Turn all on")

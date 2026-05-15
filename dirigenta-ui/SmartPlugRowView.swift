@@ -18,10 +18,13 @@ struct SmartPlugRowView: View {
                 Label {
                     Text(plug.displayName)
                 } icon: {
-                    Image(systemName: "poweroutlet.type.f")
-                        .foregroundStyle(
-                            plug.isOn ? Color.orange : Color.primary
-                        )
+                    Image(
+                        systemName: plug.isOn
+                            ? "poweroutlet.type.f.fill" : "poweroutlet.type.f"
+                    )
+                    .foregroundStyle(
+                        plug.isOn ? Color.orange : Color.primary
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

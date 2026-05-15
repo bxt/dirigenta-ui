@@ -22,6 +22,8 @@ struct SettingsView: View {
         var roomsShowEnvSensors = true
     @AppStorage("settings.rooms.showSensors") private var roomsShowSensors =
         true
+    @AppStorage("settings.rooms.showOtherDevices") private
+        var roomsShowOtherDevices = true
 
     // MARK: - Notifications
     @AppStorage("settings.notifications.openWindow") private
@@ -84,6 +86,7 @@ struct SettingsView: View {
                 Toggle("Smart Plugs", isOn: $roomsShowPlugs)
                 Toggle("Environment Sensors", isOn: $roomsShowEnvSensors)
                 Toggle("Sensors", isOn: $roomsShowSensors)
+                Toggle("Other Devices", isOn: $roomsShowOtherDevices)
             }
 
             Section("Notifications") {

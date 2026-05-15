@@ -7,10 +7,12 @@ private struct RoomSummary: Identifiable {
     let id: String
     let name: String
     let lights: [DirigeraDevice]
+    let plugs: [DirigeraDevice]
     let sensors: [DirigeraDevice]
     let envSensors: [DirigeraDevice]
 
     var anyLightOn: Bool { lights.contains { $0.isOn } }
+    var anyPlugOn: Bool { plugs.contains { $0.isOn } }
 }
 
 struct RoomsView: View {
@@ -20,14 +22,17 @@ struct RoomsView: View {
     @EnvironmentObject private var mdns: MDNSResolver
 
     @AppStorage("settings.rooms.showLights") private var showLights = true
+    @AppStorage("settings.rooms.showPlugs") private var showPlugs = true
     @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors =
         true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
 
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
+    @State private var expandedPlugId: String? = nil
     @State private var actionError: String? = nil
     @State private var expandedLightsRoomIds: Set<String> = []
+    @State private var expandedPlugsRoomIds: Set<String> = []
     @State private var expandedEnvRoomIds: Set<String> = []
     @State private var expandedSensorsRoomIds: Set<String> = []
 
@@ -105,6 +110,16 @@ struct RoomsView: View {
             )
         }
 
+        if showPlugs && !room.plugs.isEmpty {
+            SmartPlugsSectionView(
+                plugs: room.plugs,
+                isExpanded: membership(room.id, in: $expandedPlugsRoomIds),
+                expandedPlugId: $expandedPlugId,
+                actionError: $actionError,
+                onToggleAll: { await toggleRoomPlugs(room) }
+            )
+        }
+
         if showEnvSensors {
             EnvSensorsSectionView(
                 sensors: room.envSensors,
@@ -127,24 +142,31 @@ struct RoomsView: View {
         var byRoom:
             [String: (
                 name: String, lights: [DirigeraDevice],
+                plugs: [DirigeraDevice],
                 sensors: [DirigeraDevice],
                 envSensors: [DirigeraDevice]
             )] = [:]
         for device in appState.devices.lights {
             guard let room = device.room else { continue }
-            var e = byRoom[room.id] ?? (room.name, [], [], [])
+            var e = byRoom[room.id] ?? (room.name, [], [], [], [])
             e.lights.append(device)
+            byRoom[room.id] = e
+        }
+        for device in appState.devices.smartPlugs {
+            guard let room = device.room else { continue }
+            var e = byRoom[room.id] ?? (room.name, [], [], [], [])
+            e.plugs.append(device)
             byRoom[room.id] = e
         }
         for device in appState.devices.openCloseSensors {
             guard let room = device.room else { continue }
-            var e = byRoom[room.id] ?? (room.name, [], [], [])
+            var e = byRoom[room.id] ?? (room.name, [], [], [], [])
             e.sensors.append(device)
             byRoom[room.id] = e
         }
         for device in appState.devices.envSensors {
             guard let room = device.room else { continue }
-            var e = byRoom[room.id] ?? (room.name, [], [], [])
+            var e = byRoom[room.id] ?? (room.name, [], [], [], [])
             e.envSensors.append(device)
             byRoom[room.id] = e
         }
@@ -153,6 +175,7 @@ struct RoomsView: View {
                 id: $0.key,
                 name: $0.value.name,
                 lights: $0.value.lights,
+                plugs: $0.value.plugs,
                 sensors: $0.value.sensors,
                 envSensors: $0.value.envSensors
             )
@@ -176,6 +199,28 @@ struct RoomsView: View {
             for light in room.lights {
                 group.addTask {
                     try? await client.setLight(id: light.id, isOn: newState)
+                }
+            }
+        }
+        await appState.fetchDevices(ip: ip)
+    }
+
+    private func toggleRoomPlugs(_ room: RoomSummary) async {
+        guard let ip = appState.currentHubIP,
+            let client = appState.makeClient(ip: ip)
+        else { return }
+        let newState = !room.anyPlugOn
+        let ids = Set(room.plugs.map { $0.id })
+        for i in appState.devices.indices
+        where ids.contains(appState.devices[i].id) {
+            appState.devices[i].attributes.isOn = newState
+        }
+        appState.syncPinnedState()
+        await withTaskGroup(of: Void.self) { group in
+            for plug in room.plugs {
+                guard let outletId = plug.attributes.outletId else { continue }
+                group.addTask {
+                    try? await client.setOutlet(id: outletId, isOn: newState)
                 }
             }
         }

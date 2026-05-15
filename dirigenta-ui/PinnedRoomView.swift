@@ -12,6 +12,8 @@ struct PinnedRoomView: View {
     @AppStorage("settings.rooms.showEnvSensors") private var showEnvSensors =
         true
     @AppStorage("settings.rooms.showSensors") private var showSensors = true
+    @AppStorage("settings.rooms.showOtherDevices") private
+        var showOtherDevices = true
 
     @State private var pendingLightLevels: [String: Double] = [:]
     @State private var colorPickerLightId: String? = nil
@@ -21,6 +23,7 @@ struct PinnedRoomView: View {
     @State private var plugsExpanded = true
     @State private var envExpanded = true
     @State private var sensorsExpanded = true
+    @State private var othersExpanded = true
 
     private var lights: [DirigeraDevice] {
         appState.devices.lights.filter { $0.room?.id == roomId }
@@ -33,6 +36,9 @@ struct PinnedRoomView: View {
     }
     private var sensors: [DirigeraDevice] {
         appState.devices.openCloseSensors.filter { $0.room?.id == roomId }
+    }
+    private var others: [DirigeraDevice] {
+        appState.devices.others.filter { $0.room?.id == roomId }
     }
 
     var body: some View {
@@ -67,6 +73,12 @@ struct PinnedRoomView: View {
                     sensors: sensors,
                     now: now,
                     isExpanded: $sensorsExpanded
+                )
+            }
+            if showOtherDevices && !others.isEmpty {
+                OtherDevicesSectionView(
+                    devices: others,
+                    isExpanded: $othersExpanded
                 )
             }
         }
