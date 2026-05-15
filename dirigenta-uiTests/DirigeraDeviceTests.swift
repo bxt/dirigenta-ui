@@ -104,6 +104,28 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
         )
     }
 
+    func testDecodesMotionSensorAttributes() throws {
+        let device = makeDevice(
+            type: "sensor",
+            deviceType: "occupancySensor",
+            attributes: """
+                {
+                  "customName": "MYGGSPRAY wrlss mtn sensor",
+                  "isDetected": true,
+                  "illuminance": 10792,
+                  "maxIlluminance": 40001,
+                  "minIlluminance": 1,
+                  "batteryPercentage": 100
+                }
+                """
+        )
+        XCTAssertEqual(device.attributes.isDetected, true)
+        XCTAssertEqual(device.attributes.illuminance, 10792)
+        XCTAssertEqual(device.attributes.maxIlluminance, 40001)
+        XCTAssertEqual(device.attributes.minIlluminance, 1)
+        XCTAssertEqual(device.attributes.batteryPercentage, 100)
+    }
+
     func testDecodesEnvSensorAttributes() throws {
         let device = makeDevice(
             deviceType: "environmentSensor",
@@ -242,6 +264,16 @@ final class DirigeraDevicePropertiesTests: XCTestCase {
         var d = makeDevice()
         d.attributes.outletId = "outlet-1"
         XCTAssertTrue(d.isSmartPlug)
+    }
+
+    func testIsMotionSensor_falseByDefault() {
+        XCTAssertFalse(makeDevice().isMotionSensor)
+    }
+
+    func testIsMotionSensor_trueWhenIsDetectedSet() {
+        var d = makeDevice()
+        d.attributes.isDetected = false
+        XCTAssertTrue(d.isMotionSensor)  // presence of the field, not its value
     }
 }
 
@@ -536,6 +568,58 @@ final class DirigeraDeviceMergingTests: XCTestCase {
             merged: [outlet], components: [outlet]
         )
         XCTAssertEqual(result[0].attributes.outletId, "p1")
+    }
+
+    func testMergeByRelationId_foldsMotionSensorPair() throws {
+        // Matches the shape returned by the real hub: a lightSensor and an
+        // occupancySensor sharing a relationId; the occupancy half carries the
+        // room and isDetected, the light half carries illuminance bounds.
+        let light = try decode(
+            DirigeraDevice.self,
+            from: """
+                {
+                  "id": "abc_1",
+                  "relationId": "abc",
+                  "type": "unknown",
+                  "deviceType": "lightSensor",
+                  "isReachable": true,
+                  "attributes": {
+                    "customName": "MYGGSPRAY wrlss mtn sensor",
+                    "illuminance": 10792,
+                    "maxIlluminance": 40001,
+                    "minIlluminance": 1,
+                    "batteryPercentage": 100
+                  }
+                }
+                """
+        )
+        let occupancy = try decode(
+            DirigeraDevice.self,
+            from: """
+                {
+                  "id": "abc_2",
+                  "relationId": "abc",
+                  "type": "sensor",
+                  "deviceType": "occupancySensor",
+                  "isReachable": true,
+                  "room": {"id": "r1", "name": "Büro"},
+                  "attributes": {
+                    "customName": "MYGGSPRAY wrlss mtn sensor",
+                    "isDetected": true,
+                    "batteryPercentage": 100
+                  }
+                }
+                """
+        )
+        let (merged, _) = DirigeraDevice.mergeByRelationId([light, occupancy])
+        XCTAssertEqual(merged.count, 1)
+        let m = merged[0]
+        XCTAssertTrue(m.isMotionSensor)
+        XCTAssertEqual(m.attributes.isDetected, true)
+        XCTAssertEqual(m.attributes.illuminance, 10792)
+        XCTAssertEqual(m.attributes.maxIlluminance, 40001)
+        XCTAssertEqual(m.attributes.minIlluminance, 1)
+        XCTAssertEqual(m.room?.name, "Büro")
     }
 
     func testAttributesMerging_doesNotOverwriteOutletId() throws {

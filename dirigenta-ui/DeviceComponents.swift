@@ -127,6 +127,66 @@ struct OpenCloseSensorRow: View {
     }
 }
 
+// Individual motion-sensor row. Renders inside the "Other devices" section.
+// Icon turns orange when motion is detected; the row shows illuminance as a
+// percentage between the device's reported min/max bounds.
+struct MotionSensorRow: View {
+    let sensor: DirigeraDevice
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(sensor.displayName)
+                statusLine
+                SensorFooter(
+                    battery: sensor.attributes.batteryPercentage,
+                    room: sensor.room?.name,
+                    isOffline: sensor.isReachable == false
+                )
+            }
+        } icon: {
+            Image(systemName: "sensor.radiowaves.left.and.right")
+                .foregroundStyle(
+                    sensor.attributes.isDetected == true
+                        ? Color.orange : Color.secondary
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        let pct = illuminancePercentage
+        let detected = sensor.attributes.isDetected == true
+        if pct != nil || detected {
+            HStack(spacing: 0) {
+                if let pct {
+                    Text("\(pct)% illuminance")
+                        .foregroundStyle(.secondary)
+                }
+                if pct != nil && detected {
+                    Text(" · ").foregroundStyle(.secondary)
+                }
+                if detected {
+                    Text("motion detected").foregroundStyle(.orange)
+                }
+            }
+            .font(.caption2)
+        }
+    }
+
+    private var illuminancePercentage: Int? {
+        guard let cur = sensor.attributes.illuminance,
+            let lo = sensor.attributes.minIlluminance,
+            let hi = sensor.attributes.maxIlluminance,
+            hi > lo
+        else { return nil }
+        let clamped = min(max(cur, lo), hi)
+        let pct = Double(clamped - lo) / Double(hi - lo) * 100
+        return Int(pct.rounded())
+    }
+}
+
 // Individual row for a device of unknown/unhandled type.
 struct OtherDeviceRow: View {
     let device: DirigeraDevice
@@ -322,8 +382,14 @@ struct OtherDevicesSectionView: View {
             DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(spacing: 8) {
                     ForEach(devices) { device in
-                        OtherDeviceRow(device: device)
-                            .padding(.leading, 4)
+                        Group {
+                            if device.isMotionSensor {
+                                MotionSensorRow(sensor: device)
+                            } else {
+                                OtherDeviceRow(device: device)
+                            }
+                        }
+                        .padding(.leading, 4)
                     }
                 }
                 .padding(.top, 4)

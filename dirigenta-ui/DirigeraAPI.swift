@@ -44,6 +44,10 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var energyConsumedAtLastReset: Double? = nil
         var timeOfLastEnergyReset: String? = nil
         var totalEnergyConsumed: Double? = nil
+        var isDetected: Bool? = nil
+        var illuminance: Int? = nil
+        var maxIlluminance: Int? = nil
+        var minIlluminance: Int? = nil
         /// Populated by collectOutletIds after relationId merging to identify
         /// the component whose deviceType is "outlet". Not present in JSON.
         var outletId: String? = nil
@@ -74,6 +78,10 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
             if let v = other.energyConsumedAtLastReset { energyConsumedAtLastReset = v }
             if let v = other.timeOfLastEnergyReset { timeOfLastEnergyReset = v }
             if let v = other.totalEnergyConsumed { totalEnergyConsumed = v }
+            if let v = other.isDetected { isDetected = v }
+            if let v = other.illuminance { illuminance = v }
+            if let v = other.maxIlluminance { maxIlluminance = v }
+            if let v = other.minIlluminance { minIlluminance = v }
             // switchGroups is accumulated by collectSwitchGroups, not merged field-by-field
             // outletId is set by collectOutletIds, not merged field-by-field
         }
@@ -128,6 +136,11 @@ nonisolated extension DirigeraDevice {
     /// plug. Set by `collectOutletIds`, so the device may be the outlet itself
     /// or a power-meter sibling that got merged in.
     var isSmartPlug: Bool { attributes.outletId != nil }
+    /// True if this device reports an occupancy signal. The presence of
+    /// `isDetected` on attributes is unique to occupancy-sensor components —
+    /// after `mergeByRelationId` folds in the sibling light-sensor's
+    /// illuminance, the merged device is a motion sensor.
+    var isMotionSensor: Bool { attributes.isDetected != nil }
 
     /// True if the light supports a white-spectrum (color-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }

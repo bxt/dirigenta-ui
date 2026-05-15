@@ -406,4 +406,22 @@ final class SmartPlugMergeTests: XCTestCase {
         // Plugs are NOT in `others` — they have their own bucket.
         XCTAssertEqual(withLight.others.count, 0)
     }
+
+    func testArrayExtension_motionSensorClassifiesAsOther() {
+        // Motion sensors stay in `others` (they render with a dedicated row
+        // inside that section), and are excluded from every other bucket.
+        var attrs = DirigeraDevice.Attributes()
+        attrs.isDetected = false
+        let motion = DirigeraDevice(
+            id: "m1", type: "sensor", deviceType: "occupancySensor",
+            attributes: attrs
+        )
+        let all: [DirigeraDevice] = [motion, makeLight()]
+        XCTAssertEqual(all.others.count, 1)
+        XCTAssertEqual(all.others.first?.id, "m1")
+        XCTAssertEqual(all.lights.count, 1)
+        XCTAssertEqual(all.envSensors.count, 0)
+        XCTAssertEqual(all.openCloseSensors.count, 0)
+        XCTAssertEqual(all.smartPlugs.count, 0)
+    }
 }

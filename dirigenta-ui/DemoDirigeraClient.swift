@@ -407,6 +407,38 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
                     totalEnergyConsumed: 12450
                 )
             ),
+
+            // Motion sensor pair: lightSensor + occupancySensor sharing a
+            // relationId. The merge folds illuminance and isDetected onto one
+            // primary that renders inside the "Other devices" section as a
+            // MotionSensorRow.
+            DirigeraDevice(
+                id: "demo-mot1_1",
+                type: "unknown",
+                deviceType: "lightSensor",
+                relationId: "demo-mot1",
+                isReachable: true,
+                attributes: .init(
+                    customName: "Bedroom Motion",
+                    batteryPercentage: 88,
+                    illuminance: 10792,
+                    maxIlluminance: 40001,
+                    minIlluminance: 1
+                )
+            ),
+            DirigeraDevice(
+                id: "demo-mot1_2",
+                type: "sensor",
+                deviceType: "occupancySensor",
+                relationId: "demo-mot1",
+                isReachable: true,
+                room: bedroom,
+                attributes: .init(
+                    customName: "Bedroom Motion",
+                    batteryPercentage: 88,
+                    isDetected: false
+                )
+            ),
         ]
     }
 }

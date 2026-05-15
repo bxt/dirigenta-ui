@@ -704,6 +704,34 @@ final class AppState: ObservableObject {
                     totalEnergyConsumed: 12450
                 )
             ),
+            // Motion sensor pair: lightSensor + occupancySensor share a
+            // relationId. The merge folds illuminance + isDetected into a
+            // single device that renders as a MotionSensorRow.
+            DirigeraDevice(
+                id: "mot1_1",
+                type: "unknown",
+                deviceType: "lightSensor",
+                relationId: "mot1",
+                attributes: .init(
+                    customName: "Office Motion",
+                    batteryPercentage: 100,
+                    illuminance: 10792,
+                    maxIlluminance: 40001,
+                    minIlluminance: 1
+                )
+            ),
+            DirigeraDevice(
+                id: "mot1_2",
+                type: "sensor",
+                deviceType: "occupancySensor",
+                relationId: "mot1",
+                room: Room(id: "r2", name: "Kitchen"),
+                attributes: .init(
+                    customName: "Office Motion",
+                    batteryPercentage: 100,
+                    isDetected: true
+                )
+            ),
         ]
         // Run the same merge pipeline as `fetchDevices` so the preview reflects
         // the production data shape (merged plug pair with `outletId` set).
