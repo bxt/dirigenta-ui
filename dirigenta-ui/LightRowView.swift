@@ -70,26 +70,26 @@ struct LightRowView: View {
             }
 
             Button {
-                if appState.pinnedLightId == light.id {
-                    appState.pinnedLightId = nil
+                if appState.pinnedDeviceId == light.id {
+                    appState.pinnedDeviceId = nil
                 } else {
-                    appState.pinnedLightId = light.id
-                    appState.pinnedLightIsOn = light.isOn
+                    appState.pinnedDeviceId = light.id
+                    appState.pinnedDeviceIsOn = light.isOn
                 }
             } label: {
                 Image(
-                    systemName: appState.pinnedLightId == light.id
+                    systemName: appState.pinnedDeviceId == light.id
                         ? "pin.fill" : "pin"
                 )
                 .font(.caption)
             }
             .buttonStyle(.plain)
             .foregroundStyle(
-                appState.pinnedLightId == light.id
+                appState.pinnedDeviceId == light.id
                     ? Color.accentColor : Color.secondary
             )
             .help(
-                appState.pinnedLightId == light.id
+                appState.pinnedDeviceId == light.id
                     ? "Unpin light" : "Pin to menu bar"
             )
         }

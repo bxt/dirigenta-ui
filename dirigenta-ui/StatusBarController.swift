@@ -35,11 +35,11 @@ final class StatusBarController: NSObject {
         }
         updateIcon()
 
-        appState.$pinnedLightId
+        appState.$pinnedDeviceId
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
-        appState.$pinnedLightIsOn
+        appState.$pinnedDeviceIsOn
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
@@ -47,19 +47,19 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
-        // AppState auto-fetches devices (including pinned light state) when mDNS
+        // AppState auto-fetches devices (including pinned-device state) when mDNS
         // resolves, so no separate fetch is needed here.
     }
 
     private func updateIcon() {
         guard let button = statusItem.button else { return }
         let name: String
-        if let id = appState.pinnedLightId,
+        if let id = appState.pinnedDeviceId,
             let light = appState.devices.lights.first(where: { $0.id == id })
         {
-            name = light.lightIcon(isOn: appState.pinnedLightIsOn)
-        } else if appState.pinnedLightId != nil {
-            name = appState.pinnedLightIsOn ? "lightbulb.fill" : "lightbulb"
+            name = light.lightIcon(isOn: appState.pinnedDeviceIsOn)
+        } else if appState.pinnedDeviceId != nil {
+            name = appState.pinnedDeviceIsOn ? "lightbulb.fill" : "lightbulb"
         } else {
             name = "house"
         }
@@ -71,10 +71,10 @@ final class StatusBarController: NSObject {
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
-        if event.type == .leftMouseDown, appState.pinnedLightId != nil,
+        if event.type == .leftMouseDown, appState.pinnedDeviceId != nil,
             !popover.isShown
         {
-            Task { await togglePinnedLight() }
+            Task { await togglePinnedDevice() }
         } else {
             togglePopover(sender)
         }
@@ -111,17 +111,17 @@ final class StatusBarController: NSObject {
         }
     }
 
-    private func togglePinnedLight() async {
-        guard let lightId = appState.pinnedLightId,
+    private func togglePinnedDevice() async {
+        guard let deviceId = appState.pinnedDeviceId,
             let ip = appState.currentHubIP,
             let client = appState.makeClient(ip: ip)
         else { return }
-        let newState = !appState.pinnedLightIsOn
-        appState.pinnedLightIsOn = newState
+        let newState = !appState.pinnedDeviceIsOn
+        appState.pinnedDeviceIsOn = newState
         do {
-            try await client.setLight(id: lightId, isOn: newState)
+            try await client.setLight(id: deviceId, isOn: newState)
         } catch {
-            appState.pinnedLightIsOn = !newState
+            appState.pinnedDeviceIsOn = !newState
             Logger.statusBar.error(
                 "Toggle error: \(error.localizedDescription, privacy: .public)"
             )

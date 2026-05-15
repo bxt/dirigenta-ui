@@ -32,14 +32,14 @@ final class AppState: ObservableObject {
         selectedHub.flatMap { mdns.ip(forHub: $0) }
     }
 
-    /// Pinned light id, scoped to the selected hub. Mirrored from `selectedHub`
-    /// so views and Combine subscribers can observe `$pinnedLightId` directly;
-    /// writes are propagated back into the hub model.
-    @Published var pinnedLightId: String? {
+    /// Pinned device id (light or smart plug), scoped to the selected hub.
+    /// Mirrored from `selectedHub` so views and Combine subscribers can observe
+    /// `$pinnedDeviceId` directly; writes are propagated back into the hub model.
+    @Published var pinnedDeviceId: String? {
         didSet {
             guard !skipHubSync else { return }
-            guard pinnedLightId != oldValue else { return }
-            mutateSelectedHub { $0.pinnedLightId = pinnedLightId }
+            guard pinnedDeviceId != oldValue else { return }
+            mutateSelectedHub { $0.pinnedDeviceId = pinnedDeviceId }
         }
     }
 
@@ -53,7 +53,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    @Published var pinnedLightIsOn: Bool = false
+    @Published var pinnedDeviceIsOn: Bool = false
 
     // MARK: - Device state
 
@@ -85,7 +85,7 @@ final class AppState: ObservableObject {
     private let credentialStore: CredentialStore
     private let skipSideEffects: Bool
     private var cancellables: Set<AnyCancellable> = []
-    /// Suppresses the `pinnedLightId` / `pinnedRoomId` write-through into the
+    /// Suppresses the `pinnedDeviceId` / `pinnedRoomId` write-through into the
     /// hub model when those `@Published` fields are being synced *from* a hub
     /// (e.g. on hub switch or initial load).
     private var skipHubSync: Bool = false
@@ -128,7 +128,7 @@ final class AppState: ObservableObject {
             }
             // Mirror selected hub's pinned IDs into the @Published shadow fields.
             self.skipHubSync = true
-            self.pinnedLightId = self.selectedHub?.pinnedLightId
+            self.pinnedDeviceId = self.selectedHub?.pinnedDeviceId
             self.pinnedRoomId = self.selectedHub?.pinnedRoomId
             self.skipHubSync = false
         }
@@ -345,7 +345,7 @@ final class AppState: ObservableObject {
             let notifier = LightNotifier(
                 client: client,
                 lights: devices.lights,
-                pinnedId: pinnedLightId
+                pinnedId: pinnedDeviceId
             )
         else { return }
 
@@ -459,8 +459,8 @@ final class AppState: ObservableObject {
     }
 
     func syncPinnedState() {
-        guard let id = pinnedLightId else { return }
-        pinnedLightIsOn = devices.lights.first { $0.id == id }?.isOn ?? false
+        guard let id = pinnedDeviceId else { return }
+        pinnedDeviceIsOn = devices.lights.first { $0.id == id }?.isOn ?? false
     }
 
     // MARK: - Persistence helpers
@@ -528,9 +528,9 @@ final class AppState: ObservableObject {
 
     private func syncPinnedFieldsFromSelectedHub() {
         skipHubSync = true
-        pinnedLightId = selectedHub?.pinnedLightId
+        pinnedDeviceId = selectedHub?.pinnedDeviceId
         pinnedRoomId = selectedHub?.pinnedRoomId
-        pinnedLightIsOn = false
+        pinnedDeviceIsOn = false
         skipHubSync = false
     }
 

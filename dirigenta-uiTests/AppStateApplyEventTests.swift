@@ -188,20 +188,20 @@ final class AppStateApplyEventTests: XCTestCase {
     // MARK: Pinned state sync
 
     func testApplyEvent_syncsPinnedState_whenPinnedLightUpdated() {
-        state.pinnedLightId = "light-1"
-        state.pinnedLightIsOn = false
+        state.pinnedDeviceId = "light-1"
+        state.pinnedDeviceIsOn = false
         state.applyEvent(event(id: "light-1", isOn: true))
-        XCTAssertTrue(state.pinnedLightIsOn)
+        XCTAssertTrue(state.pinnedDeviceIsOn)
     }
 
     func testApplyEvent_doesNotSyncPinnedState_forSensorUpdate() {
-        state.pinnedLightId = "light-1"
-        state.pinnedLightIsOn = false
+        state.pinnedDeviceId = "light-1"
+        state.pinnedDeviceIsOn = false
         let json = """
             {"type":"deviceStateChanged","data":{"id":"sensor-1","attributes":{"isOpen":true}}}
             """
         let e = try! JSONDecoder().decode(DirigeraEvent.self, from: json.data(using: .utf8)!)
         state.applyEvent(e)
-        XCTAssertFalse(state.pinnedLightIsOn)  // unchanged since light wasn't updated
+        XCTAssertFalse(state.pinnedDeviceIsOn)  // unchanged since light wasn't updated
     }
 }
