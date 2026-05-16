@@ -92,27 +92,24 @@ struct SmartPlugRowView: View {
         if expandedPlugId == plug.id {
             VStack(alignment: .leading, spacing: 2) {
                 if let total = plug.attributes.totalEnergyConsumed {
-                    LabeledContent(
-                        "Total energy",
-                        value: "\(Int(total.rounded())) Wh"
-                    )
-                }
-                if let sinceReset = plug.attributes.energyConsumedAtLastReset {
-                    LabeledContent(
-                        "Since last reset",
-                        value: "\(Int(sinceReset.rounded())) Wh"
-                    )
-                }
-                if let raw = plug.attributes.timeOfLastEnergyReset,
-                    let formatted = Self.formatResetTime(raw)
-                {
-                    LabeledContent("Last reset", value: formatted)
+                    if let atReset = plug.attributes.energyConsumedAtLastReset {
+                        let sinceResetFormatted = String(format: "%.3f kWh", total - atReset)
+
+                        if let raw = plug.attributes.timeOfLastEnergyReset,
+                           let formatted = Self.formatResetTime(raw) {
+                            Text("\(sinceResetFormatted) since \(formatted)")
+                        } else {
+                            Text("\(sinceResetFormatted) since reset")
+                        }
+                    }
+                    
+                    Text(String(format: "%.3f kWh total", total))
                 }
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
             .padding(.leading, 22)
-            .padding(.trailing, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
