@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Fixed width for the leading icon of every "Other devices" row, so device
+/// names line up regardless of how wide the underlying SF Symbol glyph is
+/// (e.g. `sensor.radiowaves.left.and.right` is much wider than `cpu`).
+private let otherDeviceIconWidth: CGFloat = 26
+
 // MARK: - Row components
 
 // Battery + optional room name footer used by sensor rows.
@@ -150,6 +155,7 @@ struct MotionSensorRow: View {
                     sensor.attributes.isDetected == true
                         ? Color.orange : Color.secondary
                 )
+                .frame(width: otherDeviceIconWidth)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -212,6 +218,7 @@ struct WaterSensorRow: View {
         } icon: {
             Image(systemName: "drop.circle")
                 .foregroundStyle(leak ? Color.orange : Color.secondary)
+                .frame(width: otherDeviceIconWidth)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -245,6 +252,7 @@ struct OtherDeviceRow: View {
         } icon: {
             Image(systemName: "cpu")
                 .foregroundStyle(.secondary)
+                .frame(width: otherDeviceIconWidth)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
