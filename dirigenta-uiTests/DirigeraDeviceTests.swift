@@ -126,6 +126,23 @@ final class DirigeraDeviceDecodingTests: XCTestCase {
         XCTAssertEqual(device.attributes.batteryPercentage, 100)
     }
 
+    func testDecodesWaterSensorAttributes() throws {
+        let device = makeDevice(
+            type: "sensor",
+            deviceType: "waterSensor",
+            attributes: """
+                {
+                  "customName": "Under Sink",
+                  "waterLeakDetected": true,
+                  "batteryPercentage": 92
+                }
+                """
+        )
+        XCTAssertEqual(device.deviceType, "waterSensor")
+        XCTAssertEqual(device.attributes.waterLeakDetected, true)
+        XCTAssertEqual(device.attributes.batteryPercentage, 92)
+    }
+
     func testDecodesEnvSensorAttributes() throws {
         let device = makeDevice(
             deviceType: "environmentSensor",
@@ -274,6 +291,20 @@ final class DirigeraDevicePropertiesTests: XCTestCase {
         var d = makeDevice()
         d.attributes.isDetected = false
         XCTAssertTrue(d.isMotionSensor)  // presence of the field, not its value
+    }
+
+    func testIsWaterSensor_trueForWaterSensorDeviceType() {
+        XCTAssertTrue(
+            makeDevice(type: "sensor", deviceType: "waterSensor").isWaterSensor
+        )
+    }
+
+    func testIsWaterSensor_falseForOtherDeviceTypes() {
+        XCTAssertFalse(makeDevice(type: "light").isWaterSensor)
+        XCTAssertFalse(
+            makeDevice(type: "sensor", deviceType: "openCloseSensor")
+                .isWaterSensor
+        )
     }
 }
 

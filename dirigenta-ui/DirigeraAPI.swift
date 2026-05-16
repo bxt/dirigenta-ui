@@ -48,6 +48,7 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
         var illuminance: Int? = nil
         var maxIlluminance: Int? = nil
         var minIlluminance: Int? = nil
+        var waterLeakDetected: Bool? = nil
         /// Populated by collectOutletIds after relationId merging to identify
         /// the component whose deviceType is "outlet". Not present in JSON.
         var outletId: String? = nil
@@ -82,6 +83,7 @@ nonisolated struct DirigeraDevice: Identifiable, Decodable {
             if let v = other.illuminance { illuminance = v }
             if let v = other.maxIlluminance { maxIlluminance = v }
             if let v = other.minIlluminance { minIlluminance = v }
+            if let v = other.waterLeakDetected { waterLeakDetected = v }
             // switchGroups is accumulated by collectSwitchGroups, not merged field-by-field
             // outletId is set by collectOutletIds, not merged field-by-field
         }
@@ -141,6 +143,8 @@ nonisolated extension DirigeraDevice {
     /// after `mergeByRelationId` folds in the sibling light-sensor's
     /// illuminance, the merged device is a motion sensor.
     var isMotionSensor: Bool { attributes.isDetected != nil }
+    /// True if this device is a water leak sensor.
+    var isWaterSensor: Bool { deviceType == "waterSensor" }
 
     /// True if the light supports a white-spectrum (color-temperature) slider.
     var isColorTemperatureLight: Bool { attributes.colorTemperatureMin != nil }

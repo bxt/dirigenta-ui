@@ -439,6 +439,23 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
                     isDetected: false
                 )
             ),
+
+            // Water leak sensor under the kitchen sink. Single device, no
+            // relation pairing. Starts dry so the notification path stays quiet
+            // until the demo timer or a WebSocket event flips it.
+            DirigeraDevice(
+                id: "demo-water1",
+                type: "sensor",
+                deviceType: "waterSensor",
+                isReachable: true,
+                room: kitchen,
+                customIcon: "products_matter_water_leak_sensor",
+                attributes: .init(
+                    customName: "Under Sink",
+                    batteryPercentage: 92,
+                    waterLeakDetected: false
+                )
+            ),
         ]
     }
 }

@@ -424,4 +424,22 @@ final class SmartPlugMergeTests: XCTestCase {
         XCTAssertEqual(all.openCloseSensors.count, 0)
         XCTAssertEqual(all.smartPlugs.count, 0)
     }
+
+    func testArrayExtension_waterSensorClassifiesAsOther() {
+        // Water sensors render with a dedicated row inside the "Other devices"
+        // section, so they must land in `others` and nowhere else.
+        var attrs = DirigeraDevice.Attributes()
+        attrs.waterLeakDetected = false
+        let water = DirigeraDevice(
+            id: "w1", type: "sensor", deviceType: "waterSensor",
+            attributes: attrs
+        )
+        let all: [DirigeraDevice] = [water, makeLight()]
+        XCTAssertEqual(all.others.count, 1)
+        XCTAssertEqual(all.others.first?.id, "w1")
+        XCTAssertEqual(all.lights.count, 1)
+        XCTAssertEqual(all.envSensors.count, 0)
+        XCTAssertEqual(all.openCloseSensors.count, 0)
+        XCTAssertEqual(all.smartPlugs.count, 0)
+    }
 }

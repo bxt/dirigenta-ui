@@ -81,6 +81,7 @@ final class AppState: ObservableObject {
     // MARK: - Infrastructure
 
     let windowNotifier = WindowNotifier()
+    let waterLeakNotifier = WaterLeakNotifier()
     let mdns: MDNSResolver
     private let credentialStore: CredentialStore
     private let skipSideEffects: Bool
@@ -310,6 +311,7 @@ final class AppState: ObservableObject {
                 envSensors: devices.envSensors,
                 now: Date()
             )
+            waterLeakNotifier.update(sensors: devices)
         } catch {
             devicesError = "Hub unreachable"
             Logger.api.error(
@@ -336,6 +338,8 @@ final class AppState: ObservableObject {
                 envSensors: devices.envSensors,
                 now: Date()
             )
+        } else if updated.isWaterSensor {
+            waterLeakNotifier.update(sensors: devices)
         }
     }
 
@@ -730,6 +734,17 @@ final class AppState: ObservableObject {
                     customName: "Office Motion",
                     batteryPercentage: 100,
                     isDetected: true
+                )
+            ),
+            DirigeraDevice(
+                id: "water1",
+                type: "sensor",
+                deviceType: "waterSensor",
+                room: Room(id: "r2", name: "Kitchen"),
+                attributes: .init(
+                    customName: "Under Sink",
+                    batteryPercentage: 92,
+                    waterLeakDetected: false
                 )
             ),
         ]

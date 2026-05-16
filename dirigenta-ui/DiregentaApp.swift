@@ -65,6 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "settings.rooms.showSensors": true,
             "settings.notifications.openWindow": true,
             "settings.notifications.closeWindow": true,
+            "settings.notifications.waterLeak": true,
             "settings.notifications.ipc": true,
         ])
     }

@@ -187,6 +187,36 @@ struct MotionSensorRow: View {
     }
 }
 
+// Individual water-leak sensor row. Renders inside the "Other devices" section.
+// Icon turns orange when a leak is detected; an orange "leak detected" label
+// makes the alert state visible at a glance.
+struct WaterSensorRow: View {
+    let sensor: DirigeraDevice
+
+    var body: some View {
+        let leak = sensor.attributes.waterLeakDetected == true
+        Label {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(sensor.displayName)
+                if leak {
+                    Text("leak detected")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                SensorFooter(
+                    battery: sensor.attributes.batteryPercentage,
+                    room: sensor.room?.name,
+                    isOffline: sensor.isReachable == false
+                )
+            }
+        } icon: {
+            Image(systemName: "drop.circle")
+                .foregroundStyle(leak ? Color.orange : Color.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // Individual row for a device of unknown/unhandled type.
 struct OtherDeviceRow: View {
     let device: DirigeraDevice
@@ -386,6 +416,8 @@ struct OtherDevicesSectionView: View {
                         Group {
                             if device.isMotionSensor {
                                 MotionSensorRow(sensor: device)
+                            } else if device.isWaterSensor {
+                                WaterSensorRow(sensor: device)
                             } else {
                                 OtherDeviceRow(device: device)
                             }

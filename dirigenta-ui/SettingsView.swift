@@ -30,6 +30,8 @@ struct SettingsView: View {
         var notifyOpenWindow = true
     @AppStorage("settings.notifications.closeWindow") private
         var notifyCloseWindow = true
+    @AppStorage("settings.notifications.waterLeak") private
+        var notifyWaterLeak = true
     @AppStorage("settings.notifications.ipc") private var notifyIPC = true
 
     @State private var hubPendingRemoval: Hub?
@@ -95,6 +97,7 @@ struct SettingsView: View {
                     "Notify when to close a window",
                     isOn: $notifyCloseWindow
                 )
+                Toggle("Notify on water leak", isOn: $notifyWaterLeak)
                 Toggle(isOn: $notifyIPC) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Allow –notify IPC")
