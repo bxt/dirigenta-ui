@@ -20,6 +20,7 @@ final class MDNSResolver: ObservableObject {
 
     private var browser: NWBrowser?
     private var resolveConnections: [NWConnection] = []
+    private var resolveTimeouts: [Task<Void, Never>] = []
     private var pathMonitor: NWPathMonitor?
     private var retryTask: Task<Void, Never>?
     private var hasStarted = false
@@ -96,8 +97,7 @@ final class MDNSResolver: ObservableObject {
         pathMonitor = nil
         browser?.cancel()
         browser = nil
-        for conn in resolveConnections { conn.cancel() }
-        resolveConnections.removeAll()
+        cancelPendingResolves()
         discoveredHubs = []
         isResolving = false
         hasStarted = false
@@ -145,8 +145,7 @@ final class MDNSResolver: ObservableObject {
             // Network gone — tear down sockets, keep "Discovering…" in the UI
             // (rather than "Hub not found") since we already know we can't.
             browser?.cancel()
-            for conn in resolveConnections { conn.cancel() }
-            resolveConnections.removeAll()
+            cancelPendingResolves()
             retryTask?.cancel()
             browser = nil
             retryTask = nil
@@ -258,6 +257,19 @@ final class MDNSResolver: ObservableObject {
         let conn = NWConnection(to: endpoint, using: .tcp)
         resolveConnections.append(conn)
 
+        // NWConnection has no built-in connect timeout. On the first launch
+        // of a freshly installed (ad-hoc-signed) release the resolve can
+        // stall indefinitely in `.preparing` while the system settles Local
+        // Network permission for the new binary identity — the connection
+        // reaches neither `.ready` nor `.failed`, so without this bound the
+        // hub's IP is never resolved and the device fetch never fires.
+        let timeout = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard !Task.isCancelled, let self else { return }
+            self.handleResolveTimeout()
+        }
+        resolveTimeouts.append(timeout)
+
         conn.stateUpdateHandler = { [weak self] state in
             // conn.start(queue: .main) guarantees this closure runs on the main queue.
             switch state {
@@ -272,6 +284,7 @@ final class MDNSResolver: ObservableObject {
                     "Resolve conn state: waiting — \(error.localizedDescription, privacy: .public) (often a Local Network permission gate)"
                 )
             case .ready:
+                timeout.cancel()
                 if let path = conn.currentPath,
                     case .hostPort(let host, _) = path.remoteEndpoint
                 {
@@ -288,6 +301,7 @@ final class MDNSResolver: ObservableObject {
                 }
                 conn.cancel()
             case .failed(let error):
+                timeout.cancel()
                 Logger.mdns.error(
                     "Resolve failed: \(error.localizedDescription, privacy: .public) — re-browsing"
                 )
@@ -299,7 +313,7 @@ final class MDNSResolver: ObservableObject {
                 }
                 conn.cancel()
             case .cancelled:
-                break
+                timeout.cancel()
             @unknown default:
                 break
             }
@@ -334,6 +348,30 @@ final class MDNSResolver: ObservableObject {
 
     private func removeResolveConnection(_ conn: NWConnection) {
         resolveConnections.removeAll { $0 === conn }
+    }
+
+    /// Recovery for a resolve that never reached `.ready` or `.failed` — see
+    /// `resolveEndpoint`. Tears down every pending resolve and re-browses,
+    /// unless a hub has meanwhile been discovered.
+    private func handleResolveTimeout() {
+        guard discoveredHubs.isEmpty, !resolveConnections.isEmpty else { return }
+        let states = resolveConnections
+            .map { "\($0.state)" }
+            .joined(separator: ",")
+        Logger.mdns.error(
+            "Resolve timed out (connection state(s): [\(states, privacy: .public)]) — cancelling and re-browsing"
+        )
+        cancelPendingResolves()
+        scheduleBrowseRetry(after: .seconds(2))
+    }
+
+    /// Cancels every in-flight resolve — the `NWConnection`s and their
+    /// timeout tasks. Used on teardown, network loss, and resolve timeout.
+    private func cancelPendingResolves() {
+        for conn in resolveConnections { conn.cancel() }
+        resolveConnections.removeAll()
+        for timeout in resolveTimeouts { timeout.cancel() }
+        resolveTimeouts.removeAll()
     }
 
     nonisolated static func ipString(from host: NWEndpoint.Host) -> String {
