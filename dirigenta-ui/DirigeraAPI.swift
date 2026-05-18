@@ -509,7 +509,7 @@ final class DirigeraClient {
             delegateQueue: nil
         )
         Logger.api.notice(
-            "DirigeraClient created — ip=\(ip, privacy: .public) hasPinnedFingerprint=\(pinnedLeafFingerprint != nil, privacy: .public)"
+            "DirigeraClient created — ip=\(ip, privacy: .private) hasPinnedFingerprint=\(pinnedLeafFingerprint != nil, privacy: .public)"
         )
     }
 

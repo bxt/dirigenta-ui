@@ -270,7 +270,7 @@ struct MenuContent: View {
                 "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.isReady == true)"
         ) {
             Logger.webSocket.notice(
-                "WS task — ip=\(appState.currentHubIP ?? "nil", privacy: .public), selectedHub=\(appState.selectedHub?.displayName ?? "nil", privacy: .public), isReady=\(appState.selectedHub?.isReady == true, privacy: .public)"
+                "WS task — ip=\(appState.currentHubIP ?? "nil", privacy: .private), selectedHub=\(appState.selectedHub?.displayName ?? "nil", privacy: .private), isReady=\(appState.selectedHub?.isReady == true, privacy: .public)"
             )
             guard let ip = appState.currentHubIP else {
                 Logger.webSocket.error(
@@ -280,7 +280,7 @@ struct MenuContent: View {
             }
             guard let client = appState.makeClient(ip: ip) else {
                 Logger.webSocket.error(
-                    "WS task — ABORT, makeClient returned nil for ip=\(ip, privacy: .public)"
+                    "WS task — ABORT, makeClient returned nil for ip=\(ip, privacy: .private)"
                 )
                 return
             }

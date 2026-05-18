@@ -342,7 +342,7 @@ final class MDNSResolver: ObservableObject {
         retryTask?.cancel()
         retryTask = nil
         Logger.mdns.notice(
-            "recordDiscovered — ip=\(ip, privacy: .public) service=\(serviceName, privacy: .public); discoveredHubs now \(self.discoveredHubs.count, privacy: .public) — publisher will fire the AppState fetch sink"
+            "recordDiscovered — ip=\(ip, privacy: .private) service=\(serviceName, privacy: .private); discoveredHubs now \(self.discoveredHubs.count, privacy: .public) — publisher will fire the AppState fetch sink"
         )
     }
 

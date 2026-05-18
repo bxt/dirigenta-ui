@@ -124,7 +124,7 @@ final class AppState: ObservableObject {
             )
             for hub in self.hubs {
                 Logger.api.notice(
-                    "init: hub \"\(hub.displayName, privacy: .public)\" kind=\(hub.kind.rawValue, privacy: .public) isReady=\(hub.isReady, privacy: .public) hasToken=\(hub.accessToken != nil, privacy: .public) hasFingerprint=\(hub.hubFingerprint != nil, privacy: .public) lastKnownIP=\(hub.lastKnownIP ?? "nil", privacy: .public)"
+                    "init: hub \"\(hub.displayName, privacy: .private)\" kind=\(hub.kind.rawValue, privacy: .public) isReady=\(hub.isReady, privacy: .public) hasToken=\(hub.accessToken != nil, privacy: .public) hasFingerprint=\(hub.hubFingerprint != nil, privacy: .public) lastKnownIP=\(hub.lastKnownIP ?? "nil", privacy: .private)"
                 )
             }
             if let raw = UserDefaults.standard.string(forKey: "selectedHubID"),
@@ -142,7 +142,7 @@ final class AppState: ObservableObject {
                 )
             }
             Logger.api.notice(
-                "init: selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public) isReady=\(self.selectedHub?.isReady == true, privacy: .public)"
+                "init: selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .private) isReady=\(self.selectedHub?.isReady == true, privacy: .public)"
             )
             // Mirror selected hub's pinned IDs into the @Published shadow fields.
             self.skipHubSync = true
@@ -167,31 +167,31 @@ final class AppState: ObservableObject {
                 }
                 let ip = MDNSResolver.ip(forHub: hub, in: hubs)
                 Logger.api.notice(
-                    "mdns-sink/map: discoveredHubs=\(hubs.count, privacy: .public) — resolved ip=\(ip ?? "nil", privacy: .public) for hub \"\(hub.displayName, privacy: .public)\""
+                    "mdns-sink/map: discoveredHubs=\(hubs.count, privacy: .public) — resolved ip=\(ip ?? "nil", privacy: .private) for hub \"\(hub.displayName, privacy: .private)\""
                 )
                 return ip
             }
             .compactMap { $0 }
             .handleEvents(receiveOutput: { ip in
                 Logger.api.notice(
-                    "mdns-sink/compactMap: ip=\(ip, privacy: .public) reached removeDuplicates"
+                    "mdns-sink/compactMap: ip=\(ip, privacy: .private) reached removeDuplicates"
                 )
             })
             .removeDuplicates()
             .sink { [weak self] ip in
                 Logger.api.notice(
-                    "mdns-sink/sink: removeDuplicates passed ip=\(ip, privacy: .public) — scheduling fetch"
+                    "mdns-sink/sink: removeDuplicates passed ip=\(ip, privacy: .private) — scheduling fetch"
                 )
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     guard self.selectedHub?.isReady == true else {
                         Logger.api.error(
-                            "mdns-sink/sink: ABORT — selectedHub not ready (selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
+                            "mdns-sink/sink: ABORT — selectedHub not ready (selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .private), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
                         )
                         return
                     }
                     Logger.api.notice(
-                        "mdns-sink/sink: proceeding to fetchDevices ip=\(ip, privacy: .public)"
+                        "mdns-sink/sink: proceeding to fetchDevices ip=\(ip, privacy: .private)"
                     )
                     await self.fetchDevices(ip: ip, context: "mdns-sink")
                 }
@@ -317,13 +317,13 @@ final class AppState: ObservableObject {
         client injectedClient: (any DirigeraClientProtocol)? = nil
     ) async {
         Logger.api.notice(
-            "fetchDevices[\(context, privacy: .public)] ip=\(ip, privacy: .public)"
+            "fetchDevices[\(context, privacy: .public)] ip=\(ip, privacy: .private)"
         )
         guard let client: any DirigeraClientProtocol =
             injectedClient ?? makeClient(ip: ip)
         else {
             Logger.api.error(
-                "fetchDevices[\(context, privacy: .public)] ABORT — makeClient returned nil (ip=\(ip, privacy: .public), selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public), kind=\(self.selectedHub?.kind.rawValue ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
+                "fetchDevices[\(context, privacy: .public)] ABORT — makeClient returned nil (ip=\(ip, privacy: .private), selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .private), kind=\(self.selectedHub?.kind.rawValue ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
             )
             return
         }
@@ -370,7 +370,7 @@ final class AppState: ObservableObject {
             devicesError = "Hub unreachable"
             if let urlError = error as? URLError {
                 Logger.api.error(
-                    "fetchDevices[\(context, privacy: .public)] FAILED — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) failingURL=\(urlError.failingURL?.absoluteString ?? "nil", privacy: .public) — \(urlError.localizedDescription, privacy: .public)"
+                    "fetchDevices[\(context, privacy: .public)] FAILED — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) failingURL=\(urlError.failingURL?.absoluteString ?? "nil", privacy: .private) — \(urlError.localizedDescription, privacy: .public)"
                 )
             } else {
                 Logger.api.error(
