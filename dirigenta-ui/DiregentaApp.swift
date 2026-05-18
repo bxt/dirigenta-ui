@@ -26,7 +26,9 @@ struct DirigentaApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate,
+    UNUserNotificationCenterDelegate
+{
     // Tests run inside this app as the test host. Without this guard the
     // stored-property default would build a real AppState (hitting Keychain)
     // and applicationDidFinishLaunching would spin up NWBrowser /
@@ -68,6 +70,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "settings.notifications.waterLeak": true,
             "settings.notifications.ipc": true,
         ])
+
+        // Become the notification delegate before launch completes so banners
+        // present even while the app is frontmost — see willPresent below.
+        UNUserNotificationCenter.current().delegate = self
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -91,5 +97,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             else { return }
             Task { await self.appState.triggerNotification() }
         }
+    }
+
+    // macOS drops notification banners while the posting app is frontmost — for
+    // this menu-bar app that's whenever the popover is open, exactly when a
+    // water-leak or window alert is most likely to fire. Returning presentation
+    // options here forces the banner, sound, and Notification Center entry
+    // regardless of activation state.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler:
+            @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 }
