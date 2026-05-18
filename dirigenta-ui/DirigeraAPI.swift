@@ -508,6 +508,9 @@ final class DirigeraClient {
             ),
             delegateQueue: nil
         )
+        Logger.api.notice(
+            "DirigeraClient created — ip=\(ip, privacy: .public) hasPinnedFingerprint=\(pinnedLeafFingerprint != nil, privacy: .public)"
+        )
     }
 
     init(ip: String, token: String, session: URLSession) {
@@ -634,7 +637,26 @@ final class DirigeraClient {
         var req = try makeRequest(path)
         req.httpMethod = "GET"
         log(req)
-        let (data, response) = try await session.data(for: req)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            // A throw here means no response was produced at all. Spell out
+            // the URLError code — `localizedDescription` alone collapses a
+            // Local Network denial, a refused connection and a timeout into
+            // the same opaque string.
+            if let urlError = error as? URLError {
+                Logger.api.error(
+                    "GET \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
+                )
+            } else {
+                Logger.api.error(
+                    "GET \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
+                )
+            }
+            throw error
+        }
         log(response, data: data)
         try validate(response)
         return data
@@ -664,6 +686,15 @@ final class DirigeraClient {
         guard let http = response as? HTTPURLResponse,
             (200..<300).contains(http.statusCode)
         else {
+            let statusText: String
+            if let http = response as? HTTPURLResponse {
+                statusText = "\(http.statusCode)"
+            } else {
+                statusText = "non-HTTP response"
+            }
+            Logger.api.error(
+                "validate — rejecting response, status=\(statusText, privacy: .public)"
+            )
             throw URLError(.badServerResponse)
         }
     }

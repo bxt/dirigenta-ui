@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import UserNotifications
 
@@ -79,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard !Self.isRunningTests else { return }
         NSApp.setActivationPolicy(.accessory)
+        Self.logLaunchBanner()
         appState.mdns.start()
         _ = statusBarController  // trigger lazy init
         UNUserNotificationCenter.current().requestAuthorization(options: [
@@ -111,5 +113,30 @@ class AppDelegate: NSObject, NSApplicationDelegate,
             @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+    }
+    
+    /// Logs a launch banner identifying the build and whether this is its
+    /// first run, so a diagnostic log session can be matched to a release
+    /// install — the only situation where the "hub discovered but devices
+    /// never fetched" bug appears.
+    private static func logLaunchBanner() {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        let current = "\(version) (\(build))"
+        let previous = UserDefaults.standard.string(
+            forKey: "diagnostics.lastRunVersion"
+        )
+        if previous != current {
+            Logger.api.notice(
+                "=== LAUNCH dirigenta-ui \(current, privacy: .public) — FIRST RUN OF THIS BUILD (previous: \(previous ?? "none", privacy: .public)) — macOS \(os, privacy: .public) ==="
+            )
+        } else {
+            Logger.api.notice(
+                "=== LAUNCH dirigenta-ui \(current, privacy: .public) — relaunch — macOS \(os, privacy: .public) ==="
+            )
+        }
+        UserDefaults.standard.set(current, forKey: "diagnostics.lastRunVersion")
     }
 }

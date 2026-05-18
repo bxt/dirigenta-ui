@@ -75,9 +75,15 @@ final class MDNSResolver: ObservableObject {
     }
 
     func start() {
-        guard !hasStarted else { return }
+        guard !hasStarted else {
+            Logger.mdns.notice("start() — already started, ignoring")
+            return
+        }
         hasStarted = true
         isResolving = true
+        Logger.mdns.notice(
+            "start() — networkingEnabled=\(self.networkingEnabled, privacy: .public)"
+        )
         guard networkingEnabled else { return }
         startPathMonitor()
     }
@@ -119,10 +125,22 @@ final class MDNSResolver: ObservableObject {
     }
 
     private func handlePath(_ path: NWPath) {
+        let interfaces = path.availableInterfaces
+            .map { "\($0.type)" }
+            .joined(separator: ",")
+        Logger.mdns.notice(
+            "path update — status=\(String(describing: path.status), privacy: .public), unsatisfiedReason=\(String(describing: path.unsatisfiedReason), privacy: .public), interfaces=[\(interfaces, privacy: .public)]"
+        )
         switch path.status {
         case .satisfied:
             browseAttempts = 0
-            if discoveredHubs.isEmpty { startBrowse() }
+            if discoveredHubs.isEmpty {
+                startBrowse()
+            } else {
+                Logger.mdns.notice(
+                    "path satisfied — \(self.discoveredHubs.count, privacy: .public) hub(s) already discovered, not re-browsing"
+                )
+            }
         case .unsatisfied, .requiresConnection:
             // Network gone — tear down sockets, keep "Discovering…" in the UI
             // (rather than "Hub not found") since we already know we can't.
@@ -168,8 +186,17 @@ final class MDNSResolver: ObservableObject {
 
         browser.stateUpdateHandler = { [weak self] state in
             switch state {
+            case .setup:
+                Logger.mdns.notice("Browser state: setup")
             case .ready:
-                Logger.mdns.info("Browser ready")
+                Logger.mdns.notice("Browser state: ready")
+            case .waiting(let error):
+                // A browser stuck in `.waiting` is the clearest signal of a
+                // Local Network permission gate — the prime suspect for the
+                // release-install bug.
+                Logger.mdns.error(
+                    "Browser state: waiting — \(error.localizedDescription, privacy: .public) (often a Local Network permission gate)"
+                )
             case .failed(let error):
                 Logger.mdns.error(
                     "Browser failed: \(error.localizedDescription, privacy: .public) — will retry"
@@ -178,9 +205,11 @@ final class MDNSResolver: ObservableObject {
                     self?.scheduleBrowseRetry(after: .seconds(2))
                 }
             case .cancelled:
-                break
-            default:
-                break
+                Logger.mdns.notice("Browser state: cancelled")
+            @unknown default:
+                Logger.mdns.notice(
+                    "Browser state: \(String(describing: state), privacy: .public)"
+                )
             }
         }
 
@@ -232,6 +261,16 @@ final class MDNSResolver: ObservableObject {
         conn.stateUpdateHandler = { [weak self] state in
             // conn.start(queue: .main) guarantees this closure runs on the main queue.
             switch state {
+            case .setup:
+                Logger.mdns.notice("Resolve conn state: setup")
+            case .preparing:
+                Logger.mdns.notice("Resolve conn state: preparing")
+            case .waiting(let error):
+                // Like the browser, a connection stuck in `.waiting` points at
+                // a Local Network permission gate rather than a dead host.
+                Logger.mdns.error(
+                    "Resolve conn state: waiting — \(error.localizedDescription, privacy: .public) (often a Local Network permission gate)"
+                )
             case .ready:
                 if let path = conn.currentPath,
                     case .hostPort(let host, _) = path.remoteEndpoint
@@ -259,7 +298,9 @@ final class MDNSResolver: ObservableObject {
                     self?.scheduleBrowseRetry(after: .seconds(2))
                 }
                 conn.cancel()
-            default:
+            case .cancelled:
+                break
+            @unknown default:
                 break
             }
         }
@@ -286,6 +327,9 @@ final class MDNSResolver: ObservableObject {
         isResolving = false
         retryTask?.cancel()
         retryTask = nil
+        Logger.mdns.notice(
+            "recordDiscovered — ip=\(ip, privacy: .public) service=\(serviceName, privacy: .public); discoveredHubs now \(self.discoveredHubs.count, privacy: .public) — publisher will fire the AppState fetch sink"
+        )
     }
 
     private func removeResolveConnection(_ conn: NWConnection) {

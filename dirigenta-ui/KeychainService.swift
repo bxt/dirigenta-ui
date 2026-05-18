@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Security
 
 enum KeychainService {
@@ -36,6 +37,9 @@ enum KeychainService {
 
     static func set(_ value: String, for key: String) throws {
         guard let data = value.data(using: .utf8) else {
+            Logger.keychain.error(
+                "set(\"\(key, privacy: .public)\") — encoding failed"
+            )
             throw KeychainError.encodingFailed
         }
         let query = makeQuery(for: key)
@@ -44,8 +48,14 @@ enum KeychainService {
             let attrs: [String: Any] = [kSecValueData as String: data]
             let s = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
             guard s == errSecSuccess else {
+                Logger.keychain.error(
+                    "set(\"\(key, privacy: .public)\") — update failed, OSStatus \(s, privacy: .public)"
+                )
                 throw KeychainError.unexpectedStatus(s)
             }
+            Logger.keychain.notice(
+                "set(\"\(key, privacy: .public)\") — updated (\(data.count, privacy: .public) bytes)"
+            )
         case errSecItemNotFound:
             var item = query
             item[kSecValueData as String] = data
@@ -53,9 +63,18 @@ enum KeychainService {
                 kSecAttrAccessibleAfterFirstUnlock
             let s = SecItemAdd(item as CFDictionary, nil)
             guard s == errSecSuccess else {
+                Logger.keychain.error(
+                    "set(\"\(key, privacy: .public)\") — add failed, OSStatus \(s, privacy: .public)"
+                )
                 throw KeychainError.unexpectedStatus(s)
             }
+            Logger.keychain.notice(
+                "set(\"\(key, privacy: .public)\") — added (\(data.count, privacy: .public) bytes)"
+            )
         case let s:
+            Logger.keychain.error(
+                "set(\"\(key, privacy: .public)\") — lookup failed, OSStatus \(s, privacy: .public)"
+            )
             throw KeychainError.unexpectedStatus(s)
         }
     }
@@ -70,20 +89,38 @@ enum KeychainService {
             guard let data = item as? Data,
                 let string = String(data: data, encoding: .utf8)
             else {
+                Logger.keychain.error(
+                    "get(\"\(key, privacy: .public)\") — decoding failed"
+                )
                 throw KeychainError.decodingFailed
             }
+            Logger.keychain.notice(
+                "get(\"\(key, privacy: .public)\") — ok (\(data.count, privacy: .public) bytes)"
+            )
             return string
         case errSecItemNotFound:
+            Logger.keychain.notice(
+                "get(\"\(key, privacy: .public)\") — not found"
+            )
             return nil
         case let s:
+            Logger.keychain.error(
+                "get(\"\(key, privacy: .public)\") — OSStatus \(s, privacy: .public)"
+            )
             throw KeychainError.unexpectedStatus(s)
         }
     }
 
     static func delete(_ key: String) throws {
         switch SecItemDelete(makeQuery(for: key) as CFDictionary) {
-        case errSecSuccess, errSecItemNotFound: return
-        case let s: throw KeychainError.unexpectedStatus(s)
+        case errSecSuccess, errSecItemNotFound:
+            Logger.keychain.notice("delete(\"\(key, privacy: .public)\") — ok")
+            return
+        case let s:
+            Logger.keychain.error(
+                "delete(\"\(key, privacy: .public)\") — OSStatus \(s, privacy: .public)"
+            )
+            throw KeychainError.unexpectedStatus(s)
         }
     }
 }

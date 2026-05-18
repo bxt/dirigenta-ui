@@ -119,14 +119,31 @@ final class AppState: ObservableObject {
 
         if !Self.isPreview {
             self.hubs = Self.loadHubs(credentialStore: self.credentialStore)
+            Logger.api.notice(
+                "init: loaded \(self.hubs.count, privacy: .public) hub(s) from Keychain"
+            )
+            for hub in self.hubs {
+                Logger.api.notice(
+                    "init: hub \"\(hub.displayName, privacy: .public)\" kind=\(hub.kind.rawValue, privacy: .public) isReady=\(hub.isReady, privacy: .public) hasToken=\(hub.accessToken != nil, privacy: .public) hasFingerprint=\(hub.hubFingerprint != nil, privacy: .public) lastKnownIP=\(hub.lastKnownIP ?? "nil", privacy: .public)"
+                )
+            }
             if let raw = UserDefaults.standard.string(forKey: "selectedHubID"),
                 let id = UUID(uuidString: raw),
                 self.hubs.contains(where: { $0.id == id })
             {
                 self.selectedHubID = id
+                Logger.api.notice(
+                    "init: selectedHubID restored from UserDefaults — \(id.uuidString, privacy: .public)"
+                )
             } else {
                 self.selectedHubID = self.hubs.first?.id
+                Logger.api.notice(
+                    "init: selectedHubID not in UserDefaults — fell back to first hub (\(self.hubs.first?.id.uuidString ?? "nil", privacy: .public))"
+                )
             }
+            Logger.api.notice(
+                "init: selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public) isReady=\(self.selectedHub?.isReady == true, privacy: .public)"
+            )
             // Mirror selected hub's pinned IDs into the @Published shadow fields.
             self.skipHubSync = true
             self.pinnedDeviceId = self.selectedHub?.pinnedDeviceId
@@ -142,16 +159,41 @@ final class AppState: ObservableObject {
                 // `self.mdns.discoveredHubs` here would see the stale
                 // pre-assignment array. Use the value the publisher just
                 // emitted directly via the static lookup.
-                guard let self, let hub = self.selectedHub else { return nil }
-                return MDNSResolver.ip(forHub: hub, in: hubs)
+                guard let self, let hub = self.selectedHub else {
+                    Logger.api.notice(
+                        "mdns-sink/map: discoveredHubs=\(hubs.count, privacy: .public) — no IP (self=\(self != nil, privacy: .public), selectedHub=nil)"
+                    )
+                    return nil
+                }
+                let ip = MDNSResolver.ip(forHub: hub, in: hubs)
+                Logger.api.notice(
+                    "mdns-sink/map: discoveredHubs=\(hubs.count, privacy: .public) — resolved ip=\(ip ?? "nil", privacy: .public) for hub \"\(hub.displayName, privacy: .public)\""
+                )
+                return ip
             }
             .compactMap { $0 }
+            .handleEvents(receiveOutput: { ip in
+                Logger.api.notice(
+                    "mdns-sink/compactMap: ip=\(ip, privacy: .public) reached removeDuplicates"
+                )
+            })
             .removeDuplicates()
             .sink { [weak self] ip in
+                Logger.api.notice(
+                    "mdns-sink/sink: removeDuplicates passed ip=\(ip, privacy: .public) — scheduling fetch"
+                )
                 Task { @MainActor [weak self] in
-                    guard let self, self.selectedHub?.isReady == true
-                    else { return }
-                    await self.fetchDevices(ip: ip)
+                    guard let self else { return }
+                    guard self.selectedHub?.isReady == true else {
+                        Logger.api.error(
+                            "mdns-sink/sink: ABORT — selectedHub not ready (selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
+                        )
+                        return
+                    }
+                    Logger.api.notice(
+                        "mdns-sink/sink: proceeding to fetchDevices ip=\(ip, privacy: .public)"
+                    )
+                    await self.fetchDevices(ip: ip, context: "mdns-sink")
                 }
             }
             .store(in: &cancellables)
@@ -187,7 +229,7 @@ final class AppState: ObservableObject {
         if let hub = selectedHub, hub.isReady,
             let ip = mdns.ip(forHub: hub)
         {
-            Task { await self.fetchDevices(ip: ip) }
+            Task { await self.fetchDevices(ip: ip, context: "wake") }
         }
     }
 
@@ -271,14 +313,26 @@ final class AppState: ObservableObject {
 
     func fetchDevices(
         ip: String,
+        context: String = "?",
         client injectedClient: (any DirigeraClientProtocol)? = nil
     ) async {
+        Logger.api.notice(
+            "fetchDevices[\(context, privacy: .public)] ip=\(ip, privacy: .public)"
+        )
         guard let client: any DirigeraClientProtocol =
             injectedClient ?? makeClient(ip: ip)
-        else { return }
+        else {
+            Logger.api.error(
+                "fetchDevices[\(context, privacy: .public)] ABORT — makeClient returned nil (ip=\(ip, privacy: .public), selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .public), kind=\(self.selectedHub?.kind.rawValue ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"
+            )
+            return
+        }
         isLoadingDevices = true
         devicesError = nil
         do {
+            Logger.api.notice(
+                "fetchDevices[\(context, privacy: .public)] calling fetchAllDevices…"
+            )
             let all = try await client.fetchAllDevices()
             // Sort by id BEFORE merge so each relationId-group iterates in
             // stable id order, and so the final `devices` array is
@@ -314,9 +368,15 @@ final class AppState: ObservableObject {
             waterLeakNotifier.update(sensors: devices)
         } catch {
             devicesError = "Hub unreachable"
-            Logger.api.error(
-                "Fetch error: \(error.localizedDescription, privacy: .public)"
-            )
+            if let urlError = error as? URLError {
+                Logger.api.error(
+                    "fetchDevices[\(context, privacy: .public)] FAILED — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) failingURL=\(urlError.failingURL?.absoluteString ?? "nil", privacy: .public) — \(urlError.localizedDescription, privacy: .public)"
+                )
+            } else {
+                Logger.api.error(
+                    "fetchDevices[\(context, privacy: .public)] FAILED — \(String(describing: error), privacy: .public)"
+                )
+            }
         }
         isLoadingDevices = false
     }
@@ -359,13 +419,13 @@ final class AppState: ObservableObject {
         else { return }
 
         await notifier.turnOnDimmed()  // Step 2
-        await fetchDevices(ip: ip)  // Step 3
+        await fetchDevices(ip: ip, context: "notify")  // Step 3
         let presets = notifier.capturePresets(from: devices.lights)  // Step 4
         await notifier.flash()  // Step 5
         try? await Task.sleep(for: .seconds(1))
         await notifier.restore(presets)  // Step 6
         await notifier.turnOffDimmed()  // Step 7
-        await fetchDevices(ip: ip)
+        await fetchDevices(ip: ip, context: "notify")
     }
 
     // MARK: - Hub lifecycle
@@ -422,7 +482,7 @@ final class AppState: ObservableObject {
         if let hub = selectedHub, hub.isReady,
             let ip = mdns.ip(forHub: hub)
         {
-            Task { await self.fetchDevices(ip: ip) }
+            Task { await self.fetchDevices(ip: ip, context: "switchHub") }
         }
     }
 
@@ -478,12 +538,33 @@ final class AppState: ObservableObject {
 
     /// Reads paired hubs from the Keychain. Empty array on first launch or
     /// if the stored JSON is corrupt; PairingView handles either case.
+    /// The three failure modes are logged separately so a release-install
+    /// trace can tell "Keychain unreadable" apart from "no data" and
+    /// "corrupt data".
     private static func loadHubs(credentialStore: CredentialStore) -> [Hub] {
-        guard let raw = try? credentialStore.get(hubsKey),
-            let data = raw.data(using: .utf8),
-            let hubs = try? JSONDecoder().decode([Hub].self, from: data)
-        else { return [] }
-        return hubs
+        let raw: String?
+        do {
+            raw = try credentialStore.get(hubsKey)
+        } catch {
+            Logger.keychain.error(
+                "loadHubs: Keychain read FAILED for \"\(hubsKey, privacy: .public)\" — \(String(describing: error), privacy: .public)"
+            )
+            return []
+        }
+        guard let raw, let data = raw.data(using: .utf8) else {
+            Logger.keychain.notice(
+                "loadHubs: no stored hubs for \"\(hubsKey, privacy: .public)\" (first launch or cleared)"
+            )
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([Hub].self, from: data)
+        } catch {
+            Logger.keychain.error(
+                "loadHubs: stored hubs JSON is corrupt — \(String(describing: error), privacy: .public)"
+            )
+            return []
+        }
     }
 
     private func saveHubs() {

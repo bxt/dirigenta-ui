@@ -269,9 +269,21 @@ struct MenuContent: View {
             id:
                 "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.isReady == true)"
         ) {
-            guard let ip = appState.currentHubIP,
-                let client = appState.makeClient(ip: ip)
-            else { return }
+            Logger.webSocket.notice(
+                "WS task — ip=\(appState.currentHubIP ?? "nil", privacy: .public), selectedHub=\(appState.selectedHub?.displayName ?? "nil", privacy: .public), isReady=\(appState.selectedHub?.isReady == true, privacy: .public)"
+            )
+            guard let ip = appState.currentHubIP else {
+                Logger.webSocket.error(
+                    "WS task — ABORT, no currentHubIP (hub not on LAN)"
+                )
+                return
+            }
+            guard let client = appState.makeClient(ip: ip) else {
+                Logger.webSocket.error(
+                    "WS task — ABORT, makeClient returned nil for ip=\(ip, privacy: .public)"
+                )
+                return
+            }
             await wsReconnectLoop(
                 eventStream: { client.eventStream() },
                 onConnecting: { appState.wsConnectionState = .connecting },
