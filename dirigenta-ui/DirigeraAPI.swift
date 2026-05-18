@@ -501,6 +501,12 @@ enum DirigeraAPIError: Error {
 private final class InvalidationFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var raised = false
+
+    // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed:
+    // a `DirigeraClient` holding this flag is released when AppState evicts
+    // its client cache, and the synthesized isolated deinit hop crashes
+    // inside libmalloc on the macos-26 CI runner.
+    nonisolated deinit {}
     var isRaised: Bool {
         lock.lock()
         defer { lock.unlock() }
