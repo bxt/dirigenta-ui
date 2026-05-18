@@ -148,16 +148,20 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
 
     private func startTimer() {
         timerTask = Task { @MainActor [weak self] in
-            // Stagger phases (light toggle / sensor flip / env drift) so they
-            // don't all fire at the same instant on launch.
+            // Stagger phases (light / contact sensor / motion / water leak /
+            // env drift) so they don't all fire at the same instant on launch.
             var lightAccum = 0
             var sensorAccum = 0
+            var motionAccum = 0
+            var waterAccum = 0
             var envAccum = 0
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard let self else { return }
                 lightAccum += 1
                 sensorAccum += 1
+                motionAccum += 1
+                waterAccum += 1
                 envAccum += 1
                 if lightAccum >= 8 {
                     lightAccum = 0
@@ -166,6 +170,14 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
                 if sensorAccum >= 30 {
                     sensorAccum = 0
                     self.flipRandomSensor()
+                }
+                if motionAccum >= 12 {
+                    motionAccum = 0
+                    self.tripMotionSensor()
+                }
+                if waterAccum >= 25 {
+                    waterAccum = 0
+                    self.toggleWaterLeak()
                 }
                 if envAccum >= 60 {
                     envAccum = 0
@@ -191,6 +203,26 @@ final class DemoDirigeraClient: DirigeraClientProtocol {
         let id = devices[idx].id
         let newOpen = !(devices[idx].attributes.isOpen ?? false)
         mutate(id: id) { $0.isOpen = newOpen }
+    }
+
+    private func tripMotionSensor() {
+        guard let idx = devices.firstIndex(where: { $0.isMotionSensor })
+        else { return }
+        let active = devices[idx].attributes.isDetected ?? false
+        // Active motion always clears on the next pass; an idle sensor trips
+        // only sometimes, so motion comes and goes instead of blinking steadily.
+        guard active || Bool.random() else { return }
+        mutate(id: devices[idx].id) { $0.isDetected = !active }
+    }
+
+    private func toggleWaterLeak() {
+        guard let idx = devices.firstIndex(where: { $0.isWaterSensor })
+        else { return }
+        let leaking = devices[idx].attributes.waterLeakDetected ?? false
+        // A detected leak dries out on the next pass; a dry sensor floods only
+        // rarely, keeping the critical alert a "sometimes" event, not noise.
+        guard leaking || Double.random(in: 0...1) < 0.25 else { return }
+        mutate(id: devices[idx].id) { $0.waterLeakDetected = !leaking }
     }
 
     private func driftEnvironmentSensor() {
