@@ -366,17 +366,31 @@ final class AppState: ObservableObject {
                 now: Date()
             )
             waterLeakNotifier.update(sensors: devices)
-        } catch {
-            devicesError = "Hub unreachable"
-            if let urlError = error as? URLError {
+        } catch let apiError as DirigeraAPIError {
+            switch apiError {
+            case .unauthorized:
+                devicesError = "Authentication failed — re-pair the hub"
                 Logger.api.error(
-                    "fetchDevices[\(context, privacy: .public)] FAILED — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) failingURL=\(urlError.failingURL?.absoluteString ?? "nil", privacy: .private) — \(urlError.localizedDescription, privacy: .public)"
+                    "fetchDevices[\(context, privacy: .public)] FAILED — hub rejected the access token (401/403)"
                 )
-            } else {
-                Logger.api.error(
-                    "fetchDevices[\(context, privacy: .public)] FAILED — \(String(describing: error), privacy: .public)"
+            case .sessionInvalidated:
+                // Client torn down mid-fetch (hub switch / eviction). A fresh
+                // fetch runs against the new client, so this isn't a real hub
+                // error — leave `devicesError` cleared.
+                Logger.api.notice(
+                    "fetchDevices[\(context, privacy: .public)] aborted — client invalidated mid-fetch"
                 )
             }
+        } catch let urlError as URLError {
+            devicesError = "Hub unreachable"
+            Logger.api.error(
+                "fetchDevices[\(context, privacy: .public)] FAILED — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) failingURL=\(urlError.failingURL?.absoluteString ?? "nil", privacy: .private) — \(urlError.localizedDescription, privacy: .public)"
+            )
+        } catch {
+            devicesError = "Hub unreachable"
+            Logger.api.error(
+                "fetchDevices[\(context, privacy: .public)] FAILED — \(String(describing: error), privacy: .public)"
+            )
         }
         isLoadingDevices = false
     }

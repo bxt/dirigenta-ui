@@ -138,9 +138,23 @@ final class DirigeraClientTests: XCTestCase {
         XCTAssertTrue(devices.isEmpty)
     }
 
-    func testFetchAllDevices_httpError_throwsBadServerResponse() async throws {
+    func testFetchAllDevices_401_throwsUnauthorized() async throws {
         MockURLProtocol.handler = { _ in
             (httpResponse(status: 401, for: devicesURL), nil)
+        }
+        do {
+            _ = try await client.fetchAllDevices()
+            XCTFail("Expected DirigeraAPIError.unauthorized")
+        } catch DirigeraAPIError.unauthorized {
+            // expected
+        } catch {
+            XCTFail("Expected DirigeraAPIError.unauthorized, got \(error)")
+        }
+    }
+
+    func testFetchAllDevices_serverError_throwsBadServerResponse() async throws {
+        MockURLProtocol.handler = { _ in
+            (httpResponse(status: 500, for: devicesURL), nil)
         }
         do {
             _ = try await client.fetchAllDevices()
@@ -177,6 +191,31 @@ final class DirigeraClientTests: XCTestCase {
             forHTTPHeaderField: "Authorization"
         )
         XCTAssertEqual(auth, "Bearer \(testToken)")
+    }
+
+    // MARK: invalidation
+    //
+    // Creating a URLSessionTask on an invalidated session raises an
+    // uncatchable NSGenericException. An invalidated client must instead
+    // fail cleanly without ever creating a task.
+
+    func testFetchAllDevices_afterInvalidate_throwsSessionInvalidated() async throws {
+        client.invalidate()
+        do {
+            _ = try await client.fetchAllDevices()
+            XCTFail("Expected DirigeraAPIError.sessionInvalidated")
+        } catch DirigeraAPIError.sessionInvalidated {
+            // expected — no task is created on the dead session
+        } catch {
+            XCTFail("Expected DirigeraAPIError.sessionInvalidated, got \(error)")
+        }
+    }
+
+    func testEventStream_afterInvalidate_finishesWithoutConnecting() async {
+        client.invalidate()
+        var events = 0
+        for await _ in client.eventStream() { events += 1 }
+        XCTAssertEqual(events, 0)
     }
 
     // MARK: setLight

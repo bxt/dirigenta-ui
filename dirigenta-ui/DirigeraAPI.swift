@@ -481,10 +481,43 @@ protocol DirigeraClientProtocol: AnyObject, Sendable {
     func eventStream() -> AsyncStream<DirigeraEvent>
 }
 
+/// Errors surfaced by `DirigeraClient` that callers handle distinctly from
+/// generic transport failures.
+enum DirigeraAPIError: Error {
+    /// The hub rejected the access token (HTTP 401/403) — a stale or wrong
+    /// token; the hub needs to be re-paired.
+    case unauthorized
+    /// A request was attempted after the client's `URLSession` was
+    /// invalidated (hub switch / client eviction). Transient — a fresh
+    /// client retries — so it is never surfaced to the user.
+    case sessionInvalidated
+}
+
+/// Thread-safe one-shot flag marking a `DirigeraClient` whose `URLSession`
+/// has been invalidated. Creating a `URLSessionTask` on an invalidated
+/// session raises an uncatchable `NSGenericException` ("Task created in a
+/// session that has been invalidated"), so every task-creating method on
+/// the client checks this first.
+private final class InvalidationFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var raised = false
+    var isRaised: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return raised
+    }
+    func raise() {
+        lock.lock()
+        defer { lock.unlock() }
+        raised = true
+    }
+}
+
 final class DirigeraClient {
     private let ip: String
     private let token: String
     private let session: URLSession
+    private let invalidationFlag = InvalidationFlag()
 
     // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed
     // here: AppState evicts the cached client on hub-switch / IP-change, and
@@ -520,8 +553,10 @@ final class DirigeraClient {
     }
 
     /// Drains in-flight tasks and releases the URLSession + its delegate.
-    /// Call this before discarding the client.
+    /// Call this before discarding the client. Once invalidated the client
+    /// refuses to create new tasks (see `InvalidationFlag`).
     func invalidate() {
+        invalidationFlag.raise()
         session.finishTasksAndInvalidate()
     }
 
@@ -529,6 +564,17 @@ final class DirigeraClient {
         // Frame decoding is delegated to decodeDirigeraWebSocketFrame so
         // the decode logic can be unit-tested independently of URLSession.
         AsyncStream { continuation in
+            // The session may have been invalidated (hub switch / client
+            // eviction) while the reconnect loop still holds this client.
+            // Creating a webSocketTask on it would crash, so end the stream
+            // and let the loop fall back instead.
+            guard !invalidationFlag.isRaised else {
+                Logger.webSocket.notice(
+                    "eventStream — client invalidated, not connecting"
+                )
+                continuation.finish()
+                return
+            }
             guard let url = URL(string: "wss://\(ip):8443/v1") else {
                 continuation.finish()
                 return
@@ -634,6 +680,9 @@ final class DirigeraClient {
     }
 
     private func get(_ path: String) async throws -> Data {
+        guard !invalidationFlag.isRaised else {
+            throw DirigeraAPIError.sessionInvalidated
+        }
         var req = try makeRequest(path)
         req.httpMethod = "GET"
         log(req)
@@ -663,6 +712,9 @@ final class DirigeraClient {
     }
 
     private func patch(_ path: String, body: Data) async throws {
+        guard !invalidationFlag.isRaised else {
+            throw DirigeraAPIError.sessionInvalidated
+        }
         var req = try makeRequest(path)
         req.httpMethod = "PATCH"
         req.httpBody = body
@@ -683,17 +735,21 @@ final class DirigeraClient {
     }
 
     private func validate(_ response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse,
-            (200..<300).contains(http.statusCode)
-        else {
-            let statusText: String
-            if let http = response as? HTTPURLResponse {
-                statusText = "\(http.statusCode)"
-            } else {
-                statusText = "non-HTTP response"
-            }
+        guard let http = response as? HTTPURLResponse else {
+            Logger.api.error("validate — non-HTTP response")
+            throw URLError(.badServerResponse)
+        }
+        switch http.statusCode {
+        case 200..<300:
+            return
+        case 401, 403:
             Logger.api.error(
-                "validate — rejecting response, status=\(statusText, privacy: .public)"
+                "validate — hub rejected the access token, status=\(http.statusCode, privacy: .public)"
+            )
+            throw DirigeraAPIError.unauthorized
+        default:
+            Logger.api.error(
+                "validate — rejecting response, status=\(http.statusCode, privacy: .public)"
             )
             throw URLError(.badServerResponse)
         }
