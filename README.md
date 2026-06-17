@@ -8,6 +8,8 @@ This is perfect if you just want to toggle a single IKEA light with one click on
 
 It also takes all your room configs and settings from the IKEA smart home instead of having to set up another Matter hub.
 
+<img width="351" height="793" alt="Bildschirmfoto 2026-06-17 um 16 17 39" src="https://github.com/user-attachments/assets/448aa646-2b7a-48f0-9d0f-3a95cd5a6bc1" />
+
 ## Requirements
 
 - macOS 26.2 or later
