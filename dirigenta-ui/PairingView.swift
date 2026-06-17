@@ -13,6 +13,11 @@ struct PairingView: View {
     /// entry). Used by the sheet-presented "Add Hub" flow to dismiss itself.
     let onPaired: (() -> Void)?
 
+    /// When set, a successful pair updates this existing hub in place instead
+    /// of adding a new one — used to recover a hub whose TLS certificate
+    /// rotated (see `AppState.addOrUpdateHub(token:hubFingerprint:gatewayName:replacing:)`).
+    let replacingHubID: UUID?
+
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var mdns: MDNSResolver
 
@@ -22,14 +27,17 @@ struct PairingView: View {
     // The fingerprint captured during step 1 is then pinned for step 2.
     @State private var authClient: DirigeraAuthClient?
 
-    init(onPaired: (() -> Void)? = nil) {
+    init(replacingHubID: UUID? = nil, onPaired: (() -> Void)? = nil) {
+        self.replacingHubID = replacingHubID
         self.onPaired = onPaired
     }
 
     fileprivate init(
         initialPairingStep: PairingStep,
+        replacingHubID: UUID? = nil,
         onPaired: (() -> Void)? = nil
     ) {
+        self.replacingHubID = replacingHubID
         self.onPaired = onPaired
         _pairingStep = State(initialValue: initialPairingStep)
     }
@@ -141,7 +149,8 @@ struct PairingView: View {
                     appState.addOrUpdateHub(
                         token: trimmed,
                         hubFingerprint: nil,
-                        gatewayName: nil
+                        gatewayName: nil,
+                        replacing: replacingHubID
                     )
                     onPaired?()
                 }
@@ -191,7 +200,8 @@ struct PairingView: View {
             appState.addOrUpdateHub(
                 token: token,
                 hubFingerprint: fingerprint?.base64EncodedString(),
-                gatewayName: nil
+                gatewayName: nil,
+                replacing: replacingHubID
             )
             onPaired?()
         } catch {

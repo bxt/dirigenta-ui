@@ -9,10 +9,14 @@ import XCTest
 final class MockFetchClient: DirigeraClientProtocol {
     var devicesToReturn: [DirigeraDevice] = []
     var shouldThrow = false
+    /// When set, `fetchAllDevices` throws this instead of the generic
+    /// `URLError(.badServerResponse)` — used to exercise specific error mapping.
+    var errorToThrow: (any Error & Sendable)?
 
     nonisolated func fetchAllDevices() async throws -> [DirigeraDevice] {
         let devs = await devicesToReturn
         let throw_ = await shouldThrow
+        if let error = await errorToThrow { throw error }
         if throw_ { throw URLError(.badServerResponse) }
         return devs
     }
@@ -160,6 +164,36 @@ final class AppStateFetchDevicesTests: XCTestCase {
         client.devicesToReturn = []
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertNil(state.devicesError)
+    }
+
+    // MARK: Certificate-mismatch surfacing
+    //
+    // A rotated hub certificate must read as a distinct, actionable state —
+    // not the same opaque "Hub unreachable" as a powered-off hub — so the menu
+    // can offer re-pairing.
+
+    func testFetchDevices_certificateMismatch_setsDistinctErrorAndHubID() async {
+        client.errorToThrow = DirigeraAPIError.certificateMismatch
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertEqual(
+            state.devicesError,
+            "The hub's certificate changed — re-pair to reconnect"
+        )
+        XCTAssertEqual(state.certificateMismatchHubID, state.selectedHubID)
+    }
+
+    func testFetchDevices_genericTransportError_isNotFlaggedAsCertMismatch() async {
+        client.errorToThrow = URLError(.cannotConnectToHost)
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertEqual(state.devicesError, "Hub unreachable")
+        XCTAssertNil(state.certificateMismatchHubID)
+    }
+
+    func testFetchDevices_clearsCertificateMismatch_onSuccess() async {
+        state.certificateMismatchHubID = state.selectedHubID
+        client.devicesToReturn = []
+        await state.fetchDevices(ip: "x", client: client)
+        XCTAssertNil(state.certificateMismatchHubID)
     }
 
     // MARK: Generic switch merging

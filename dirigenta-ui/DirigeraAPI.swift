@@ -491,19 +491,23 @@ enum DirigeraAPIError: Error {
     /// invalidated (hub switch / client eviction). Transient — a fresh
     /// client retries — so it is never surfaced to the user.
     case sessionInvalidated
+    /// The hub presented a certificate that still chains to the pinned IKEA
+    /// root CA, but whose leaf-cert fingerprint no longer matches the one
+    /// captured at pairing — i.e. the hub's certificate rotated (firmware
+    /// update, factory reset, hardware swap). The connection is refused; the
+    /// hub must be re-paired to re-pin the new certificate.
+    case certificateMismatch
 }
 
-/// Thread-safe one-shot flag marking a `DirigeraClient` whose `URLSession`
-/// has been invalidated. Creating a `URLSessionTask` on an invalidated
-/// session raises an uncatchable `NSGenericException` ("Task created in a
-/// session that has been invalidated"), so every task-creating method on
-/// the client checks this first.
-private final class InvalidationFlag: @unchecked Sendable {
+/// Thread-safe one-shot boolean flag. `DirigeraClient` uses it to record
+/// conditions observed off the main actor — on the URLSession delegate queue
+/// or inside an async task — that later, synchronous callers must react to.
+private final class OneShotFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var raised = false
 
     // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed:
-    // a `DirigeraClient` holding this flag is released when AppState evicts
+    // a `DirigeraClient` holding one of these is released when AppState evicts
     // its client cache, and the synthesized isolated deinit hop crashes
     // inside libmalloc on the macos-26 CI runner.
     nonisolated deinit {}
@@ -523,7 +527,15 @@ final class DirigeraClient {
     private let ip: String
     private let token: String
     private let session: URLSession
-    private let invalidationFlag = InvalidationFlag()
+    /// Raised once the `URLSession` has been invalidated; every task-creating
+    /// method checks it first, since creating a task on an invalidated session
+    /// raises an uncatchable `NSGenericException` ("Task created in a session
+    /// that has been invalidated").
+    private let invalidationFlag = OneShotFlag()
+    /// Raised by the TLS delegate when the hub's leaf-cert fingerprint stops
+    /// matching the pinned one, so the resulting opaque transport failure can
+    /// be reported as a distinct `DirigeraAPIError.certificateMismatch`.
+    private let certMismatchFlag = OneShotFlag()
 
     // See `MDNSResolver` for why an explicit `nonisolated deinit` is needed
     // here: AppState evicts the cached client on hub-switch / IP-change, and
@@ -539,11 +551,15 @@ final class DirigeraClient {
     ) {
         self.ip = ip
         self.token = token
+        // Capture the flag (not `self`) so the session→delegate→closure chain
+        // holds no back-reference to the client — mirrors `DirigeraAuthClient`.
+        let certMismatchFlag = self.certMismatchFlag
         self.session = URLSession(
             configuration: .default,
             delegate: PinnedCertificateTLSDelegate(
                 requiredLeafFingerprint: pinnedLeafFingerprint,
-                onLeafFingerprint: onLeafFingerprint
+                onLeafFingerprint: onLeafFingerprint,
+                onLeafFingerprintMismatch: { certMismatchFlag.raise() }
             ),
             delegateQueue: nil
         )
@@ -565,6 +581,15 @@ final class DirigeraClient {
         invalidationFlag.raise()
         session.finishTasksAndInvalidate()
     }
+
+    #if DEBUG
+        /// Test seam: simulate the TLS delegate having recorded a leaf-cert pin
+        /// mismatch, so `sendData`'s error translation can be exercised without
+        /// a real TLS handshake.
+        func simulateCertificateMismatchForTesting() {
+            certMismatchFlag.raise()
+        }
+    #endif
 
     func eventStream() -> AsyncStream<DirigeraEvent> {
         // Frame decoding is delegated to decodeDirigeraWebSocketFrame so
@@ -692,29 +717,48 @@ final class DirigeraClient {
         var req = try makeRequest(path)
         req.httpMethod = "GET"
         log(req)
-        let data: Data
-        let response: URLResponse
+        let (data, response) = try await sendData(for: req)
+        log(response, data: data)
+        try validate(response)
+        return data
+    }
+
+    /// Wraps `session.data(for:)` so a rejected TLS handshake from leaf-cert
+    /// pinning — which surfaces here as an opaque transport error — is reported
+    /// as a distinct `DirigeraAPIError.certificateMismatch`, letting callers
+    /// tell "the hub's certificate changed, re-pair" apart from a plain
+    /// unreachable hub.
+    private func sendData(for req: URLRequest) async throws -> (
+        Data, URLResponse
+    ) {
         do {
-            (data, response) = try await session.data(for: req)
+            return try await session.data(for: req)
         } catch {
-            // A throw here means no response was produced at all. Spell out
-            // the URLError code — `localizedDescription` alone collapses a
-            // Local Network denial, a refused connection and a timeout into
-            // the same opaque string.
+            let method = req.httpMethod ?? "?"
+            let path = req.url?.path ?? "?"
+            // The TLS delegate refuses the handshake before any response, so a
+            // pin mismatch always lands here. Check the flag first.
+            if certMismatchFlag.isRaised {
+                Logger.api.error(
+                    "\(method, privacy: .public) \(path, privacy: .public) — TLS leaf-cert fingerprint mismatch; hub certificate changed, re-pair required"
+                )
+                throw DirigeraAPIError.certificateMismatch
+            }
+            // Otherwise no response was produced at all. Spell out the URLError
+            // code — `localizedDescription` alone collapses a Local Network
+            // denial, a refused connection and a timeout into the same opaque
+            // string.
             if let urlError = error as? URLError {
                 Logger.api.error(
-                    "GET \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
+                    "\(method, privacy: .public) \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
                 )
             } else {
                 Logger.api.error(
-                    "GET \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
+                    "\(method, privacy: .public) \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
                 )
             }
             throw error
         }
-        log(response, data: data)
-        try validate(response)
-        return data
     }
 
     private func patch(_ path: String, body: Data) async throws {
@@ -726,7 +770,7 @@ final class DirigeraClient {
         req.httpBody = body
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         log(req)
-        let (data, response) = try await session.data(for: req)
+        let (data, response) = try await sendData(for: req)
         log(response, data: data)
         try validate(response)
     }
@@ -823,16 +867,22 @@ nonisolated func decodeDirigeraWebSocketFrame(
 // Optionally enforces leaf-level pinning: if `requiredLeafFingerprint` is set, the connection
 // is rejected unless the hub's leaf cert SHA-256 matches exactly — preventing token leakage
 // to any hub other than the one the app was originally paired with.
-private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
+final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
     let requiredLeafFingerprint: Data?
     let onLeafFingerprint: ((Data) -> Void)?
+    /// Invoked when the cert chains to the pinned root CA but the leaf
+    /// fingerprint doesn't match `requiredLeafFingerprint` — i.e. the hub's
+    /// certificate rotated. Called before the handshake is refused.
+    let onLeafFingerprintMismatch: (() -> Void)?
 
     init(
         requiredLeafFingerprint: Data? = nil,
-        onLeafFingerprint: ((Data) -> Void)? = nil
+        onLeafFingerprint: ((Data) -> Void)? = nil,
+        onLeafFingerprintMismatch: (() -> Void)? = nil
     ) {
         self.requiredLeafFingerprint = requiredLeafFingerprint
         self.onLeafFingerprint = onLeafFingerprint
+        self.onLeafFingerprintMismatch = onLeafFingerprintMismatch
     }
 
     // DER-encoded IKEA Home smart Root CA (valid until 2071-05-14).
@@ -853,6 +903,28 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             """,
         options: .ignoreUnknownCharacters
     )!
+
+    /// The pinned IKEA root CA's `notAfter` date — surfaced for the startup
+    /// diagnostic log and a regression test. Returns `nil` only if the embedded
+    /// DER fails to decode or carries no validity period, which would be a
+    /// build/regression bug that breaks every hub connection.
+    static var pinnedRootCAExpiry: Date? {
+        guard
+            let cert = SecCertificateCreateWithData(nil, rootCADER as CFData),
+            let values = SecCertificateCopyValues(
+                cert,
+                [kSecOIDX509V1ValidityNotAfter] as CFArray,
+                nil
+            ) as? [CFString: Any],
+            let entry = values[kSecOIDX509V1ValidityNotAfter]
+                as? [CFString: Any],
+            let seconds = (entry[kSecPropertyKeyValue] as? NSNumber)?.doubleValue
+        else {
+            return nil
+        }
+        // The value is a CFAbsoluteTime — seconds since 2001-01-01 UTC.
+        return Date(timeIntervalSinceReferenceDate: seconds)
+    }
 
     func urlSession(
         _ session: URLSession,
@@ -922,6 +994,7 @@ private final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
             Logger.api.warning(
                 "[TLS] Leaf cert fingerprint mismatch — rejecting \(challenge.protectionSpace.host, privacy: .public)"
             )
+            onLeafFingerprintMismatch?()
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }

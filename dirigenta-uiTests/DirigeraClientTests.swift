@@ -218,6 +218,49 @@ final class DirigeraClientTests: XCTestCase {
         XCTAssertEqual(events, 0)
     }
 
+    // MARK: certificate-mismatch translation
+    //
+    // A rejected TLS handshake from leaf-cert pinning surfaces as an opaque
+    // transport error. Once the delegate has recorded the mismatch, the client
+    // translates it into a distinct DirigeraAPIError.certificateMismatch so the
+    // UI can offer re-pairing instead of a generic "hub unreachable".
+
+    func testFetchAllDevices_afterCertMismatch_throwsCertificateMismatch() async throws {
+        client.simulateCertificateMismatchForTesting()
+        MockURLProtocol.handler = { _ in throw URLError(.secureConnectionFailed) }
+        do {
+            _ = try await client.fetchAllDevices()
+            XCTFail("Expected DirigeraAPIError.certificateMismatch")
+        } catch DirigeraAPIError.certificateMismatch {
+            // expected
+        } catch {
+            XCTFail("Expected certificateMismatch, got \(error)")
+        }
+    }
+
+    func testSetLight_afterCertMismatch_throwsCertificateMismatch() async throws {
+        client.simulateCertificateMismatchForTesting()
+        MockURLProtocol.handler = { _ in throw URLError(.secureConnectionFailed) }
+        do {
+            try await client.setLight(id: "l1", isOn: true)
+            XCTFail("Expected DirigeraAPIError.certificateMismatch")
+        } catch DirigeraAPIError.certificateMismatch {
+            // expected
+        } catch {
+            XCTFail("Expected certificateMismatch, got \(error)")
+        }
+    }
+
+    func testFetchAllDevices_transportError_withoutMismatch_throwsURLError() async throws {
+        MockURLProtocol.handler = { _ in throw URLError(.cannotConnectToHost) }
+        do {
+            _ = try await client.fetchAllDevices()
+            XCTFail("Expected URLError")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .cannotConnectToHost)
+        }
+    }
+
     // MARK: setLight
 
     func testSetLight_sendsCorrectBody() async throws {
@@ -422,5 +465,33 @@ final class ApplyColorPresetTests: XCTestCase {
         let a = try attrs(from: body)
         XCTAssertEqual(a["colorHue"] as? Double ?? 0, 200.5, accuracy: 0.001)
         XCTAssertEqual(a["colorSaturation"] as? Double ?? 0, 0.75, accuracy: 0.001)
+    }
+}
+
+// MARK: - Pinned root CA sanity
+//
+// The IKEA Home smart Root CA is embedded as base64 DER and is the anchor every
+// hub TLS handshake validates against. If that blob is ever corrupted, or the
+// (long-dated) certificate lapses, every connection fails — so guard it in CI
+// rather than discovering it in the field.
+
+final class PinnedRootCATests: XCTestCase {
+
+    func testPinnedRootCA_decodesAndExposesValidity() {
+        XCTAssertNotNil(
+            PinnedCertificateTLSDelegate.pinnedRootCAExpiry,
+            "embedded IKEA root CA must decode and expose a notAfter date"
+        )
+    }
+
+    func testPinnedRootCA_notExpired() throws {
+        let expiry = try XCTUnwrap(
+            PinnedCertificateTLSDelegate.pinnedRootCAExpiry
+        )
+        XCTAssertGreaterThan(
+            expiry,
+            Date(),
+            "embedded IKEA root CA has expired — every hub connection will fail"
+        )
     }
 }

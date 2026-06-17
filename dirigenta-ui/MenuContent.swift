@@ -129,6 +129,10 @@ struct MenuContent: View {
     @State private var currentScreen: NSScreen? = NSScreen.main
     @State private var contentHeight: CGFloat = 0
     @State private var showingAddHub = false
+    /// When non-nil, the Add-Hub sheet is presented in "re-pair this hub" mode,
+    /// updating the given hub in place instead of adding a new one. Set from the
+    /// certificate-changed recovery banner.
+    @State private var rePairHubID: UUID? = nil
     @AppStorage("settings.defaultTab") private var selectedTab: MenuTab =
         .devices
 
@@ -145,6 +149,22 @@ struct MenuContent: View {
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
             as? String ?? "?"
+    }
+
+    /// True when the selected hub's pinned TLS certificate no longer matches —
+    /// the cue to offer re-pairing as the recovery from a rotated hub cert.
+    private var selectedHubCertChanged: Bool {
+        guard let mismatchID = appState.certificateMismatchHubID else {
+            return false
+        }
+        return mismatchID == appState.selectedHubID
+    }
+
+    /// Presents the Add-Hub sheet targeting the selected hub for in-place
+    /// re-pair (preserving its identity and per-hub preferences).
+    private func startRePairingSelectedHub() {
+        rePairHubID = appState.selectedHubID
+        showingAddHub = true
     }
 
     var body: some View {
@@ -168,8 +188,16 @@ struct MenuContent: View {
                         Text("Loading devices…").foregroundStyle(.secondary)
                     }
                 } else if noDevicesYet, let error = appState.devicesError {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if selectedHubCertChanged {
+                            Button("Re-pair this hub") {
+                                startRePairingSelectedHub()
+                            }
+                        }
+                    }
                 } else {
                     Picker("", selection: $selectedTab) {
                         Text("Devices").tag(MenuTab.devices)
@@ -233,6 +261,10 @@ struct MenuContent: View {
                         )
                         .font(.caption)
                         .foregroundStyle(.orange)
+                        if selectedHubCertChanged {
+                            Button("Re-pair") { startRePairingSelectedHub() }
+                                .font(.caption)
+                        }
                     } else {
                         switch appState.wsConnectionState {
                         case .connecting:
@@ -312,10 +344,19 @@ struct MenuContent: View {
         }
         .sheet(isPresented: $showingAddHub) {
             VStack(alignment: .leading, spacing: 8) {
-                PairingView(onPaired: { showingAddHub = false })
+                PairingView(
+                    replacingHubID: rePairHubID,
+                    onPaired: {
+                        showingAddHub = false
+                        rePairHubID = nil
+                    }
+                )
                 HStack {
                     Spacer()
-                    Button("Cancel") { showingAddHub = false }
+                    Button("Cancel") {
+                        showingAddHub = false
+                        rePairHubID = nil
+                    }
                 }
             }
             .padding(16)

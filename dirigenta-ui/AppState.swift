@@ -85,6 +85,12 @@ final class AppState: ObservableObject {
     @Published var deviceIdMap: [String: String] = [:]
     @Published var isLoadingDevices: Bool = false
     @Published var devicesError: String? = nil
+    /// Hub id whose pinned TLS leaf-cert fingerprint stopped matching what the
+    /// hub presented — i.e. the hub's certificate rotated (firmware update,
+    /// factory reset, hardware swap). Drives the "re-pair to reconnect"
+    /// recovery affordance in the menu. Cleared on a successful fetch, hub
+    /// switch, or re-pair.
+    @Published var certificateMismatchHubID: UUID? = nil
 
     // MARK: - Infrastructure
 
@@ -133,6 +139,18 @@ final class AppState: ObservableObject {
             for hub in self.hubs {
                 Logger.api.notice(
                     "init: hub \"\(hub.displayName, privacy: .private)\" kind=\(hub.kind.rawValue, privacy: .public) isReady=\(hub.isReady, privacy: .public) hasToken=\(hub.accessToken != nil, privacy: .public) hasFingerprint=\(hub.hubFingerprint != nil, privacy: .public) lastKnownIP=\(hub.lastKnownIP ?? "nil", privacy: .private)"
+                )
+            }
+            // Surface the pinned IKEA root CA's validity at startup. A decode
+            // failure here means every hub TLS handshake will fail, so flag it
+            // loudly rather than leaving it to look like a network problem.
+            if let expiry = PinnedCertificateTLSDelegate.pinnedRootCAExpiry {
+                Logger.api.debug(
+                    "init: pinned IKEA root CA valid until \(expiry, privacy: .public)"
+                )
+            } else {
+                Logger.api.error(
+                    "init: pinned IKEA root CA failed to decode — all real-hub connections will fail"
                 )
             }
             if let raw = UserDefaults.standard.string(forKey: "selectedHubID"),
@@ -337,6 +355,7 @@ final class AppState: ObservableObject {
         }
         isLoadingDevices = true
         devicesError = nil
+        certificateMismatchHubID = nil
         do {
             Logger.api.notice(
                 "fetchDevices[\(context, privacy: .public)] calling fetchAllDevices…"
@@ -380,6 +399,13 @@ final class AppState: ObservableObject {
                 devicesError = "Authentication failed — re-pair the hub"
                 Logger.api.error(
                     "fetchDevices[\(context, privacy: .public)] FAILED — hub rejected the access token (401/403)"
+                )
+            case .certificateMismatch:
+                devicesError =
+                    "The hub's certificate changed — re-pair to reconnect"
+                certificateMismatchHubID = selectedHub?.id
+                Logger.api.error(
+                    "fetchDevices[\(context, privacy: .public)] FAILED — hub TLS leaf-cert fingerprint changed; re-pair required"
                 )
             case .sessionInvalidated:
                 // Client torn down mid-fetch (hub switch / eviction). A fresh
@@ -452,15 +478,34 @@ final class AppState: ObservableObject {
 
     // MARK: - Hub lifecycle
 
-    /// Adds a freshly paired hub or updates an existing one matched by fingerprint.
+    /// Adds a freshly paired hub, or updates an existing one. Matching order:
+    /// an explicit `replacing` hub id wins (used to recover a hub whose TLS
+    /// certificate rotated — updates it in place so the user doesn't end up
+    /// with a duplicate, half-configured entry); otherwise a hub with the same
+    /// captured fingerprint is updated; otherwise a new hub is appended.
     /// Persists hubs and selects the (added/updated) hub.
     func addOrUpdateHub(
         token: String,
         hubFingerprint: String?,
-        gatewayName: String?
+        gatewayName: String?,
+        replacing replacingHubID: UUID? = nil
     ) {
         let targetID: UUID
-        if let fp = hubFingerprint,
+        if let replacingHubID,
+            let idx = hubs.firstIndex(where: { $0.id == replacingHubID })
+        {
+            // Re-pairing a known hub (typically after its certificate rotated):
+            // overwrite the token and fingerprint but keep the hub's identity,
+            // pinned device/room, and last-known IP. A manual-token re-pair
+            // passes `hubFingerprint: nil`, which clears the stale pin so the
+            // next connection re-captures the new leaf cert via trust-on-first-use.
+            hubs[idx].accessToken = token
+            hubs[idx].hubFingerprint = hubFingerprint
+            if let name = gatewayName {
+                hubs[idx].displayName = name
+            }
+            targetID = hubs[idx].id
+        } else if let fp = hubFingerprint,
             let idx = hubs.firstIndex(where: { $0.hubFingerprint == fp })
         {
             hubs[idx].accessToken = token
@@ -476,6 +521,9 @@ final class AppState: ObservableObject {
             )
             hubs.append(new)
             targetID = new.id
+        }
+        if certificateMismatchHubID == targetID {
+            certificateMismatchHubID = nil
         }
         saveHubs()
         switchHub(to: targetID)
@@ -651,6 +699,7 @@ final class AppState: ObservableObject {
         deviceIdMap = [:]
         gatewayName = nil
         devicesError = nil
+        certificateMismatchHubID = nil
     }
 
     // MARK: - Preview
