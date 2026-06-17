@@ -55,6 +55,14 @@ final class AppState: ObservableObject {
 
     @Published var pinnedDeviceIsOn: Bool = false
 
+    /// Whether the menu-bar popover is currently visible. Driven by
+    /// `StatusBarController`. The menu's per-second "open for X minutes" ticker
+    /// is gated on this so it only runs while the popover is on screen —
+    /// otherwise the hosting view re-lays-out the whole menu (including the
+    /// expensive segmented-control Picker) once a second forever, burning CPU
+    /// while idle.
+    @Published var popoverIsOpen: Bool = false
+
     // MARK: - Device state
 
     enum WSConnectionState { case connecting, connected, disconnected }

@@ -98,6 +98,7 @@ final class StatusBarController: NSObject {
                 of: sender,
                 preferredEdge: .minY
             )
+            appState.popoverIsOpen = true
             eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
                 .leftMouseDown, .rightMouseDown,
             ]) { [weak self] _ in
@@ -110,6 +111,7 @@ final class StatusBarController: NSObject {
     }
 
     private func closePopover() {
+        appState.popoverIsOpen = false
         NSColorPanel.shared.orderOut(nil)  // dismiss color panel together with popover
         popover.performClose(nil)
         if let monitor = eventMonitor {

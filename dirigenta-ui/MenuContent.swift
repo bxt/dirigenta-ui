@@ -292,7 +292,14 @@ struct MenuContent: View {
                 onDisconnected: { appState.wsConnectionState = .disconnected }
             )
         }
-        .task {
+        .task(id: appState.popoverIsOpen) {
+            // The per-second `now` refresh only drives "open for X minutes"
+            // labels. Ticking while the popover is closed forces a full menu
+            // re-layout every second (incl. the segmented-control Picker) for
+            // no visible effect — the dominant idle-CPU cost. Gate on
+            // visibility so a closed menu does no periodic work.
+            guard appState.popoverIsOpen else { return }
+            now = Date()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 now = Date()
