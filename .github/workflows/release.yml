@@ -25,14 +25,20 @@ jobs:
       - name: Derive version from tag
         run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      # Build a universal binary so the app runs on both Apple Silicon and
+      # Intel Macs. A bare `-destination 'platform=macOS'` resolves to the
+      # (Apple Silicon) runner's arch and would ship an arm64-only app, so the
+      # architectures are pinned explicitly with ONLY_ACTIVE_ARCH disabled.
       - name: Build
         run: |
           xcodebuild build \
             -project dirigenta-ui.xcodeproj \
             -scheme dirigenta-ui \
             -configuration Release \
-            -destination 'platform=macOS' \
+            -destination 'generic/platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            ARCHS="x86_64 arm64" \
+            ONLY_ACTIVE_ARCH=NO \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
