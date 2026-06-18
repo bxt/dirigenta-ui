@@ -178,9 +178,19 @@ struct PairingView: View {
         } catch {
             authClient?.invalidate()
             authClient = nil
-            pairingStep = .failed(
-                "Couldn't reach the hub. Make sure you're on the same network."
-            )
+            // Only a real transport failure warrants the "same network" hint.
+            // A `DirigeraAuthError.unexpectedStatus` means the hub answered and
+            // rejected the request — it's reachable, so steering the user
+            // toward their network would be misleading.
+            let message: String
+            if case DirigeraAuthError.unexpectedStatus(let code) = error {
+                message =
+                    "The hub rejected the pairing request (HTTP \(code))."
+            } else {
+                message =
+                    "Couldn't reach the hub. Make sure you're on the same network."
+            }
+            pairingStep = .failed(message)
         }
     }
 

@@ -1015,6 +1015,17 @@ final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
 //   • only one URLSession is allocated and later properly invalidated, and
 //   • the leaf certificate fingerprint captured during step 1 can be stored
 //     in AppState so every subsequent DirigeraClient connection is pinned.
+
+/// Errors surfaced by `DirigeraAuthClient`.
+enum DirigeraAuthError: Error {
+    /// The hub answered, but with a non-2xx status. Crucially this means the
+    /// hub *is* reachable, so the failure is not a "same network" problem —
+    /// it's a rejected request (wrong endpoint/method/body) or, on the token
+    /// step, the pairing button not having been pressed yet. Carries the
+    /// status code so callers can word the message accordingly.
+    case unexpectedStatus(Int)
+}
+
 final class DirigeraAuthClient {
     let ip: String
     private let session: URLSession
@@ -1122,11 +1133,46 @@ final class DirigeraAuthClient {
         req.httpMethod = "POST"
         req.httpBody = body
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse,
-            (200..<300).contains(http.statusCode)
-        else {
+        Logger.api.notice(
+            "auth → POST \(url.absoluteString, privacy: .public)"
+        )
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            // Landing here means no HTTP response was produced at all — a
+            // genuine transport failure (host unreachable, connection refused,
+            // Local Network denial, TLS rejection). Spell out the URLError code
+            // so the log distinguishes this from a hub that answered with an
+            // error status (handled below). Mirrors `DirigeraClient.sendData`.
+            if let urlError = error as? URLError {
+                Logger.api.error(
+                    "auth POST \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
+                )
+            } else {
+                Logger.api.error(
+                    "auth POST \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
+                )
+            }
+            throw error
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            Logger.api.error(
+                "auth POST \(path, privacy: .public) — non-HTTP response"
+            )
             throw URLError(.badServerResponse)
+        }
+        let bodyText = String(data: data, encoding: .utf8) ?? ""
+        Logger.api.notice(
+            "auth ← \(http.statusCode, privacy: .public) \(path, privacy: .public) body: \(bodyText, privacy: .public)"
+        )
+        guard (200..<300).contains(http.statusCode) else {
+            // The hub *answered* — it's reachable. Report the status distinctly
+            // so callers don't mislabel this as a connectivity problem.
+            throw DirigeraAuthError.unexpectedStatus(http.statusCode)
         }
         return data
     }
