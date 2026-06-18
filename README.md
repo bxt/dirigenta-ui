@@ -17,9 +17,19 @@ It also takes all your room configs and settings from the IKEA smart home instea
 
 ## Installation
 
+Install with [Homebrew](https://brew.sh/):
+
+```sh
+brew install --cask bxt/dirigenta-ui/dirigenta-ui
+```
+
+This also enables you to update the app automatically.
+
+Manual installation / update:
+
 1. Download the latest `dirigenta-ui-vX.X.X.zip` from [Releases](../../releases)
 2. Unzip and move `dirigenta-ui.app` to `/Applications`
-3. Run `xattr -r -d com.apple.quarantine /Applications/dirigenta-ui.app` *(macOS blocks unsigned apps by default; this one-time step bypasses that)*
+3. Run `xattr -r -d com.apple.quarantine /Applications/dirigenta-ui.app` _(macOS blocks unsigned apps by default; this one-time step bypasses that)_
 4. You can optionally verify the integrity of the download by running `gh attestation verify dirigenta-ui-vX.X.X.zip --repo bxt/dirigenta-ui`
 
 ## Features
@@ -109,6 +119,9 @@ Push a version tag and GitHub Actions builds and publishes the release automatic
 
 ```sh
 git tag v1.2.0 && git push --tags
+
+# Wait for the release to appear on https://github.com/bxt/dirigenta-ui/releases and edit the description there, then:
+brew bump-cask-pr --version 1.2.0 bxt/dirigenta-ui/dirigenta-ui
 ```
 
 ## Privacy
