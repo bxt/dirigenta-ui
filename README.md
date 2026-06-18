@@ -12,7 +12,7 @@ It also takes all your room configs and settings from the IKEA smart home instea
 
 ## Requirements
 
-- macOS 26.2 or later
+- macOS 15 or later
 - An IKEA Dirigera hub on your local network
 
 ## Installation
