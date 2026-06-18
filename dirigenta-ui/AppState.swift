@@ -557,7 +557,17 @@ final class AppState: ObservableObject {
             authFailedHubID = nil
         }
         saveHubs()
-        switchHub(to: targetID)
+        // The token (and possibly fingerprint) just changed. When this hub is
+        // already selected, `switchHub` early-returns and leaves the cached
+        // client — built with the *old* token — in place, so every request
+        // keeps failing with 403 until relaunch. Force a fresh client and
+        // reconnect here; otherwise switch to the (now re-paired) hub, which
+        // evicts the cache on its own.
+        if targetID == selectedHubID {
+            reconnectSelectedHub(context: "re-pair")
+        } else {
+            switchHub(to: targetID)
+        }
     }
 
     /// Switches to the hub with `id`, tearing down all device state and the
@@ -584,6 +594,22 @@ final class AppState: ObservableObject {
             let ip = mdns.ip(forHub: hub)
         {
             Task { await self.fetchDevices(ip: ip, context: "switchHub") }
+        }
+    }
+
+    /// Drops the cached client and device state for the *currently selected*
+    /// hub and kicks off a fresh fetch + WebSocket reconnect. Used after
+    /// re-pairing the already-selected hub, where the credentials changed but
+    /// the selection didn't — so `switchHub`'s same-hub early-return doesn't
+    /// apply and the stale-token client would otherwise linger.
+    private func reconnectSelectedHub(context: String) {
+        evictCachedClient()
+        clearDevices()
+        wsRestartToken &+= 1
+        if let hub = selectedHub, hub.isReady,
+            let ip = mdns.ip(forHub: hub)
+        {
+            Task { await self.fetchDevices(ip: ip, context: context) }
         }
     }
 

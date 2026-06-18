@@ -93,4 +93,22 @@ final class AppStateMakeClientTests: XCTestCase {
             "switching hub must evict the cache and produce a new client"
         )
     }
+
+    func testMakeClient_rePairingSelectedHub_evictsCache() {
+        // Re-pairing the already-selected hub changes the token but not the
+        // selection. The cache key is (hubID, ip), so without an explicit
+        // eviction the old-token client would survive and keep 403-ing.
+        let c1 = state.makeClient(ip: "10.0.0.1")
+        state.addOrUpdateHub(
+            token: "rotated-token",
+            hubFingerprint: nil,
+            gatewayName: nil,
+            replacing: state.selectedHubID!
+        )
+        let c2 = state.makeClient(ip: "10.0.0.1")
+        XCTAssertFalse(
+            c1 === c2,
+            "re-pairing the selected hub must evict the stale-token client"
+        )
+    }
 }
