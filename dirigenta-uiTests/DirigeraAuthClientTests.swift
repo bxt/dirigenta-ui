@@ -85,12 +85,12 @@ final class DirigeraAuthClientTests: XCTestCase {
         XCTAssertFalse(challenge.contains("/"))
     }
 
-    // MARK: requestPairing body — snake_case JSON keys
+    // MARK: requestPairing — GET with query params (the hub rejects POST)
 
     @MainActor
-    func testRequestPairing_sendsSnakeCaseKeys() async throws {
+    func testRequestPairing_usesGetWithQueryParams() async throws {
         MockURLProtocol.handler = { request in
-            let responseJSON = #"{"authorization_code":"test-code"}"#
+            let responseJSON = #"{"code":"test-code"}"#
             let resp = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -99,25 +99,38 @@ final class DirigeraAuthClientTests: XCTestCase {
             )!
             return (resp, responseJSON.data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil; MockURLProtocol.capturedBody = nil }
+        defer {
+            MockURLProtocol.handler = nil
+            MockURLProtocol.capturedRequest = nil
+        }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         let client = DirigeraAuthClient(ip: "192.168.1.1", sessionConfiguration: config)
         defer { client.invalidate() }
 
-        _ = try await client.requestPairing()
+        let (code, _) = try await client.requestPairing()
+        XCTAssertEqual(code, "test-code", "must read the `code` field")
 
-        let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try JSONSerialization.jsonObject(with: body) as! [String: Any]
-        XCTAssertNotNil(json["code_challenge"], "must send code_challenge (snake_case)")
-        XCTAssertNotNil(json["code_challenge_method"], "must send code_challenge_method (snake_case)")
-        XCTAssertNotNil(json["grant_type"], "must send grant_type (snake_case)")
-        XCTAssertEqual(json["code_challenge_method"] as? String, "S256")
+        let request = try XCTUnwrap(MockURLProtocol.capturedRequest)
+        XCTAssertEqual(request.httpMethod, "GET", "authorize must be a GET — the hub rejects POST")
+        let components = try XCTUnwrap(
+            URLComponents(
+                url: try XCTUnwrap(request.url),
+                resolvingAgainstBaseURL: false
+            )
+        )
+        XCTAssertEqual(components.path, "/v1/oauth/authorize")
+        var query: [String: String] = [:]
+        for item in components.queryItems ?? [] { query[item.name] = item.value }
+        XCTAssertEqual(query["audience"], "homesmart.local")
+        XCTAssertEqual(query["response_type"], "code")
+        XCTAssertEqual(query["code_challenge_method"], "S256")
+        XCTAssertFalse((query["code_challenge"] ?? "").isEmpty, "must send a code_challenge")
     }
 
     @MainActor
-    func testExchangeToken_sendsSnakeCaseKeys() async throws {
+    func testExchangeToken_sendsFormUrlEncodedBody() async throws {
         MockURLProtocol.handler = { request in
             let responseJSON = #"{"access_token":"bearer-xyz"}"#
             let resp = HTTPURLResponse(
@@ -128,7 +141,11 @@ final class DirigeraAuthClientTests: XCTestCase {
             )!
             return (resp, responseJSON.data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil; MockURLProtocol.capturedBody = nil }
+        defer {
+            MockURLProtocol.handler = nil
+            MockURLProtocol.capturedRequest = nil
+            MockURLProtocol.capturedBody = nil
+        }
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -136,13 +153,57 @@ final class DirigeraAuthClientTests: XCTestCase {
         defer { client.invalidate() }
 
         let token = try await client.exchangeToken(code: "code123", verifier: "verifier456")
+        XCTAssertEqual(token, "bearer-xyz")
+
+        let request = try XCTUnwrap(MockURLProtocol.capturedRequest)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Content-Type"),
+            "application/x-www-form-urlencoded",
+            "token body must be form-encoded, not JSON"
+        )
 
         let body = try XCTUnwrap(MockURLProtocol.capturedBody)
-        let json = try JSONSerialization.jsonObject(with: body) as! [String: Any]
-        XCTAssertNotNil(json["code_verifier"], "must send code_verifier (snake_case)")
-        XCTAssertNotNil(json["grant_type"], "must send grant_type (snake_case)")
-        XCTAssertEqual(json["code"] as? String, "code123")
-        XCTAssertEqual(json["code_verifier"] as? String, "verifier456")
-        XCTAssertEqual(token, "bearer-xyz")
+        var parsed = URLComponents()
+        parsed.percentEncodedQuery = String(data: body, encoding: .utf8)
+        var fields: [String: String] = [:]
+        for item in parsed.queryItems ?? [] { fields[item.name] = item.value }
+        XCTAssertEqual(fields["code"], "code123")
+        XCTAssertEqual(fields["code_verifier"], "verifier456")
+        XCTAssertEqual(fields["grant_type"], "authorization_code")
+        XCTAssertFalse((fields["name"] ?? "").isEmpty, "must send a client name")
+    }
+
+    // MARK: reachable hub that rejects the request → unexpectedStatus
+
+    @MainActor
+    func testRequestPairing_nonOKStatus_throwsUnexpectedStatusNotTransportError()
+        async throws
+    {
+        // A hub that answers with 404 is reachable — the failure must surface
+        // as `unexpectedStatus` (so the UI doesn't blame the network), not a
+        // URLError. This is the regression the pairing bug exposed.
+        MockURLProtocol.handler = { request in
+            let resp = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (resp, Data("Cannot POST /v1/oauth/authorize".utf8))
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let client = DirigeraAuthClient(ip: "192.168.1.1", sessionConfiguration: config)
+        defer { client.invalidate() }
+
+        do {
+            _ = try await client.requestPairing()
+            XCTFail("expected requestPairing to throw on a 404")
+        } catch let DirigeraAuthError.unexpectedStatus(code) {
+            XCTAssertEqual(code, 404)
+        }
     }
 }

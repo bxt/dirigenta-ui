@@ -1069,46 +1069,26 @@ final class DirigeraAuthClient {
         let verifier = Self.makeVerifier()
         let challenge = Self.makeChallenge(for: verifier)
 
-        struct Body: Encodable {
-            let audience = "homesmart.local"
-            let grantType = "authorization_code"
-            let codeChallenge: String
-            let codeChallengeMethod = "S256"
-            enum CodingKeys: String, CodingKey {
-                case audience
-                case grantType = "grant_type"
-                case codeChallenge = "code_challenge"
-                case codeChallengeMethod = "code_challenge_method"
-            }
-        }
-        struct Response: Decodable {
-            let authorizationCode: String
-            enum CodingKeys: String, CodingKey {
-                case authorizationCode = "authorization_code"
-            }
-        }
+        // The hub's authorize endpoint is a GET with query parameters — a POST
+        // is rejected with `404 Cannot POST /v1/oauth/authorize`. The code is
+        // returned in the `code` field. Matches the lpgera/dirigera reference
+        // client.
+        struct Response: Decodable { let code: String }
 
-        let data = try await post(
+        let data = try await get(
             "/v1/oauth/authorize",
-            body: try JSONEncoder().encode(Body(codeChallenge: challenge))
+            query: [
+                URLQueryItem(name: "audience", value: "homesmart.local"),
+                URLQueryItem(name: "response_type", value: "code"),
+                URLQueryItem(name: "code_challenge", value: challenge),
+                URLQueryItem(name: "code_challenge_method", value: "S256"),
+            ]
         )
-        let code = try JSONDecoder().decode(Response.self, from: data)
-            .authorizationCode
+        let code = try JSONDecoder().decode(Response.self, from: data).code
         return (code: code, verifier: verifier)
     }
 
     func exchangeToken(code: String, verifier: String) async throws -> String {
-        struct Body: Encodable {
-            let code: String
-            let name = "dirigenta-ui"
-            let grantType = "authorization_code"
-            let codeVerifier: String
-            enum CodingKeys: String, CodingKey {
-                case code, name
-                case grantType = "grant_type"
-                case codeVerifier = "code_verifier"
-            }
-        }
         struct Response: Decodable {
             let accessToken: String
             enum CodingKeys: String, CodingKey {
@@ -1116,25 +1096,61 @@ final class DirigeraAuthClient {
             }
         }
 
+        // The token endpoint expects an application/x-www-form-urlencoded body,
+        // not JSON. Field names follow the OAuth/PKCE spec and the reference
+        // client; `name` is the label the hub stores for this token.
         let data = try await post(
             "/v1/oauth/token",
-            body: try JSONEncoder().encode(
-                Body(code: code, codeVerifier: verifier)
-            )
+            form: [
+                URLQueryItem(name: "code", value: code),
+                URLQueryItem(name: "name", value: Self.clientName),
+                URLQueryItem(name: "grant_type", value: "authorization_code"),
+                URLQueryItem(name: "code_verifier", value: verifier),
+            ]
         )
         return try JSONDecoder().decode(Response.self, from: data).accessToken
     }
 
-    private func post(_ path: String, body: Data) async throws -> Data {
+    /// Label the hub records for the issued token (shown in its list of
+    /// authorized clients).
+    private static let clientName = "dirigenta-ui"
+
+    private func get(_ path: String, query: [URLQueryItem]) async throws -> Data
+    {
+        guard
+            var components = URLComponents(string: "https://\(ip):8443\(path)")
+        else { throw URLError(.badURL) }
+        components.queryItems = query
+        guard let url = components.url else { throw URLError(.badURL) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        return try await send(req)
+    }
+
+    private func post(_ path: String, form: [URLQueryItem]) async throws -> Data
+    {
         guard let url = URL(string: "https://\(ip):8443\(path)") else {
             throw URLError(.badURL)
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.httpBody = body
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(
+            "application/x-www-form-urlencoded",
+            forHTTPHeaderField: "Content-Type"
+        )
+        req.httpBody = Self.formURLEncoded(form)
+        return try await send(req)
+    }
+
+    /// Shared transport for both pairing requests. Logs the outcome and maps
+    /// failures so callers can tell a reachable-but-rejecting hub
+    /// (`DirigeraAuthError.unexpectedStatus`) apart from a true transport
+    /// failure (`URLError`). Mirrors `DirigeraClient.sendData`.
+    private func send(_ req: URLRequest) async throws -> Data {
+        let method = req.httpMethod ?? "?"
+        let path = req.url?.path ?? "?"
         Logger.api.notice(
-            "auth → POST \(url.absoluteString, privacy: .public)"
+            "auth → \(method, privacy: .public) \(req.url?.absoluteString ?? "?", privacy: .public)"
         )
 
         let data: Data
@@ -1142,18 +1158,17 @@ final class DirigeraAuthClient {
         do {
             (data, response) = try await session.data(for: req)
         } catch {
-            // Landing here means no HTTP response was produced at all — a
-            // genuine transport failure (host unreachable, connection refused,
-            // Local Network denial, TLS rejection). Spell out the URLError code
-            // so the log distinguishes this from a hub that answered with an
-            // error status (handled below). Mirrors `DirigeraClient.sendData`.
+            // No HTTP response at all — a genuine transport failure (host
+            // unreachable, connection refused, Local Network denial, TLS
+            // rejection). Spell out the URLError code so the log distinguishes
+            // this from a hub that answered with an error status (below).
             if let urlError = error as? URLError {
                 Logger.api.error(
-                    "auth POST \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
+                    "auth \(method, privacy: .public) \(path, privacy: .public) transport error — URLError.code=\(urlError.code.rawValue, privacy: .public) (\(String(describing: urlError.code), privacy: .public)) — \(urlError.localizedDescription, privacy: .public)"
                 )
             } else {
                 Logger.api.error(
-                    "auth POST \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
+                    "auth \(method, privacy: .public) \(path, privacy: .public) transport error — \(String(describing: error), privacy: .public)"
                 )
             }
             throw error
@@ -1161,20 +1176,37 @@ final class DirigeraAuthClient {
 
         guard let http = response as? HTTPURLResponse else {
             Logger.api.error(
-                "auth POST \(path, privacy: .public) — non-HTTP response"
+                "auth \(method, privacy: .public) \(path, privacy: .public) — non-HTTP response"
             )
             throw URLError(.badServerResponse)
         }
-        let bodyText = String(data: data, encoding: .utf8) ?? ""
-        Logger.api.notice(
-            "auth ← \(http.statusCode, privacy: .public) \(path, privacy: .public) body: \(bodyText, privacy: .public)"
-        )
         guard (200..<300).contains(http.statusCode) else {
-            // The hub *answered* — it's reachable. Report the status distinctly
-            // so callers don't mislabel this as a connectivity problem.
+            // The hub *answered* — it's reachable, so this is not a "same
+            // network" problem. Log the body (error pages are diagnostic and
+            // carry no secrets, unlike a 2xx token response) and surface the
+            // status distinctly.
+            let bodyText = String(data: data, encoding: .utf8) ?? ""
+            Logger.api.error(
+                "auth ← \(http.statusCode, privacy: .public) \(path, privacy: .public) body: \(bodyText, privacy: .public)"
+            )
             throw DirigeraAuthError.unexpectedStatus(http.statusCode)
         }
+        // Success bodies can contain the access token, so log only the status.
+        Logger.api.notice(
+            "auth ← \(http.statusCode, privacy: .public) \(path, privacy: .public)"
+        )
         return data
+    }
+
+    /// Encodes an `application/x-www-form-urlencoded` body. URLComponents
+    /// percent-encodes per RFC 3986 (space → `%20`, which the hub accepts); we
+    /// additionally encode `+` so it isn't decoded back to a space server-side.
+    private static func formURLEncoded(_ items: [URLQueryItem]) -> Data {
+        var components = URLComponents()
+        components.queryItems = items
+        let encoded = (components.percentEncodedQuery ?? "")
+            .replacingOccurrences(of: "+", with: "%2B")
+        return Data(encoded.utf8)
     }
 
     static func makeVerifier() -> String {
