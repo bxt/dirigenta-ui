@@ -152,6 +152,7 @@ struct SmartPlugRowView: View {
                 appState.devices[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(plug.displayName)"
+            appState.noteMutationError(error)
             Logger.api.error(
                 "Plug toggle error: \(error.localizedDescription, privacy: .public)"
             )

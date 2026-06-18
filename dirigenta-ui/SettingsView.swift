@@ -36,6 +36,9 @@ struct SettingsView: View {
 
     @State private var hubPendingRemoval: Hub?
     @State private var showingAddHub = false
+    /// When non-nil, the pairing sheet is presented in "re-pair this hub" mode,
+    /// updating the given hub in place instead of adding a new one.
+    @State private var rePairHubID: UUID? = nil
 
     var body: some View {
         Form {
@@ -53,11 +56,16 @@ struct SettingsView: View {
                             onRename: { newName in
                                 appState.renameHub(hub.id, to: newName)
                             },
-                            onRemove: { hubPendingRemoval = hub }
+                            onRemove: { hubPendingRemoval = hub },
+                            onRePair: {
+                                rePairHubID = hub.id
+                                showingAddHub = true
+                            }
                         )
                     }
                 }
                 Button {
+                    rePairHubID = nil
                     showingAddHub = true
                 } label: {
                     Label("Add Hub…", systemImage: "plus")
@@ -115,9 +123,12 @@ struct SettingsView: View {
         .onAppear {
             NSApp.activate(ignoringOtherApps: true)
         }
-        .sheet(isPresented: $showingAddHub) {
+        .sheet(isPresented: $showingAddHub, onDismiss: { rePairHubID = nil }) {
             VStack(alignment: .leading, spacing: 8) {
-                PairingView(onPaired: { showingAddHub = false })
+                PairingView(
+                    replacingHubID: rePairHubID,
+                    onPaired: { showingAddHub = false }
+                )
                 HStack {
                     Spacer()
                     Button("Cancel") { showingAddHub = false }
@@ -156,6 +167,7 @@ private struct HubRow: View {
     let onSelect: () -> Void
     let onRename: (String) -> Void
     let onRemove: () -> Void
+    let onRePair: () -> Void
 
     @State private var draftName: String = ""
     @State private var isEditing = false
@@ -216,6 +228,9 @@ private struct HubRow: View {
                     Button("Rename") {
                         draftName = hub.displayName
                         isEditing = true
+                    }
+                    if hub.kind == .real {
+                        Button("Re-pair…", action: onRePair)
                     }
                     Button("Remove", role: .destructive, action: onRemove)
                 } label: {

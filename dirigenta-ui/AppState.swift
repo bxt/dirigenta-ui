@@ -91,6 +91,11 @@ final class AppState: ObservableObject {
     /// recovery affordance in the menu. Cleared on a successful fetch, hub
     /// switch, or re-pair.
     @Published var certificateMismatchHubID: UUID? = nil
+    /// Hub id whose stored access token the hub rejected (HTTP 401/403) — a
+    /// revoked, expired, or otherwise stale token. Like
+    /// `certificateMismatchHubID`, it drives the "re-pair the hub" recovery
+    /// affordance. Cleared on a successful fetch, hub switch, or re-pair.
+    @Published var authFailedHubID: UUID? = nil
 
     // MARK: - Infrastructure
 
@@ -356,6 +361,7 @@ final class AppState: ObservableObject {
         isLoadingDevices = true
         devicesError = nil
         certificateMismatchHubID = nil
+        authFailedHubID = nil
         do {
             Logger.api.notice(
                 "fetchDevices[\(context, privacy: .public)] calling fetchAllDevices…"
@@ -397,6 +403,7 @@ final class AppState: ObservableObject {
             switch apiError {
             case .unauthorized:
                 devicesError = "Authentication failed — re-pair the hub"
+                authFailedHubID = selectedHub?.id
                 Logger.api.error(
                     "fetchDevices[\(context, privacy: .public)] FAILED — hub rejected the access token (401/403)"
                 )
@@ -427,6 +434,27 @@ final class AppState: ObservableObject {
             )
         }
         isLoadingDevices = false
+    }
+
+    /// Escalates an auth/trust failure thrown by a direct device mutation
+    /// (toggle, brightness, color) to the same hub-level recovery UI as a
+    /// failed device fetch, so the "re-pair the hub" affordance appears the
+    /// moment the user touches a control. Transient/transport errors are left
+    /// to the caller's local handling — a single network blip shouldn't raise
+    /// the re-pair banner.
+    func noteMutationError(_ error: Error) {
+        guard let apiError = error as? DirigeraAPIError else { return }
+        switch apiError {
+        case .unauthorized:
+            devicesError = "Authentication failed — re-pair the hub"
+            authFailedHubID = selectedHub?.id
+        case .certificateMismatch:
+            devicesError =
+                "The hub's certificate changed — re-pair to reconnect"
+            certificateMismatchHubID = selectedHub?.id
+        case .sessionInvalidated:
+            break
+        }
     }
 
     func applyEvent(_ event: DirigeraEvent) {
@@ -524,6 +552,9 @@ final class AppState: ObservableObject {
         }
         if certificateMismatchHubID == targetID {
             certificateMismatchHubID = nil
+        }
+        if authFailedHubID == targetID {
+            authFailedHubID = nil
         }
         saveHubs()
         switchHub(to: targetID)
@@ -700,6 +731,7 @@ final class AppState: ObservableObject {
         gatewayName = nil
         devicesError = nil
         certificateMismatchHubID = nil
+        authFailedHubID = nil
     }
 
     // MARK: - Preview

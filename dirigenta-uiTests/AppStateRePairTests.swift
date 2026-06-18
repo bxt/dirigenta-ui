@@ -94,6 +94,27 @@ final class AppStateRePairTests: XCTestCase {
         XCTAssertNil(state.certificateMismatchHubID)
     }
 
+    func testReplacing_clearsAuthFailedState() {
+        let state = makeState()
+        let hub = Hub.real(
+            displayName: "Home",
+            accessToken: "tok",
+            hubFingerprint: "fp"
+        )
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+        state.authFailedHubID = hub.id
+
+        state.addOrUpdateHub(
+            token: "tok2",
+            hubFingerprint: nil,
+            gatewayName: nil,
+            replacing: hub.id
+        )
+
+        XCTAssertNil(state.authFailedHubID)
+    }
+
     func testReplacing_manualToken_clearsStaleFingerprint() {
         // A manual-token re-pair carries no captured fingerprint; clearing the
         // stale pin lets the next connection re-capture the new leaf cert via
@@ -133,5 +154,48 @@ final class AppStateRePairTests: XCTestCase {
 
         XCTAssertEqual(state.hubs.count, 1)
         XCTAssertEqual(state.hubs[0].hubFingerprint, "fp")
+    }
+
+    // MARK: - noteMutationError escalates auth/trust failures
+
+    func testNoteMutationError_unauthorized_setsAuthFailedState() {
+        let state = makeState()
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        state.noteMutationError(DirigeraAPIError.unauthorized)
+
+        XCTAssertEqual(state.authFailedHubID, hub.id)
+        XCTAssertEqual(
+            state.devicesError,
+            "Authentication failed — re-pair the hub"
+        )
+    }
+
+    func testNoteMutationError_certificateMismatch_setsCertState() {
+        let state = makeState()
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        state.noteMutationError(DirigeraAPIError.certificateMismatch)
+
+        XCTAssertEqual(state.certificateMismatchHubID, hub.id)
+    }
+
+    func testNoteMutationError_transportError_ignored() {
+        // A transient network error must NOT raise the hub-level re-pair banner;
+        // local per-control error handling covers it.
+        let state = makeState()
+        let hub = Hub.real(displayName: "Home", accessToken: "tok")
+        state.hubs = [hub]
+        state.selectedHubID = hub.id
+
+        state.noteMutationError(URLError(.timedOut))
+
+        XCTAssertNil(state.authFailedHubID)
+        XCTAssertNil(state.certificateMismatchHubID)
+        XCTAssertNil(state.devicesError)
     }
 }

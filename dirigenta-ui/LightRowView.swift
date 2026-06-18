@@ -215,6 +215,7 @@ struct LightRowView: View {
                 appState.devices[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(light.displayName)"
+            appState.noteMutationError(error)
             Logger.api.error(
                 "Toggle error: \(error.localizedDescription, privacy: .public)"
             )
@@ -240,6 +241,7 @@ struct LightRowView: View {
                 appState.devices[i].attributes.lightLevel = oldLevel
             }
             actionError = "Failed to set brightness for \(light.displayName)"
+            appState.noteMutationError(error)
             Logger.api.error(
                 "Brightness error: \(error.localizedDescription, privacy: .public)"
             )
@@ -267,6 +269,7 @@ struct LightRowView: View {
                 appState.devices[i].attributes.colorTemperature = oldValue
             }
             actionError = "Failed to set color for \(light.displayName)"
+            appState.noteMutationError(error)
             Logger.api.error(
                 "Color temperature error: \(error.localizedDescription, privacy: .public)"
             )
@@ -298,6 +301,7 @@ struct LightRowView: View {
                 appState.devices[i].attributes.colorSaturation = oldSaturation
             }
             actionError = "Failed to set color for \(light.displayName)"
+            appState.noteMutationError(error)
             Logger.api.error(
                 "Color error: \(error.localizedDescription, privacy: .public)"
             )

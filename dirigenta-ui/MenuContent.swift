@@ -151,13 +151,14 @@ struct MenuContent: View {
             as? String ?? "?"
     }
 
-    /// True when the selected hub's pinned TLS certificate no longer matches —
-    /// the cue to offer re-pairing as the recovery from a rotated hub cert.
-    private var selectedHubCertChanged: Bool {
-        guard let mismatchID = appState.certificateMismatchHubID else {
-            return false
-        }
-        return mismatchID == appState.selectedHubID
+    /// True when the selected hub needs re-pairing to recover — either its
+    /// pinned TLS certificate rotated (`certificateMismatchHubID`) or the hub
+    /// rejected its access token (`authFailedHubID`, e.g. a revoked token).
+    /// Both are fixed by re-running pairing against the existing hub.
+    private var selectedHubNeedsRePair: Bool {
+        guard let id = appState.selectedHubID else { return false }
+        return appState.certificateMismatchHubID == id
+            || appState.authFailedHubID == id
     }
 
     /// Presents the Add-Hub sheet targeting the selected hub for in-place
@@ -192,7 +193,7 @@ struct MenuContent: View {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
-                        if selectedHubCertChanged {
+                        if selectedHubNeedsRePair {
                             Button("Re-pair this hub") {
                                 startRePairingSelectedHub()
                             }
@@ -261,7 +262,7 @@ struct MenuContent: View {
                         )
                         .font(.caption)
                         .foregroundStyle(.orange)
-                        if selectedHubCertChanged {
+                        if selectedHubNeedsRePair {
                             Button("Re-pair") { startRePairingSelectedHub() }
                                 .font(.caption)
                         }
@@ -342,7 +343,7 @@ struct MenuContent: View {
                 selectedTab = .rooms
             }
         }
-        .sheet(isPresented: $showingAddHub) {
+        .sheet(isPresented: $showingAddHub, onDismiss: { rePairHubID = nil }) {
             VStack(alignment: .leading, spacing: 8) {
                 PairingView(
                     replacingHubID: rePairHubID,
