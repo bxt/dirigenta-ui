@@ -118,10 +118,11 @@ xcodebuild test \
 Push a version tag and GitHub Actions builds and publishes the release automatically:
 
 ```sh
-git tag v1.2.0 && git push --tags
+VERSION=1.2.0 # adjust this
+git tag v$VERSION && git push --tags
 
 # Wait for the release to appear on https://github.com/bxt/dirigenta-ui/releases and edit the description there, then:
-brew bump-cask-pr --version 1.2.0 bxt/dirigenta-ui/dirigenta-ui
+brew bump-cask-pr --version $VERSION bxt/dirigenta-ui/dirigenta-ui
 ```
 
 ## Privacy
