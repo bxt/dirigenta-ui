@@ -4,12 +4,13 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
-  contents: write      # required to create GitHub releases
-  id-token: write      # required for OIDC token used by attestation
-  attestations: write  # required to persist build provenance
+  contents: write # required to create GitHub releases
+  id-token: write # required for OIDC token used by attestation
+  attestations: write # required to persist build provenance
+  artifact-metadata: write # necessary to create the artifact storage record
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -50,7 +51,7 @@ jobs:
           ditto -c -k --keepParent "$APP" "dirigenta-ui-${GITHUB_REF_NAME}.zip"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest@v4
         with:
           subject-path: "dirigenta-ui-${{ github.ref_name }}.zip"
 
