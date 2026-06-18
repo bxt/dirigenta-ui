@@ -70,10 +70,51 @@ final class StatusBarController: NSObject {
         } else {
             name = "house"
         }
-        button.image = NSImage(
-            systemSymbolName: name,
-            accessibilityDescription: nil
+        button.image = Self.menuBarIcon(named: name)
+    }
+
+    /// Renders an SF Symbol into a fixed-size square canvas (symbol scaled to
+    /// fit, aspect preserved, centered) for the menu-bar button.
+    ///
+    /// The menu-bar icon must have *identical geometry* in every state. When a
+    /// pinned light toggles, `updateIcon` swaps this image, and an `NSPopover`
+    /// anchored to the status button repositions if the new image's size or
+    /// alignment differs from the old — dragging the whole popover down a few
+    /// pixels. Symbol bounding boxes vary between outline and filled variants
+    /// (e.g. `lamp.ceiling` 16×18 vs `lamp.ceiling.fill` 15×17), so simply
+    /// scaling the symbol isn't enough; only a constant canvas keeps the
+    /// button's layout — and thus the popover — fixed. (Re-assigning an
+    /// equally-sized image is already harmless, which is why toggling a
+    /// non-pinned light never moved the popover.)
+    private static func menuBarIcon(named name: String) -> NSImage? {
+        guard
+            let symbol = NSImage(
+                systemSymbolName: name,
+                accessibilityDescription: nil
+            )
+        else { return nil }
+        let canvas = NSSize(width: 18, height: 18)
+        let scale = min(
+            canvas.width / max(symbol.size.width, 1),
+            canvas.height / max(symbol.size.height, 1)
         )
+        let drawn = NSSize(
+            width: symbol.size.width * scale,
+            height: symbol.size.height * scale
+        )
+        let image = NSImage(size: canvas, flipped: false) { _ in
+            symbol.draw(
+                in: NSRect(
+                    x: (canvas.width - drawn.width) / 2,
+                    y: (canvas.height - drawn.height) / 2,
+                    width: drawn.width,
+                    height: drawn.height
+                )
+            )
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
