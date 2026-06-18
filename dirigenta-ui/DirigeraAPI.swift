@@ -1111,9 +1111,15 @@ final class DirigeraAuthClient {
         return try JSONDecoder().decode(Response.self, from: data).accessToken
     }
 
-    /// Label the hub records for the issued token (shown in its list of
-    /// authorized clients).
-    private static let clientName = "dirigenta-ui"
+    /// Label the hub records for the issued token (shown in IKEA's list of
+    /// authorized clients). Includes the computer name so several paired
+    /// machines are distinguishable instead of all showing "dirigenta-ui".
+    private static var clientName: String {
+        let app = "dirigenta-ui"
+        let device =
+            Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+        return device.isEmpty ? app : "\(app) (\(device))"
+    }
 
     private func get(_ path: String, query: [URLQueryItem]) async throws -> Data
     {

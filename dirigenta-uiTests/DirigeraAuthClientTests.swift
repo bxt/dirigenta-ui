@@ -171,7 +171,10 @@ final class DirigeraAuthClientTests: XCTestCase {
         XCTAssertEqual(fields["code"], "code123")
         XCTAssertEqual(fields["code_verifier"], "verifier456")
         XCTAssertEqual(fields["grant_type"], "authorization_code")
-        XCTAssertFalse((fields["name"] ?? "").isEmpty, "must send a client name")
+        XCTAssertTrue(
+            (fields["name"] ?? "").contains("dirigenta-ui"),
+            "client name must identify the app"
+        )
     }
 
     // MARK: reachable hub that rejects the request → unexpectedStatus
