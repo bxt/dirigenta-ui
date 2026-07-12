@@ -1,6 +1,15 @@
 ---
 name: code-tour
 description: Author a CodeTour walkthrough (.tours/*.tour) to explain a flow, feature, or the architecture of this codebase. Use when the user asks to "give me a tour", "walk me through how X works", "explain the architecture", "create a codetour", or otherwise wants a guided, step-by-step explanation they can click through in VS Code.
+# Least-privilege grants: read the repo, write tour files, run the validator.
+# Anything else still goes through your normal permission prompts.
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Write(.tours/*.tour)
+  - Edit(.tours/*.tour)
+  - Bash(node .claude/skills/code-tour/scripts/validate-tour.mjs *)
 ---
 
 # Writing a CodeTour
@@ -48,5 +57,3 @@ you check that.
   able to follow the tour top-to-bottom and understand the path.
 - **Pin with `ref` only for a snapshot.** For a tour of a specific commit/branch add
   a `ref`; leave it off for living docs that should track the default branch.
-
-There's a worked example at [.tours/architecture-overview.tour](../../../.tours/architecture-overview.tour).
