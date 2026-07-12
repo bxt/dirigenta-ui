@@ -1,0 +1,47 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Architecture Overview",
+  "description": "End-to-end tour of dirigenta-ui: how a menu-bar launch turns into a live view of your IKEA DIRIGERA devices.",
+  "steps": [
+    {
+      "file": "dirigenta-ui/DiregentaApp.swift",
+      "pattern": "appState\\.mdns\\.start\\(\\)",
+      "description": "**Entry point.** `@main DirigentaApp` is a menu-bar-only app (`.accessory` activation policy). `AppDelegate` lazily builds the single `AppState` and a `StatusBarController`. On launch it starts mDNS discovery — everything downstream is triggered by a hub appearing on the LAN. (`--notify` invocations short-circuit in `applicationWillFinishLaunching` to flash a light via IPC and exit.)"
+    },
+    {
+      "file": "dirigenta-ui/MDNSDiscovery.swift",
+      "pattern": "type: \"_ihsp\\._tcp\\.\"",
+      "description": "**Discovery.** `MDNSResolver` browses Bonjour for the hub's `_ihsp._tcp.` service, resolves each result to an IP, and publishes them on `@Published discoveredHubs`. Note the retry/timeout scaffolding around Local Network permission — a freshly installed build can stall in `.waiting`/`.preparing`, which this code is built to recover from."
+    },
+    {
+      "file": "dirigenta-ui/AppState.swift",
+      "pattern": "self\\.mdns\\.\\$discoveredHubs",
+      "description": "**Auto-fetch wiring.** This Combine pipeline is the spine of the app. When `discoveredHubs` changes it resolves the IP for the *selected* hub, de-dupes, and — if the hub is ready — kicks off `fetchDevices`. Reading `discoveredHubs` directly here would see a stale value (`@Published` fires in willSet), so the emitted array is passed through explicitly."
+    },
+    {
+      "file": "dirigenta-ui/PairingView.swift",
+      "pattern": "enum PairingStep",
+      "description": "**Pairing (first run only).** When no hub is paired, `PairingView` drives an OAuth-style code exchange against the hub (or manual token entry). A successful pair calls `AppState.addOrUpdateHub(...)`, which persists credentials to the Keychain and selects the hub — after which the discovery→fetch pipeline above takes over."
+    },
+    {
+      "file": "dirigenta-ui/AppState.swift",
+      "pattern": "func makeClient\\(ip: String\\)",
+      "description": "**Client factory + TLS pinning.** Builds (and caches, keyed on `(hubID, ip)`) the client used for all requests. Real hubs get a `DirigeraClient` that pins the hub's TLS leaf-cert fingerprint (trust-on-first-use if not yet known); demo hubs get an in-memory `DemoDirigeraClient`. The cache is evicted on hub switch, wake-from-sleep, or re-pair."
+    },
+    {
+      "file": "dirigenta-ui/AppState.swift",
+      "pattern": "let all = try await client\\.fetchAllDevices\\(\\)",
+      "description": "**Fetch + normalize.** `fetchDevices` pulls every device, then runs the normalization pipeline: sort by id, `mergeByRelationId` (fold multi-component devices like a plug's outlet+meter into one entry), then collect switch-groups and outlet ids. Results land in `@Published devices` / `deviceIdMap`. Auth/TLS/unreachable failures map to the re-pair and error affordances just below."
+    },
+    {
+      "file": "dirigenta-ui/StatusBarController.swift",
+      "pattern": "let contentView = MenuContent\\(\\)",
+      "description": "**Menu-bar UI.** `StatusBarController` owns the status item and an `NSPopover` hosting `MenuContent`. The bar icon reflects the pinned device's on/off state; a left-click toggles the pinned device directly, otherwise it opens the popover. (See the fixed-canvas `menuBarIcon` below for why the popover doesn't drift when the icon changes.)"
+    },
+    {
+      "file": "dirigenta-ui/MenuContent.swift",
+      "pattern": "onEvent: \\{ appState\\.applyEvent\\(\\$0\\) \\}",
+      "description": "**Live updates.** While the popover-hosted view is alive, a keyed `.task` runs `WebSocketReconnectLoop`, which subscribes to the hub's event stream and feeds each event to `AppState.applyEvent` — merging state changes into the matching (possibly merged) device so the UI updates without a re-fetch. The task key includes `wsRestartToken`, letting wake-from-sleep force a clean reconnect."
+    }
+  ]
+}

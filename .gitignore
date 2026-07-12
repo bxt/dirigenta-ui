@@ -1,1 +1,3 @@
-.claude
+# Claude Code — personal & machine-local, never commit
+.claude/settings.local.json
+.claude/worktrees/
