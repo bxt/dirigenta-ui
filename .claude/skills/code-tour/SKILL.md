@@ -2,14 +2,20 @@
 name: code-tour
 description: Author a CodeTour walkthrough (.tours/*.tour) to explain a flow, feature, or the architecture of this codebase. Use when the user asks to "give me a tour", "walk me through how X works", "explain the architecture", "create a codetour", or otherwise wants a guided, step-by-step explanation they can click through in VS Code.
 # Least-privilege grants: read the repo, write tour files, run the validator.
-# Anything else still goes through your normal permission prompts.
+# Anything else still goes through your normal permission prompts. The two Bash
+# rules both point at this skill's own validator via path substitutions, so the
+# grant follows the skill wherever it's installed (project- or user-level):
+#   ${CLAUDE_SKILL_DIR}   — the skill's directory (user-level installs)
+#   ${CLAUDE_PROJECT_DIR} — project root (committed project-skill installs)
+# If neither matches on a given setup, the only effect is a normal prompt.
 allowed-tools:
   - Read
   - Grep
   - Glob
   - Write(.tours/*.tour)
   - Edit(.tours/*.tour)
-  - Bash(node .claude/skills/code-tour/scripts/validate-tour.mjs *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/validate-tour.mjs *)
+  - Bash(node ${CLAUDE_PROJECT_DIR}/.claude/skills/code-tour/scripts/validate-tour.mjs *)
 ---
 
 # Writing a CodeTour
@@ -31,9 +37,10 @@ you check that.
 3. **Write `.tours/<slug>.tour`.** Use the format in [reference.md](reference.md).
    One step per meaningful stop, ordered along the flow. Each `description` answers
    *what is this and why does it matter* in a few sentences.
-4. **Validate.** Run:
+4. **Validate.** Run the validator bundled with this skill — `${CLAUDE_SKILL_DIR}`
+   is this skill's own directory, so this resolves wherever the skill is installed:
    ```
-   node .claude/skills/code-tour/scripts/validate-tour.mjs .tours/<slug>.tour
+   node ${CLAUDE_SKILL_DIR}/scripts/validate-tour.mjs .tours/<slug>.tour
    ```
    It reports any anchor that matches nothing (unresolved) or matches more than once
    (ambiguous). Fix and re-run until it exits 0.

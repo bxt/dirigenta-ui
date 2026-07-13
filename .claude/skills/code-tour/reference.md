@@ -70,8 +70,11 @@ Other:
 ## Validating
 
 ```
-node .claude/skills/code-tour/scripts/validate-tour.mjs .tours/<slug>.tour
+node ${CLAUDE_SKILL_DIR}/scripts/validate-tour.mjs .tours/<slug>.tour
 ```
+
+(`${CLAUDE_SKILL_DIR}` is this skill's own directory — it resolves regardless of
+where the skill is installed or which directory you run from.)
 
 Uses Node's `RegExp` (the same engine CodeTour uses) so a pass here predicts a clean
 playback. Flags patterns that match nothing or match more than once, missing files,
