@@ -14,7 +14,7 @@ jobs:
     runs-on: macos-26
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Fail fast on formatting drift; settings live in .swift-format.
       # Fix locally with: xcrun swift format -i -r -p dirigenta-ui dirigenta-uiTests
