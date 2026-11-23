@@ -12,9 +12,6 @@ permissions:
   attestations: write # required to persist build provenance
   artifact-metadata: write # necessary to create the artifact storage record
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   release:
     runs-on: macos-26
