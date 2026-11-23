@@ -30,13 +30,23 @@ struct DirigentaApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate,
     UNUserNotificationCenterDelegate
 {
-    // Tests run inside this app as the test host. Without this guard the
-    // stored-property default would build a real AppState (hitting Keychain)
-    // and applicationDidFinishLaunching would spin up NWBrowser /
-    // NWPathMonitor — both crash an unsigned CI binary.
+    // Tests run inside this app as the test host. Without this guard
+    // applicationDidFinishLaunching would spin up NWBrowser / NWPathMonitor,
+    // which crash an unsigned CI binary.
     private static let isRunningTests = NSClassFromString("XCTestCase") != nil
 
-    lazy var appState = AppState()
+    // SwiftUI reads this while building the Settings scene, before the launch
+    // callbacks run, so the launch guards above don't cover it. As test host,
+    // inject in-memory credentials and a network-disabled resolver: a real
+    // AppState reads the Keychain on init, and for a freshly rebuilt local
+    // binary that blocks on an access prompt before any test can start.
+    lazy var appState =
+        Self.isRunningTests
+        ? AppState(
+            credentialStore: InMemoryCredentialStore(),
+            mdns: MDNSResolver(networkingEnabled: false)
+        )
+        : AppState()
     private lazy var statusBarController = StatusBarController(
         appState: appState
     )
