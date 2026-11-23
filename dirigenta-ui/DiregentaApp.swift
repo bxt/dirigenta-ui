@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     ) {
         completionHandler([.banner, .list, .sound])
     }
-    
+
     /// Logs a launch banner identifying the build and whether this is its
     /// first run, so a diagnostic log session can be matched to a release
     /// install — the only situation where the "hub discovered but devices

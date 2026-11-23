@@ -228,9 +228,11 @@ final class LightNotifierStepTests: XCTestCase {
         let notifier = try! XCTUnwrap(LightNotifier(client: client, lights: [ctLight], pinnedId: nil))
         await notifier.flash()
 
-        XCTAssertFalse(client.calls.contains(where: {
-            if case .setColor = $0 { return true }; return false
-        }))
+        XCTAssertFalse(
+            client.calls.contains(where: {
+                if case .setColor = $0 { return true }
+                return false
+            }))
         XCTAssertTrue(client.calls.contains(.setLightLevel(id: "l1", level: 100)))
     }
 
@@ -241,9 +243,11 @@ final class LightNotifierStepTests: XCTestCase {
         let notifier = try! XCTUnwrap(LightNotifier(client: client, lights: [noLevel], pinnedId: nil))
         await notifier.flash()
 
-        XCTAssertFalse(client.calls.contains(where: {
-            if case .setLightLevel = $0 { return true }; return false
-        }))
+        XCTAssertFalse(
+            client.calls.contains(where: {
+                if case .setLightLevel = $0 { return true }
+                return false
+            }))
     }
 
     // MARK: restore

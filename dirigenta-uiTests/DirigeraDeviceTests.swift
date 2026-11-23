@@ -4,8 +4,7 @@ import XCTest
 
 // MARK: - Fixtures
 
-private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T
-{
+private func decode<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
     try JSONDecoder().decode(type, from: json.data(using: .utf8)!)
 }
 

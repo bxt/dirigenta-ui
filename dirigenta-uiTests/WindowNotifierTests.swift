@@ -1,5 +1,5 @@
-import XCTest
 import UserNotifications
+import XCTest
 
 @testable import dirigenta_ui
 
@@ -178,9 +178,9 @@ final class WindowNotifierTests: XCTestCase {
     func testWindowReopens_schedulesNewNotification() {
         let w = window(id: "w1")
         notifier.update(windows: [w], envSensors: [], now: t0)
-        notifier.update(windows: [], envSensors: [], now: t0 + 60)     // closed
+        notifier.update(windows: [], envSensors: [], now: t0 + 60)  // closed
         postedRequests.removeAll()
-        notifier.update(windows: [w], envSensors: [], now: t0 + 120)   // reopened
+        notifier.update(windows: [w], envSensors: [], now: t0 + 120)  // reopened
         XCTAssertEqual(timedRequests.count, 1)
     }
 
@@ -307,8 +307,11 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1", name: "South Window")
         let sensor = envSensor(id: "e1", co2: 820, temperature: 21, humidity: 55)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)], now: t0 + 60)
-        notifier.update(windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)], now: t0 + 5 * 60 + 60)
+        notifier.update(
+            windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)], now: t0 + 60)
+        notifier.update(
+            windows: [w], envSensors: [envSensor(id: "e1", co2: 815, temperature: 21, humidity: 55)],
+            now: t0 + 5 * 60 + 60)
         let body = immediateRequests.first?.content.body ?? ""
         XCTAssertTrue(body.contains("South Window"), "Body should contain window name; got: \(body)")
         XCTAssertTrue(body.contains("°C"), "Body should contain temperature; got: \(body)")
@@ -353,32 +356,42 @@ final class WindowNotifierTests: XCTestCase {
 
     func testMultipleSensors_averagesCO2ForNotification() {
         let w = window(id: "w1")
-        notifier.update(windows: [w], envSensors: [
-            envSensor(id: "e1", co2: 1050),
-            envSensor(id: "e2", co2: 750)
-        ], now: t0)
-        notifier.update(windows: [w], envSensors: [
-            envSensor(id: "e1", co2: 1045),
-            envSensor(id: "e2", co2: 745)
-        ], now: t0 + 60)
-        notifier.update(windows: [w], envSensors: [
-            envSensor(id: "e1", co2: 1045),
-            envSensor(id: "e2", co2: 745)
-        ], now: t0 + 5 * 60 + 60)
+        notifier.update(
+            windows: [w],
+            envSensors: [
+                envSensor(id: "e1", co2: 1050),
+                envSensor(id: "e2", co2: 750),
+            ], now: t0)
+        notifier.update(
+            windows: [w],
+            envSensors: [
+                envSensor(id: "e1", co2: 1045),
+                envSensor(id: "e2", co2: 745),
+            ], now: t0 + 60)
+        notifier.update(
+            windows: [w],
+            envSensors: [
+                envSensor(id: "e1", co2: 1045),
+                envSensor(id: "e2", co2: 745),
+            ], now: t0 + 5 * 60 + 60)
         XCTAssertEqual(immediateRequests.count, 1)
         XCTAssertEqual(immediateRequests.first?.content.title, "Window can be closed")
     }
 
     func testMultipleSensors_highAverageCO2_skipsNotification() {
         let w = window(id: "w1")
-        notifier.update(windows: [w], envSensors: [
-            envSensor(id: "e1", co2: 1200),
-            envSensor(id: "e2", co2: 1100)
-        ], now: t0)
-        notifier.update(windows: [w], envSensors: [
-            envSensor(id: "e1", co2: 1200),
-            envSensor(id: "e2", co2: 1100)
-        ], now: t0 + 5 * 60 + 60)
+        notifier.update(
+            windows: [w],
+            envSensors: [
+                envSensor(id: "e1", co2: 1200),
+                envSensor(id: "e2", co2: 1100),
+            ], now: t0)
+        notifier.update(
+            windows: [w],
+            envSensors: [
+                envSensor(id: "e1", co2: 1200),
+                envSensor(id: "e2", co2: 1100),
+            ], now: t0 + 5 * 60 + 60)
         XCTAssertTrue(immediateRequests.isEmpty)
     }
 
@@ -417,7 +430,7 @@ final class WindowNotifierTests: XCTestCase {
 
     func testCO2BelowOpenThreshold_noOpenWindowNotification() {
         let w = window(id: "w1", isOpen: false)
-        let sensor = envSensor(id: "e1", co2: 1100) // below 1200
+        let sensor = envSensor(id: "e1", co2: 1100)  // below 1200
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
         XCTAssertTrue(openWindowRequests.isEmpty)
     }
@@ -468,7 +481,7 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1", isOpen: false)
         let sensor = envSensor(id: "e1", co2: 1300)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 5 * 60) // within cooldown
+        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 5 * 60)  // within cooldown
         XCTAssertEqual(openWindowRequests.count, 1, "Should not repeat within the cooldown window")
     }
 
@@ -476,7 +489,7 @@ final class WindowNotifierTests: XCTestCase {
         let w = window(id: "w1", isOpen: false)
         let sensor = envSensor(id: "e1", co2: 1300)
         notifier.update(windows: [w], envSensors: [sensor], now: t0)
-        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 16 * 60) // past cooldown
+        notifier.update(windows: [w], envSensors: [sensor], now: t0 + 16 * 60)  // past cooldown
         XCTAssertEqual(openWindowRequests.count, 2, "Should fire again after cooldown expires")
     }
 
@@ -502,8 +515,9 @@ final class WindowNotifierTests: XCTestCase {
         notifier.update(windows: [open], envSensors: [sensor], now: t0 + 60)
         // Window closes again, CO2 still high — should alert immediately without waiting for cooldown
         notifier.update(windows: [closed], envSensors: [sensor], now: t0 + 120)
-        XCTAssertEqual(openWindowRequests.count, 2,
-                       "Should re-alert immediately after cooldown reset by window opening")
+        XCTAssertEqual(
+            openWindowRequests.count, 2,
+            "Should re-alert immediately after cooldown reset by window opening")
     }
 
     // MARK: - Helpers

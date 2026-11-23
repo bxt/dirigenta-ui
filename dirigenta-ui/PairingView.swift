@@ -194,8 +194,7 @@ struct PairingView: View {
         }
     }
 
-    private func finishPairing(ip: String, code: String, verifier: String) async
-    {
+    private func finishPairing(ip: String, code: String, verifier: String) async {
         pairingStep = .exchanging
         do {
             // Reuse the client from startPairing: same session, same pinned leaf cert.

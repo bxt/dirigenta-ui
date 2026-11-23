@@ -1,5 +1,5 @@
-import XCTest
 import CryptoKit
+import XCTest
 
 @testable import dirigenta_ui
 
@@ -51,8 +51,9 @@ final class DirigeraAuthClientTests: XCTestCase {
     func testMakeVerifier_isURLSafeBase64() {
         let v = DirigeraAuthClient.makeVerifier()
         let urlSafe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        XCTAssertTrue(v.unicodeScalars.allSatisfy { urlSafe.contains($0) },
-                      "verifier must be URL-safe base64")
+        XCTAssertTrue(
+            v.unicodeScalars.allSatisfy { urlSafe.contains($0) },
+            "verifier must be URL-safe base64")
     }
 
     func testMakeVerifier_hasExpectedLength() {

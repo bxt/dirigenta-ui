@@ -22,8 +22,7 @@ struct LightNotifier {
         pinnedId: String?
     ) {
         let targetLights: [DirigeraDevice]
-        if let pinnedId, let pinned = lights.first(where: { $0.id == pinnedId })
-        {
+        if let pinnedId, let pinned = lights.first(where: { $0.id == pinnedId }) {
             targetLights = [pinned]
         } else {
             targetLights = lights.filter { $0.isOn }

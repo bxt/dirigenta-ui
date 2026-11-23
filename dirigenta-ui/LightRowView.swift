@@ -210,8 +210,7 @@ struct LightRowView: View {
             try await client.setLight(id: light.id, isOn: newState)
             await appState.fetchDevices(ip: ip)
         } catch {
-            if let i = appState.devices.firstIndex(where: { $0.id == light.id })
-            {
+            if let i = appState.devices.firstIndex(where: { $0.id == light.id }) {
                 appState.devices[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(light.displayName)"

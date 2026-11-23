@@ -70,7 +70,8 @@ final class MDNSResolver: ObservableObject {
         {
             return last
         }
-        return hubs
+        return
+            hubs
             .sorted { $0.lastSeenAt > $1.lastSeenAt }
             .first?.ip
     }
@@ -355,7 +356,8 @@ final class MDNSResolver: ObservableObject {
     /// unless a hub has meanwhile been discovered.
     private func handleResolveTimeout() {
         guard discoveredHubs.isEmpty, !resolveConnections.isEmpty else { return }
-        let states = resolveConnections
+        let states =
+            resolveConnections
             .map { "\($0.state)" }
             .joined(separator: ",")
         Logger.mdns.error(

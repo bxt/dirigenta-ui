@@ -350,8 +350,9 @@ final class AppState: ObservableObject {
         Logger.api.notice(
             "fetchDevices[\(context, privacy: .public)] ip=\(ip, privacy: .private)"
         )
-        guard let client: any DirigeraClientProtocol =
-            injectedClient ?? makeClient(ip: ip)
+        guard
+            let client: any DirigeraClientProtocol =
+                injectedClient ?? makeClient(ip: ip)
         else {
             Logger.api.error(
                 "fetchDevices[\(context, privacy: .public)] ABORT — makeClient returned nil (ip=\(ip, privacy: .private), selectedHub=\(self.selectedHub?.displayName ?? "nil", privacy: .private), kind=\(self.selectedHub?.kind.rawValue ?? "nil", privacy: .public), hasToken=\(self.selectedHub?.accessToken != nil, privacy: .public))"

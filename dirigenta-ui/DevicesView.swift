@@ -13,11 +13,11 @@ struct DevicesView: View {
     @AppStorage("settings.devices.showSensors") private var showSensors = true
     @AppStorage("settings.devices.showOtherDevices") private
         var showOtherDevices = true
-    @AppStorage("settings.devices.expandLights")  private var lightsExpanded: Bool = true
-    @AppStorage("settings.devices.expandPlugs")  private var plugsExpanded: Bool = true
-    @AppStorage("settings.devices.expandEnvSensors")  private var envExpanded: Bool = true
-    @AppStorage("settings.devices.expandSensors")  private var sensorsExpanded: Bool = true
-    @AppStorage("settings.devices.expandOtherDevices")  private var othersExpanded: Bool = true
+    @AppStorage("settings.devices.expandLights") private var lightsExpanded: Bool = true
+    @AppStorage("settings.devices.expandPlugs") private var plugsExpanded: Bool = true
+    @AppStorage("settings.devices.expandEnvSensors") private var envExpanded: Bool = true
+    @AppStorage("settings.devices.expandSensors") private var sensorsExpanded: Bool = true
+    @AppStorage("settings.devices.expandOtherDevices") private var othersExpanded: Bool = true
 
     @State private var actionError: String? = nil
     @State private var pendingLightLevels: [String: Double] = [:]

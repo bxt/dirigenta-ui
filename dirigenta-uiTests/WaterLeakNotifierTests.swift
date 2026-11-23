@@ -1,5 +1,5 @@
-import XCTest
 import UserNotifications
+import XCTest
 
 @testable import dirigenta_ui
 

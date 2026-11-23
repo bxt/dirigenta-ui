@@ -96,13 +96,14 @@ struct SmartPlugRowView: View {
                         let sinceResetFormatted = String(format: "%.3f kWh", total - atReset)
 
                         if let raw = plug.attributes.timeOfLastEnergyReset,
-                           let formatted = Self.formatResetTime(raw) {
+                            let formatted = Self.formatResetTime(raw)
+                        {
                             Text("\(sinceResetFormatted) since \(formatted)")
                         } else {
                             Text("\(sinceResetFormatted) since reset")
                         }
                     }
-                    
+
                     Text(String(format: "%.3f kWh total", total))
                 }
             }
@@ -147,8 +148,7 @@ struct SmartPlugRowView: View {
             try await client.setOutlet(id: outletId, isOn: newState)
             await appState.fetchDevices(ip: ip)
         } catch {
-            if let i = appState.devices.firstIndex(where: { $0.id == plug.id })
-            {
+            if let i = appState.devices.firstIndex(where: { $0.id == plug.id }) {
                 appState.devices[i].attributes.isOn = !newState
             }
             actionError = "Failed to toggle \(plug.displayName)"

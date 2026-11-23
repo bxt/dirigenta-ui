@@ -15,9 +15,9 @@ final class MockFetchClient: DirigeraClientProtocol {
 
     nonisolated func fetchAllDevices() async throws -> [DirigeraDevice] {
         let devs = await devicesToReturn
-        let throw_ = await shouldThrow
+        let shouldThrowNow = await shouldThrow
         if let error = await errorToThrow { throw error }
-        if throw_ { throw URLError(.badServerResponse) }
+        if shouldThrowNow { throw URLError(.badServerResponse) }
         return devs
     }
 
@@ -91,7 +91,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_doesNotClassifyOpenSensorsAsLights() async {
         client.devicesToReturn = [
-            device(id: "s1", type: "sensor", deviceType: "openCloseSensor"),
+            device(id: "s1", type: "sensor", deviceType: "openCloseSensor")
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertTrue(state.devices.lights.isEmpty)
@@ -113,7 +113,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_doesNotPutEnvSensorsInLightsOrSensors() async {
         client.devicesToReturn = [
-            device(id: "env1", type: "sensor", deviceType: "environmentSensor"),
+            device(id: "env1", type: "sensor", deviceType: "environmentSensor")
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertTrue(state.devices.lights.isEmpty)
@@ -124,7 +124,7 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_extractsGatewayName() async {
         client.devicesToReturn = [
-            device(id: "gw1", type: "gateway", name: "My Hub"),
+            device(id: "gw1", type: "gateway", name: "My Hub")
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertEqual(state.gatewayName, "My Hub")
@@ -200,10 +200,12 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_mergesGenericSwitchesByRelationId() async {
         client.devicesToReturn = [
-            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 1),
-            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 2),
+            device(
+                id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 1),
+            device(
+                id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertEqual(state.devices.others.count, 1)
@@ -211,10 +213,12 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_mergedSwitch_collectsSwitchGroups() async {
         client.devicesToReturn = [
-            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 1),
-            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 2),
+            device(
+                id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 1),
+            device(
+                id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 2),
         ]
         await state.fetchDevices(ip: "x", client: client)
         let groups = state.devices.others.first?.attributes.switchGroups ?? []
@@ -223,8 +227,9 @@ final class AppStateFetchDevicesTests: XCTestCase {
 
     func testFetchDevices_doesNotPutGenericSwitchesInLightsOrSensors() async {
         client.devicesToReturn = [
-            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 1),
+            device(
+                id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 1)
         ]
         await state.fetchDevices(ip: "x", client: client)
         XCTAssertTrue(state.devices.lights.isEmpty)
@@ -240,10 +245,12 @@ final class AppStateFetchDevicesTests: XCTestCase {
             device(id: "s1", type: "sensor", deviceType: "openCloseSensor"),
             device(id: "env1", type: "sensor", deviceType: "environmentSensor"),
             device(id: "gw1", type: "gateway", name: "Hub"),
-            device(id: "sw-1", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 1),
-            device(id: "sw-2", type: "controller", deviceType: "genericSwitch",
-                   relationId: "rel-sw", switchGroup: 2),
+            device(
+                id: "sw-1", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 1),
+            device(
+                id: "sw-2", type: "controller", deviceType: "genericSwitch",
+                relationId: "rel-sw", switchGroup: 2),
             device(id: "other1", type: "blinds"),
         ]
         await state.fetchDevices(ip: "x", client: client)

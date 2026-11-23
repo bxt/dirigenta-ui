@@ -93,7 +93,10 @@ final class WsReconnectLoopTests: XCTestCase {
         await wsReconnectLoop(
             maxRetries: 0,
             eventStream: {
-                AsyncStream { cont in cont.yield(makeEvent()); cont.finish() }
+                AsyncStream { cont in
+                    cont.yield(makeEvent())
+                    cont.finish()
+                }
             },
             onConnecting: {},
             onConnected: {},
@@ -191,7 +194,7 @@ final class WsReconnectLoopTests: XCTestCase {
             maxRetries: 0,
             eventStream: {
                 AsyncStream { cont in
-                    types.forEach { t in
+                    for t in types {
                         cont.yield(makeEvent(type: t))
                     }
                     cont.finish()

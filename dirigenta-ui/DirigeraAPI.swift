@@ -277,7 +277,8 @@ nonisolated extension DirigeraDevice {
         return merged.map { device in
             guard device.isGenericSwitch, let rel = device.relationId
             else { return device }
-            let groups = components
+            let groups =
+                components
                 .filter { $0.relationId == rel }
                 .compactMap { $0.attributes.switchGroup }
             guard !groups.isEmpty else { return device }
@@ -357,8 +358,7 @@ nonisolated extension DirigeraDevice {
 
     var isComfortable: Bool { envReadings.allSatisfy { !$0.outOfRange } }
 
-    static func averagedEnvReadings(from sensors: [DirigeraDevice]) -> [Reading]
-    {
+    static func averagedEnvReadings(from sensors: [DirigeraDevice]) -> [Reading] {
         let avg: ([Double]) -> Double? = {
             $0.isEmpty ? nil : $0.reduce(0, +) / Double($0.count)
         }
@@ -811,8 +811,7 @@ final class DirigeraClient {
         Logger.api.debug(
             "→ \(method, privacy: .public) \(url, privacy: .public)"
         )
-        if let body = req.httpBody, let s = String(data: body, encoding: .utf8)
-        {
+        if let body = req.httpBody, let s = String(data: body, encoding: .utf8) {
             Logger.api.debug("  body: \(s, privacy: .public)")
         }
     }
@@ -1121,8 +1120,7 @@ final class DirigeraAuthClient {
         return device.isEmpty ? app : "\(app) (\(device))"
     }
 
-    private func get(_ path: String, query: [URLQueryItem]) async throws -> Data
-    {
+    private func get(_ path: String, query: [URLQueryItem]) async throws -> Data {
         guard
             var components = URLComponents(string: "https://\(ip):8443\(path)")
         else { throw URLError(.badURL) }
@@ -1133,8 +1131,7 @@ final class DirigeraAuthClient {
         return try await send(req)
     }
 
-    private func post(_ path: String, form: [URLQueryItem]) async throws -> Data
-    {
+    private func post(_ path: String, form: [URLQueryItem]) async throws -> Data {
         guard let url = URL(string: "https://\(ip):8443\(path)") else {
             throw URLError(.badURL)
         }

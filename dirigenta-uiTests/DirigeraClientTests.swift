@@ -5,8 +5,7 @@ import XCTest
 // MARK: - URLProtocol stub
 
 final class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler:
-        ((URLRequest) throws -> (HTTPURLResponse, Data?))?
+    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data?))?
     nonisolated(unsafe) static var capturedRequest: URLRequest?
     nonisolated(unsafe) static var capturedBody: Data?
     /// All requests captured in order; useful when a single test triggers multiple network calls.
@@ -14,8 +13,7 @@ final class MockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var capturedBodies: [Data?] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest
-    { request }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         MockURLProtocol.capturedRequest = request

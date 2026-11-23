@@ -343,26 +343,29 @@ struct MenuContent: View {
                 selectedTab = .rooms
             }
         }
-        .sheet(isPresented: $showingAddHub, onDismiss: { rePairHubID = nil }) {
-            VStack(alignment: .leading, spacing: 8) {
-                PairingView(
-                    replacingHubID: rePairHubID,
-                    onPaired: {
-                        showingAddHub = false
-                        rePairHubID = nil
-                    }
-                )
-                HStack {
-                    Spacer()
-                    Button("Cancel") {
-                        showingAddHub = false
-                        rePairHubID = nil
+        .sheet(
+            isPresented: $showingAddHub,
+            onDismiss: { rePairHubID = nil },
+            content: {
+                VStack(alignment: .leading, spacing: 8) {
+                    PairingView(
+                        replacingHubID: rePairHubID,
+                        onPaired: {
+                            showingAddHub = false
+                            rePairHubID = nil
+                        }
+                    )
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            showingAddHub = false
+                            rePairHubID = nil
+                        }
                     }
                 }
-            }
-            .padding(16)
-            .frame(width: 320)
-        }
+                .padding(16)
+                .frame(width: 320)
+            })
     }
 }
 

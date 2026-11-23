@@ -60,7 +60,8 @@ final class StatusBarController: NSObject {
             if device.isLight {
                 name = device.lightIcon(isOn: appState.pinnedDeviceIsOn)
             } else if device.isSmartPlug {
-                name = appState.pinnedDeviceIsOn
+                name =
+                    appState.pinnedDeviceIsOn
                     ? "poweroutlet.type.f.fill" : "poweroutlet.type.f"
             } else {
                 name = appState.pinnedDeviceIsOn ? "lightbulb.fill" : "lightbulb"
