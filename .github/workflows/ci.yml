@@ -16,6 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Fail fast on formatting drift; settings live in .swift-format.
+      # Fix locally with: xcrun swift format -i -r -p dirigenta-ui dirigenta-uiTests
+      - name: Lint (swift-format)
+        run: xcrun swift format lint --strict -r -p dirigenta-ui dirigenta-uiTests
+
       # Compile both architectures so a change that breaks the Intel (x86_64)
       # slice is caught here rather than at release time. Tests run on arm64
       # in the next step; this is purely a universal build check.
