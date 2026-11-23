@@ -11,13 +11,14 @@ import XCTest
 
 // MARK: - In-memory store CRUD
 
+@MainActor
 final class CredentialStoreTests: XCTestCase {
 
     private var store: InMemoryCredentialStore!
     private let key = "dirigenta.test.key"
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         store = InMemoryCredentialStore()
     }
 
@@ -103,8 +104,8 @@ final class AppStateCredentialInitTests: XCTestCase {
     private let v2Key = "dirigeraHubs.v2"
     private var store: InMemoryCredentialStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         store = InMemoryCredentialStore()
     }
 
@@ -202,12 +203,13 @@ final class AppStateCredentialInitTests: XCTestCase {
 //    against an item the unsigned binary itself created can return
 //    errSecAuthFailed or trigger a UI prompt that hangs the runner.
 
+@MainActor
 final class KeychainServiceIntegrationTests: XCTestCase {
 
     private let key = "dirigenta.test.\(UUID().uuidString)"
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         try XCTSkipIf(
             ProcessInfo.processInfo.environment["CI"] != nil,
             "Skipped on CI: real Keychain access is unreliable for unsigned binaries"
@@ -221,9 +223,9 @@ final class KeychainServiceIntegrationTests: XCTestCase {
         }
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         try? KeychainService.delete(key)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testRealKeychain_setGetDelete_roundTrip() throws {

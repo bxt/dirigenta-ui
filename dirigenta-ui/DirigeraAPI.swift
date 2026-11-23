@@ -382,22 +382,15 @@ nonisolated extension DirigeraDevice {
         return virtual.envReadings
     }
 
-    private static let isoFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    private static let isoPlain: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
+    // `Date.ISO8601FormatStyle` is a Sendable value type, unlike
+    // `ISO8601DateFormatter`, so these can be shared across isolation domains.
+    private static let isoFractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let isoPlain = Date.ISO8601FormatStyle()
 
     var lastSeenDate: Date? {
         guard let raw = lastSeen else { return nil }
-        return Self.isoFractional.date(from: raw)
-            ?? Self.isoPlain.date(from: raw)
+        return (try? Self.isoFractional.parse(raw))
+            ?? (try? Self.isoPlain.parse(raw))
     }
 
     func openSeconds(now: Date) -> Int? {
@@ -502,7 +495,7 @@ enum DirigeraAPIError: Error {
 /// Thread-safe one-shot boolean flag. `DirigeraClient` uses it to record
 /// conditions observed off the main actor — on the URLSession delegate queue
 /// or inside an async task — that later, synchronous callers must react to.
-private final class OneShotFlag: @unchecked Sendable {
+nonisolated private final class OneShotFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var raised = false
 
@@ -547,7 +540,7 @@ final class DirigeraClient {
         ip: String,
         token: String,
         pinnedLeafFingerprint: Data? = nil,
-        onLeafFingerprint: ((Data) -> Void)? = nil
+        onLeafFingerprint: (@Sendable (Data) -> Void)? = nil
     ) {
         self.ip = ip
         self.token = token
@@ -617,7 +610,7 @@ final class DirigeraClient {
             )
             let task = session.webSocketTask(with: request)
 
-            func receive() {
+            @Sendable func receive() {
                 task.receive { result in
                     switch result {
                     case .success(let message):
@@ -868,16 +861,16 @@ nonisolated func decodeDirigeraWebSocketFrame(
 // to any hub other than the one the app was originally paired with.
 final class PinnedCertificateTLSDelegate: NSObject, URLSessionDelegate {
     let requiredLeafFingerprint: Data?
-    let onLeafFingerprint: ((Data) -> Void)?
+    let onLeafFingerprint: (@Sendable (Data) -> Void)?
     /// Invoked when the cert chains to the pinned root CA but the leaf
     /// fingerprint doesn't match `requiredLeafFingerprint` — i.e. the hub's
     /// certificate rotated. Called before the handshake is refused.
-    let onLeafFingerprintMismatch: (() -> Void)?
+    let onLeafFingerprintMismatch: (@Sendable () -> Void)?
 
     init(
         requiredLeafFingerprint: Data? = nil,
-        onLeafFingerprint: ((Data) -> Void)? = nil,
-        onLeafFingerprintMismatch: (() -> Void)? = nil
+        onLeafFingerprint: (@Sendable (Data) -> Void)? = nil,
+        onLeafFingerprintMismatch: (@Sendable () -> Void)? = nil
     ) {
         self.requiredLeafFingerprint = requiredLeafFingerprint
         self.onLeafFingerprint = onLeafFingerprint
@@ -1227,8 +1220,26 @@ final class DirigeraAuthClient {
     }
 }
 
-private final class FingerprintBox {
-    var data: Data?
+/// Thread-safe holder for the leaf fingerprint: written on the URLSession
+/// delegate queue during the TLS handshake, read later by pairing code.
+nonisolated private final class FingerprintBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Data?
+
+    // See `OneShotFlag` for why an explicit `nonisolated deinit` is needed.
+    nonisolated deinit {}
+    var data: Data? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return stored
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            stored = newValue
+        }
+    }
 }
 
 extension Data {

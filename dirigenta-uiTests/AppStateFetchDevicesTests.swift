@@ -59,8 +59,8 @@ final class AppStateFetchDevicesTests: XCTestCase {
     private var state: AppState!
     private var client: MockFetchClient!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         state = AppState.preview()
         state.devices = []
         state.deviceIdMap = [:]

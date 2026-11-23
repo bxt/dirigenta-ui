@@ -94,8 +94,8 @@ final class DirigeraClientTests: XCTestCase {
 
     private var client: DirigeraClient!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         MockURLProtocol.handler = nil
         MockURLProtocol.capturedRequest = nil
         MockURLProtocol.capturedBody = nil
@@ -368,8 +368,8 @@ final class ApplyColorPresetTests: XCTestCase {
     private var client: DirigeraClient!
     private let anyURL = URL(string: "https://192.168.1.1:8443/v1/devices/l1")!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         MockURLProtocol.handler = nil
         MockURLProtocol.capturedRequests = []
         MockURLProtocol.capturedBodies = []
@@ -473,6 +473,7 @@ final class ApplyColorPresetTests: XCTestCase {
 // (long-dated) certificate lapses, every connection fails — so guard it in CI
 // rather than discovering it in the field.
 
+@MainActor
 final class PinnedRootCATests: XCTestCase {
 
     func testPinnedRootCA_decodesAndExposesValidity() {

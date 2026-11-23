@@ -5,6 +5,7 @@ import XCTest
 
 // MARK: - #6  DirigeraAuthClient PKCE generation
 
+@MainActor
 final class DirigeraAuthClientTests: XCTestCase {
 
     // MARK: base64URLEncoded

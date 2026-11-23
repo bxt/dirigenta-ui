@@ -37,8 +37,8 @@ final class AppStateApplyEventTests: XCTestCase {
 
     private var state: AppState!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         state = AppState.preview()
         // Override preview devices with controlled fixtures, in id-ascending
         // order to mirror what fetchDevices would produce.

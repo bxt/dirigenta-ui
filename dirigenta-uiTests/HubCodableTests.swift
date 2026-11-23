@@ -4,6 +4,7 @@ import XCTest
 
 // Verifies the Hub Codable migration: legacy keychain JSON used the key
 // `pinnedLightId`, which now decodes into the renamed `pinnedDeviceId`.
+@MainActor
 final class HubCodableTests: XCTestCase {
 
     func testDecode_legacyPinnedLightId_mapsToPinnedDeviceId() throws {

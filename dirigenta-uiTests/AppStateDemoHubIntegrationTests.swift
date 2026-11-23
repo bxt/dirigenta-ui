@@ -16,8 +16,8 @@ final class AppStateDemoHubIntegrationTests: XCTestCase {
 
     private var state: AppState!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         state = AppState(
             credentialStore: InMemoryCredentialStore(),
             mdns: MDNSResolver(networkingEnabled: false)

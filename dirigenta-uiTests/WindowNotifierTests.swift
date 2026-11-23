@@ -66,8 +66,8 @@ final class WindowNotifierTests: XCTestCase {
 
     private let t0 = Date(timeIntervalSinceReferenceDate: 0)
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         UserDefaults.standard.register(defaults: [
             "settings.notifications.closeWindow": true,
             "settings.notifications.openWindow": true,

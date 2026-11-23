@@ -302,25 +302,31 @@ final class AppState: ObservableObject {
             Data(base64Encoded: $0)
         }
         let hubID = hub.id
+        // Only capture a fingerprint for hubs that don't have one pinned yet.
+        // Called on the URLSession delegate queue, so hop to the main actor.
+        let onLeafFingerprint: (@Sendable (Data) -> Void)?
+        if pinnedFingerprint == nil {
+            onLeafFingerprint = { [weak self] fp in
+                Task { @MainActor [weak self] in
+                    guard let self,
+                        let idx = self.hubs.firstIndex(where: { $0.id == hubID }),
+                        self.hubs[idx].hubFingerprint == nil
+                    else { return }
+                    self.hubs[idx].hubFingerprint = fp.base64EncodedString()
+                    self.saveHubs()
+                    // Evict so the next makeClient builds a session that pins
+                    // the now-known fingerprint.
+                    self.evictCachedClient()
+                }
+            }
+        } else {
+            onLeafFingerprint = nil
+        }
         return DirigeraClient(
             ip: ip,
             token: token,
             pinnedLeafFingerprint: pinnedFingerprint,
-            onLeafFingerprint: pinnedFingerprint == nil
-                ? { [weak self] fp in
-                    Task { @MainActor [weak self] in
-                        guard let self,
-                            let idx = self.hubs.firstIndex(where: { $0.id == hubID }),
-                            self.hubs[idx].hubFingerprint == nil
-                        else { return }
-                        self.hubs[idx].hubFingerprint = fp.base64EncodedString()
-                        self.saveHubs()
-                        // Evict so the next makeClient builds a session that pins
-                        // the now-known fingerprint.
-                        self.evictCachedClient()
-                    }
-                }
-                : nil
+            onLeafFingerprint: onLeafFingerprint
         )
     }
 

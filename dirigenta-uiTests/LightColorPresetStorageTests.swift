@@ -2,14 +2,15 @@ import XCTest
 
 @testable import dirigenta_ui
 
+@MainActor
 final class LightColorPresetStorageTests: XCTestCase {
 
     private let key = "test.lightColorPreset"
     private let defaults = UserDefaults.standard
 
-    override func tearDown() {
+    override func tearDown() async throws {
         defaults.removeObject(forKey: key)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func roundTrip(_ preset: LightColorPreset) throws -> LightColorPreset {

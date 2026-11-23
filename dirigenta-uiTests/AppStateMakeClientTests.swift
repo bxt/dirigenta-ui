@@ -9,8 +9,8 @@ final class AppStateMakeClientTests: XCTestCase {
 
     private var state: AppState!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         // Inject in-memory credential store and a network-disabled MDNS so
         // mutating hub state doesn't write to the real Keychain and starting
         // the resolver doesn't touch NWBrowser.

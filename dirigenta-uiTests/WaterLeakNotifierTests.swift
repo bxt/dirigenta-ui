@@ -33,8 +33,8 @@ final class WaterLeakNotifierTests: XCTestCase {
     private var postedRequests: [UNNotificationRequest] = []
     private var cancelled: [[String]] = []
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         UserDefaults.standard.set(
             true,
             forKey: "settings.notifications.waterLeak"
@@ -44,14 +44,14 @@ final class WaterLeakNotifierTests: XCTestCase {
         notifier.cancel = { [weak self] in self?.cancelled.append($0) }
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         UserDefaults.standard.removeObject(
             forKey: "settings.notifications.waterLeak"
         )
         notifier = nil
         postedRequests = []
         cancelled = []
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testFirstUpdate_dry_doesNotNotify() {

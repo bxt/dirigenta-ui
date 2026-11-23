@@ -10,7 +10,7 @@ private func makeEvent(type: String = "deviceStateChanged") -> DirigeraEvent {
 }
 
 /// A no-op sleep that returns immediately, so loop tests don't actually wait.
-private let noopSleep: (Duration) async throws -> Void = { _ in }
+private let noopSleep: @Sendable (Duration) async throws -> Void = { _ in }
 
 // MARK: - wsBackoffDelay
 
