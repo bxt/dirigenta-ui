@@ -168,6 +168,18 @@ struct MenuContent: View {
         showingAddHub = true
     }
 
+    /// Identity of the WebSocket `.task`: SwiftUI cancels and restarts the
+    /// connection whenever any of these inputs change.
+    private var webSocketTaskID: String {
+        [
+            appState.currentHubIP ?? "",
+            "\(wsRetry)",
+            "\(appState.wsRestartToken)",
+            appState.selectedHubID?.uuidString ?? "",
+            "\(appState.selectedHub?.isReady == true)",
+        ].joined(separator: ":")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !appState.hubs.isEmpty {
@@ -298,10 +310,7 @@ struct MenuContent: View {
         .frame(width: 300)
         .onAppear { mdns.start() }
         .background(ScreenReader { currentScreen = $0 })
-        .task(
-            id:
-                "\(appState.currentHubIP ?? ""):\(wsRetry):\(appState.wsRestartToken):\(appState.selectedHubID?.uuidString ?? ""):\(appState.selectedHub?.isReady == true)"
-        ) {
+        .task(id: webSocketTaskID) {
             Logger.webSocket.notice(
                 "WS task — ip=\(appState.currentHubIP ?? "nil", privacy: .private), selectedHub=\(appState.selectedHub?.displayName ?? "nil", privacy: .private), isReady=\(appState.selectedHub?.isReady == true, privacy: .public)"
             )
